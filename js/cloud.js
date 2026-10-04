@@ -1,0 +1,225 @@
+/* Firebase: sign-in, live listeners and writes.
+   Everything is mirrored into `store`, and every change calls the subscribers so the screen re-renders.
+   Firestore's persistent cache keeps a copy on the phone, so the app opens and accepts changes with no signal;
+   queued writes are sent when the phone is back online. Times are stored as epoch milliseconds from the phone clock. */
+import { FIREBASE_CONFIG, FIREBASE_SDK } from "./config.js";
+
+export const cloud = {
+  on: !!FIREBASE_CONFIG, api: null, db: null, auth: null,
+  user: null, authKnown: false, failed: false, loadError: false,
+  meta: {}, unsubs: [], memberUnsubs: [], retry: null,
+};
+
+export const store = {
+  league: undefined,      // undefined = not loaded yet, null = no league yet (confirmed by the server)
+  leagueFromCache: true,
+  me: undefined,          // this user's member doc; null = not a member
+  meFromCache: true,
+  members: new Map(),     // uid -> member
+  invite: undefined,      // current invite code (admins only)
+};
+
+const subs = new Set();
+export const subscribe = fn => { subs.add(fn); return () => subs.delete(fn); };
+let emitQueued = false;
+export function emit() {
+  if (emitQueued) return;
+  emitQueued = true;
+  queueMicrotask(() => { emitQueued = false; subs.forEach(fn => fn()); });
+}
+
+export const uid = () => cloud.user && cloud.user.uid;
+export const isAdmin = () => !!(store.league && uid() && (store.league.admins || []).includes(uid()));
+export const isOwner = () => !!(store.league && uid() && store.league.ownerUid === uid());
+export const memberName = id => (store.members.get(id) || {}).displayName || "Former member";
+
+/* Which screen the app should show before the main tabs. */
+export function gate() {
+  if (!cloud.on) return "setup";
+  if (cloud.loadError) return "load-error";
+  if (!cloud.authKnown) return "loading";
+  if (!cloud.user) return "signed-out";
+  if (store.league === undefined || store.me === undefined) return navigator.onLine ? "loading" : "offline-unknown";
+  if (store.league === null) return "claim";
+  if (store.me === null) return "join";
+  if (store.me.suspended) return "suspended";
+  return "in";
+}
+
+/* ---------- Sync status ---------- */
+export function syncStatus() {
+  if (!cloud.on || !cloud.user) return { kind: "off", label: "" };
+  if (cloud.failed) return { kind: "bad", label: "Sync problem" };
+  const m = Object.values(cloud.meta);
+  const pending = m.some(x => x.hasPendingWrites);
+  if (!navigator.onLine || m.some(x => x.fromCache)) return { kind: "offline", label: pending ? "Offline · changes waiting" : "Offline" };
+  if (pending) return { kind: "busy", label: "Syncing" };
+  return { kind: "live", label: "Live" };
+}
+window.addEventListener("online", emit);
+window.addEventListener("offline", emit);
+
+/* ---------- Listeners ---------- */
+const OPTS = { includeMetadataChanges: true };
+const seen = (key, snap) => { cloud.meta[key] = snap.metadata; cloud.failed = false; };
+
+function startListeners() {
+  const { onSnapshot, doc } = cloud.api;
+  stopListeners();
+  store.league = undefined; store.me = undefined;
+  cloud.unsubs = [
+    onSnapshot(doc(cloud.db, "config", "league"), OPTS, snap => {
+      seen("league", snap);
+      // A missing doc read from the phone's cache doesn't prove there is no league yet; wait for the server.
+      if (!snap.exists() && snap.metadata.fromCache) { if (store.league === undefined) emit(); return; }
+      store.league = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      store.leagueFromCache = snap.metadata.fromCache;
+      refreshMemberListeners();
+      emit();
+    }, syncError),
+    onSnapshot(doc(cloud.db, "members", uid()), OPTS, snap => {
+      seen("me", snap);
+      if (!snap.exists() && snap.metadata.fromCache) { if (store.me === undefined) emit(); return; }
+      store.me = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      store.meFromCache = snap.metadata.fromCache;
+      refreshMemberListeners();
+      emit();
+    }, syncError),
+  ];
+}
+
+/* Collections only members can read, started once this user is a member (and stopped if that changes). */
+let memberKey = "";
+function refreshMemberListeners() {
+  const member = !!(store.me && !store.me.suspended);
+  const key = member ? (isAdmin() ? "admin" : "member") : "";
+  if (key === memberKey) return;
+  memberKey = key;
+  cloud.memberUnsubs.forEach(u => u());
+  cloud.memberUnsubs = [];
+  for (const k of ["members", "invite"]) delete cloud.meta[k];
+  store.members = new Map(); store.invite = undefined;
+  if (!member) return;
+  const { onSnapshot, collection, doc } = cloud.api;
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "members"), OPTS, snap => {
+    seen("members", snap);
+    if (snap.docChanges().length || !store.members.size) {
+      store.members = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    }
+    emit();
+  }, syncError));
+  if (key === "admin") {
+    cloud.memberUnsubs.push(onSnapshot(doc(cloud.db, "config", "invite"), OPTS, snap => {
+      seen("invite", snap);
+      store.invite = snap.exists() ? String(snap.data().code || "") : "";
+      emit();
+    }, syncError));
+  }
+}
+
+function stopListeners() {
+  cloud.unsubs.forEach(u => u());
+  cloud.memberUnsubs.forEach(u => u());
+  cloud.unsubs = []; cloud.memberUnsubs = []; memberKey = "";
+  cloud.meta = {};
+  store.league = undefined; store.me = undefined; store.members = new Map(); store.invite = undefined;
+}
+
+function syncError(e) {
+  console.warn("Sync error", e);
+  cloud.failed = true;
+  emit();
+  // A refused listener stops for good, so reconnect shortly.
+  clearTimeout(cloud.retry);
+  cloud.retry = setTimeout(() => { if (cloud.user) startListeners(); }, 10000);
+}
+
+/* ---------- Start up ---------- */
+export async function initCloud() {
+  if (!cloud.on) return emit();
+  try {
+    const [app, auth, fs] = await Promise.all(["app", "auth", "firestore"].map(m => import(`${FIREBASE_SDK}firebase-${m}.js`)));
+    cloud.api = { ...auth, ...fs };
+    const fbApp = app.initializeApp(FIREBASE_CONFIG);
+    cloud.auth = auth.getAuth(fbApp);
+    cloud.db = fs.initializeFirestore(fbApp, {
+      localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager(), cacheSizeBytes: 200 * 1024 * 1024 }),
+    });
+  } catch (e) {
+    console.warn("Firebase didn't load", e);
+    cloud.loadError = true;
+    return emit();
+  }
+  cloud.api.onAuthStateChanged(cloud.auth, user => {
+    cloud.user = user; cloud.authKnown = true;
+    if (user) startListeners(); else stopListeners();
+    emit();
+  });
+}
+
+/* ---------- Accounts ---------- */
+const AUTH_MSG = {
+  "auth/network-request-failed": "No internet connection. Signing in needs signal the first time.",
+  "auth/too-many-requests": "Too many tries. Wait a few minutes and try again.",
+  "auth/invalid-credential": "That email or password isn't right.",
+  "auth/wrong-password": "That email or password isn't right.",
+  "auth/user-not-found": "That email or password isn't right.",
+  "auth/invalid-email": "That doesn't look like an email address.",
+  "auth/email-already-in-use": "There is already an account with that email. Sign in instead.",
+  "auth/weak-password": "Use a password with at least 6 characters.",
+  "auth/missing-password": "Enter a password.",
+};
+export const authMessage = e => AUTH_MSG[e && e.code] || "Something went wrong. Try again.";
+
+export const signIn = (email, pass) => cloud.api.signInWithEmailAndPassword(cloud.auth, email, pass);
+export const signUp = (email, pass) => cloud.api.createUserWithEmailAndPassword(cloud.auth, email, pass);
+export const resetPassword = email => cloud.api.sendPasswordResetEmail(cloud.auth, email);
+export const signOut = () => cloud.api.signOut(cloud.auth);
+
+const ref = (...path) => cloud.api.doc(cloud.db, ...path);
+const cleanName = s => String(s || "").trim().replace(/\s+/g, " ").slice(0, 40);
+export const cleanCode = s => String(s || "").trim().toUpperCase().replace(/\s+/g, "");
+
+/* First run: whoever creates the league owns it. The rules only allow this while config/league doesn't exist. */
+export async function claimLeague({ leagueName, inviteCode, displayName }) {
+  const me = uid(), now = Date.now();
+  const b = cloud.api.writeBatch(cloud.db);
+  b.set(ref("config", "league"), { name: cleanName(leagueName) || "Lunker League", ownerUid: me, admins: [me], createdAt: now });
+  b.set(ref("config", "invite"), { code: cleanCode(inviteCode) });
+  b.set(ref("members", me), { displayName: cleanName(displayName), joinedAt: now, suspended: false });
+  await b.commit();
+}
+
+/* Joining: the rules check the code against config/invite. The code is then removed from the member doc. */
+export async function joinLeague({ inviteCode, displayName }) {
+  const r = ref("members", uid());
+  await cloud.api.setDoc(r, { displayName: cleanName(displayName), joinedAt: Date.now(), suspended: false, invite: cleanCode(inviteCode) });
+  await cloud.api.updateDoc(r, { invite: cloud.api.deleteField() });
+}
+
+/* Ordinary edits don't wait for the server, so they work offline; errors surface through the sync status. */
+function write(p) { p.catch(syncError); }
+
+export function updateMe(fields) {
+  const f = { ...fields };
+  if ("displayName" in f) f.displayName = cleanName(f.displayName);
+  if ("homeWater" in f) f.homeWater = String(f.homeWater || "").trim().slice(0, 60);
+  write(cloud.api.updateDoc(ref("members", uid()), f));
+}
+
+/* ---------- Admin ---------- */
+export const setLeagueName = name => write(cloud.api.updateDoc(ref("config", "league"), { name: cleanName(name) || "Lunker League" }));
+export const setInviteCode = code => write(cloud.api.setDoc(ref("config", "invite"), { code: cleanCode(code) }));
+export const setSuspended = (id, suspended) => write(cloud.api.updateDoc(ref("members", id), { suspended }));
+export const removeMember = id => write(cloud.api.deleteDoc(ref("members", id)));
+export function setAdmin(id, on) {
+  const { arrayUnion, arrayRemove } = cloud.api;
+  write(cloud.api.updateDoc(ref("config", "league"), { admins: on ? arrayUnion(id) : arrayRemove(id) }));
+}
+
+/* A readable random code like WALLEYE-4821. */
+const CODE_WORDS = ["WALLEYE", "MUSKIE", "PIKE", "BASS", "PERCH", "CRAPPIE", "TROUT", "SALMON", "CATFISH", "STURGEON", "LUNKER", "HAWG"];
+export function randomCode() {
+  const n = crypto.getRandomValues(new Uint32Array(2));
+  return `${CODE_WORDS[n[0] % CODE_WORDS.length]}-${1000 + (n[1] % 9000)}`;
+}
