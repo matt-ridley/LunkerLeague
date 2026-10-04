@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.9.3 (beta)
+**Current version:** 0.9.4 (beta)
 
 ## Features
 
@@ -142,10 +142,15 @@ The app uses a free Firebase project (Google) for accounts and to share data bet
 5. On Firestore's **Rules** tab: paste the whole of [`firestore.rules`](firestore.rules) and click **Publish**.
 6. Open **Settings** (the gear) **> General**, scroll to **Your apps** and click the web icon `</>`. Give it a nickname and leave Hosting unticked. Copy its `firebaseConfig` values into `FIREBASE_CONFIG` in [`js/config.js`](js/config.js).
    - These values are public by design. The rules are what keep the data private.
-7. Optional but recommended: in the Google Cloud console under **APIs & Services > Credentials**, restrict the **Browser key** to these websites:
-   - `matt-ridley.github.io/*`
-   - `localhost:8766/*`
-   - `127.0.0.1:8766/*`
+7. Optional but recommended: restrict the app's key so it only works from the app's own websites.
+   1. Open https://console.cloud.google.com and pick the project **lunkerleague** (ID `lunkerleague-2c619`). It may only show under the **All** tab of the project picker.
+   2. Go to **APIs & Services > Credentials** and open **Browser key (auto created by Firebase)**.
+   3. Under **Application restrictions**, choose **Websites** and add each of these:
+      - `matt-ridley.github.io/*`
+      - `lunkerleague-2c619.firebaseapp.com/*` (Firebase sign-in runs part of its work from here)
+      - `localhost:8766/*`
+      - `127.0.0.1:8766/*`
+   4. Leave **API restrictions** as they are, click **Save**, and give it up to 5 minutes to apply.
 
 The free Spark plan is plenty for a group of friends. Photos are stored in Firestore, shrunk on the phone first, so the paid Firebase Storage isn't needed.
 
@@ -231,6 +236,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.9.4 | 2026-Oct-04 12:39:51 PM | Setup steps: clearer instructions for restricting the app's key in Google Cloud, adding the Firebase sign-in site to the allowed websites. No app changes. |
 | 0.9.3 | 2026-Oct-04 12:27:51 PM | Added the roadmap of planned features (holder badges, fair play and bets, notifications, better derbies, logbook and stats, fun extras). No app changes. |
 | 0.9.2 | 2026-Oct-04 11:46:40 AM | Weight and length are now optional, so not every fish has to be measured (derbies scored by size still need them). Unmeasured catches count toward catch and species points but are never a PB or record. A photo is still required, and the security rules now refuse a new catch without one. **New security rules: publish firestore.rules.** |
 | 0.9.1 | 2026-Oct-04 11:15:25 AM | Tapping the photo area on the Log screen opens the camera, the same as the Camera button. Tapping a photo already taken retakes it. |
