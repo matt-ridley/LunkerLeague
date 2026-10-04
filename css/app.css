@@ -262,7 +262,8 @@ body.gated .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 }
 
 /* Log form */
-.photo-pick { border-radius: 14px; overflow: hidden; background: var(--surface-2); border: 2px dashed var(--line); }
+.photo-pick { display: block; width: 100%; padding: 0; font: inherit; color: inherit; cursor: pointer; border-radius: 14px; overflow: hidden; background: var(--surface-2); border: 2px dashed var(--line); }
+.photo-pick:active { border-color: var(--primary); }
 .photo-pick img { display: block; width: 100%; max-height: 360px; object-fit: contain; background: #000; }
 .photo-empty { display: grid; justify-items: center; gap: 6px; padding: 32px 16px; color: var(--muted); font-weight: 700; }
 .photo-empty svg { width: 44px; height: 44px; }
