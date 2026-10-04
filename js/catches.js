@@ -115,12 +115,13 @@ export function renderCatch(main, id) {
       fact("Released", c.released ? "Yes" : "No"),
       c.notes ? fact("Notes", c.notes) : null,
       c.captain || c.netman ? fact("Boat crew", crewText(c)) : null,
+      c.enteredBy ? fact("Entered by", `${memberName(c.enteredBy)} (organiser)`) : null,
       fact("Spot", spotView(c, spot, mine))));
 
   parts.push(reactionBar(c.id), commentsSection(c));
-  if (mine || isAdmin()) {
+  if (mine || isAdmin() || c.enteredBy === uid()) {
     parts.push(el("div", { class: "row" },
-      mine && !lockedEntry(c) ? el("a", { class: "btn", href: `#/log/${c.id}`, text: "Edit" }) : null,
+      (mine || c.enteredBy === uid()) && !lockedEntry(c) ? el("a", { class: "btn", href: `#/log/${c.id}`, text: "Edit" }) : null,
       confirmButton("Delete", "Tap again to delete", () => { deleteCatch(c); location.hash = "#/feed"; toast("Catch deleted."); })));
   }
   fill(main, ...parts);
@@ -192,7 +193,7 @@ const num = s => { const n = parseFloat(String(s).replace(",", ".")); return isF
 
 export function renderLog(main, editId, derbyArg) {
   const editing = editId ? store.catches.get(editId) : null;
-  if (editId && (!editing || editing.uid !== uid())) {
+  if (editId && (!editing || (editing.uid !== uid() && editing.enteredBy !== uid()))) {
     return fill(main, el("div", { class: "card" }, el("p", { text: "You can only edit your own catches." })));
   }
   const oldSpot = editing && store.spots.get(editing.id);
@@ -282,21 +283,35 @@ export function renderLog(main, editId, derbyArg) {
 
   // Derby entry: the derbies this angler has joined that are open for entries.
   const openDerbies = [...store.derbies.values()].filter(d =>
-    (store.entrants.get(d.id) || new Map()).has(uid())
+    ((store.entrants.get(d.id) || new Map()).has(uid()) || d.organiserUid === uid())
     && (["active", "closing"].includes(derbyStatus(d)) || (editing && editing.derbyId === d.id)));
   const derbySel = el("select", { "aria-label": "Derby" }, el("option", { value: "", text: "Not a derby entry" }),
     ...openDerbies.map(d => el("option", { value: d.id, text: d.name })));
   derbySel.value = (editing && editing.derbyId) || derbyArg || "";
   if (derbySel.value === "" && derbyArg) derbyArg = null; // not joined or not open
   const captain = crewPicker(editing && editing.captain), netman = crewPicker(editing && editing.netman);
+  // The derby's organiser can enter a catch for any angler who joined.
+  const anglerSel = el("select", { "aria-label": "Angler" });
+  const anglerField = el("div", { class: "field" }, el("span", { class: "field-label", text: "Angler" }), anglerSel,
+    el("span", { class: "hint", text: "As the organiser you can enter a catch for anyone in this derby. It counts as theirs." }));
   const derbyInfo = el("div", { class: "stack" });
   const chosenDerby = () => store.derbies.get(derbySel.value) || null;
   const drawDerby = () => {
     const d = chosenDerby();
     if (!d) return fill(derbyInfo, openDerbies.length ? null : el("p", { class: "hint", text: "Join a derby on the Derbies tab to enter catches in it." }));
     if (d.catchRelease) released.checked = true;
+    const ent = store.entrants.get(d.id) || new Map();
+    const canProxy = d.organiserUid === uid() && !(editing && editing.uid === uid() && !editing.enteredBy);
+    if (canProxy) {
+      const ids = [...ent.keys()].sort((a, b) => memberName(a).localeCompare(memberName(b)));
+      const keep = anglerSel.value || (editing ? editing.uid : (ent.has(uid()) ? uid() : ids[0] || ""));
+      fill(anglerSel, ...ids.map(id => el("option", { value: id, text: id === uid() ? `${memberName(id)} (me)` : memberName(id) })));
+      anglerSel.value = keep;
+      anglerSel.disabled = !!editing;
+    }
+    anglerField.hidden = !canProxy;
     const mine = [...store.catches.values()].filter(x => x.derbyId === d.id && x.uid === uid() && !x.dq && (!editing || x.id !== editing.id)).length;
-    fill(derbyInfo,
+    fill(derbyInfo, anglerField,
       el("ul", { class: "derby-rules" },
         el("li", { text: `📸 ${PROOF[d.proof]}` }),
         d.species.length ? el("li", { text: `🐟 Counts: ${d.species.join(", ")}` }) : null,
@@ -363,6 +378,14 @@ export function renderLog(main, editId, derbyArg) {
     const d = chosenDerby();
     if (d) {
       Object.assign(data, { derbyId: d.id, captain: captain.value(), netman: netman.value() });
+      // Entered for someone else: it's their catch, recorded as entered by the organiser.
+      const angler = !anglerField.hidden && anglerSel.value ? anglerSel.value : (editing ? editing.uid : uid());
+      if (!(store.entrants.get(d.id) || new Map()).has(angler)) return fail("Join this derby first (or pick an angler who has).");
+      if (angler !== uid()) {
+        data.uid = angler; data.enteredBy = uid();
+        if (st.spot) st.share = true; // their spot has to be shared, or they couldn't see it
+        data.locShared = !!st.spot; data.spotName = st.spot ? spotName.value.trim().slice(0, 60) : "";
+      }
       if (captain.value() === undefined || netman.value() === undefined) return fail("Type the guest's name, or pick someone else.");
       const problem = entryProblem({ ...data, released: released.checked }, d);
       if (problem) return fail(`This entry doesn't meet the derby rules: ${problem}.`);
@@ -370,7 +393,8 @@ export function renderLog(main, editId, derbyArg) {
       Object.assign(data, { derbyId: null, captain: null, netman: null });
     }
     const spot = st.spot ? { ...st.spot, name: spotName.value.trim().slice(0, 60), shared: st.share } : (oldSpot ? null : undefined);
-    const check = checkNewPB({ id, ...data }, allCatches());
+    const mineNow = data.uid === uid();
+    const check = mineNow ? checkNewPB({ id, ...data }, allCatches()) : { pb: false };
     saveCatch({ id, data, photo: st.full, spot, isNew: !editing });
     if (check.pb && (!editing || check.previous)) celebrate = { id, previous: check.previous, at: Date.now() };
     toast(navigator.onLine ? "Catch saved." : "Saved on this phone. It will be shared when you have signal.");

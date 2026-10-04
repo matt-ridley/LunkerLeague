@@ -68,8 +68,8 @@ service cloud.firestore {
     function validCatch(d) {
       return d.keys().hasOnly(["uid", "species", "weightOz", "lengthIn", "caughtAt", "createdAt", "thumb", "photoTakenAt",
                                "notes", "released", "hasSpot", "locShared", "spotName",
-                               "derbyId", "captain", "netman", "dq", "dqReason"])
-        && d.uid == me()
+                               "derbyId", "captain", "netman", "dq", "dqReason", "enteredBy"])
+        && d.uid is string
         && d.species is string && d.species.size() > 0 && d.species.size() <= 40
         && optNum(d, "weightOz", 16000) && optNum(d, "lengthIn", 200)
         && (d.get("weightOz", null) != null || d.get("lengthIn", null) != null)
@@ -98,7 +98,7 @@ service cloud.firestore {
     // period lets catches from no-signal spots sync later), and it meets the derby's rules.
     function derbyEntryOk(d) {
       let dz = get(derbyPath(d.derbyId)).data;
-      return exists(entrantPath(d.derbyId, me())) && derbyOpen(dz)
+      return exists(derbyPath(d.derbyId)) && exists(entrantPath(d.derbyId, d.uid)) && derbyOpen(dz)
         && d.caughtAt >= dz.start && d.caughtAt <= dz.end
         && (dz.species.size() == 0 || d.species in dz.species)
         && (!(dz.scoring in ["heaviest", "bag"]) || d.get("weightOz", null) != null)
@@ -109,26 +109,45 @@ service cloud.firestore {
         && (!dz.requireLocation || d.locShared == true)
         && (!dz.requireCrew || (d.get("captain", null) != null && d.get("netman", null) != null));
     }
+    // The derby a catch was entered in (if any), and whether I organise it.
+    function derbyOf(c) { return get(derbyPath(c.derbyId)).data; }
+    function isOrganiserOf(c) { return c.get("derbyId", null) != null && exists(derbyPath(c.derbyId)) && derbyOf(c).organiserUid == me(); }
+    // A testing derby's organiser can clear out everything entered in it.
+    function testingOrganiserOf(c) { return isOrganiserOf(c) && derbyOf(c).get("testing", false) == true; }
+    // A catch is written by its angler, or by a derby's organiser entering it for an angler (enteredBy = organiser).
+    function writesFor(d) {
+      return (d.uid == me() && d.get("enteredBy", null) == null)
+        || (d.get("enteredBy", null) == me() && d.uid != me() && isOrganiserOf(d) && exists(memberPath(d.uid)));
+    }
     function sameDq(a, b) { return a.get("dq", false) == b.get("dq", false) && a.get("dqReason", "") == b.get("dqReason", ""); }
     match /catches/{id} {
       allow read: if isMember();
-      allow create: if isMember() && validCatch(request.resource.data) && request.resource.data.get("dq", false) == false
+      allow create: if isMember() && validCatch(request.resource.data) && writesFor(request.resource.data)
+        && request.resource.data.get("dq", false) == false
         && !request.resource.data.keys().hasAny(["dqReason"]);
       // The angler can edit their catch, but can't touch a disqualification, and a derby entry is locked once
       // that derby's final entries have closed.
-      allow update: if (isMember() && resource.data.uid == me() && validCatch(request.resource.data)
+      // An organiser who entered a catch for an angler can edit it too. A deleted derby no longer locks its old entries.
+      allow update: if (isMember()
+          && (resource.data.uid == me() || (resource.data.get("enteredBy", null) == me() && isOrganiserOf(resource.data)))
+          && validCatch(request.resource.data)
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.get("enteredBy", null) == resource.data.get("enteredBy", null)
           && request.resource.data.createdAt == resource.data.createdAt
           && sameDq(request.resource.data, resource.data)
-          && (resource.data.get("derbyId", null) == null || derbyOpen(get(derbyPath(resource.data.derbyId)).data)))
+          && (resource.data.get("derbyId", null) == null || !exists(derbyPath(resource.data.derbyId))
+              || derbyOpen(get(derbyPath(resource.data.derbyId)).data)))
         // The derby's organiser (or an admin) can disqualify or reinstate an entry, and change nothing else.
         || (isMember() && resource.data.get("derbyId", null) != null
             && (get(derbyPath(resource.data.derbyId)).data.organiserUid == me() || isAdmin())
             && changed().hasOnly(["dq", "dqReason"])
             && request.resource.data.dq is bool
             && request.resource.data.get("dqReason", "") is string && request.resource.data.get("dqReason", "").size() <= 200);
-      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin()
+        || resource.data.get("enteredBy", null) == me() || testingOrganiserOf(resource.data));
 
-      function catchOwner() { return get(catchPath(id)).data.uid == me(); }
+      // The catch's angler (or a testing derby's organiser clearing it out) can remove its comments and reactions.
+      function catchOwner() { let c = get(catchPath(id)).data; return c.uid == me() || testingOrganiserOf(c); }
 
       // Comments: anyone in the league, as themselves. The author, the catch's angler or an admin can remove one.
       match /comments/{cid} {
@@ -172,8 +191,8 @@ service cloud.firestore {
       allow create, update: if isMember() && request.resource.data.keys().hasOnly(["uid", "src"])
         && request.resource.data.uid == me() && request.resource.data.src is string
         && request.resource.data.src.size() < 700000
-        && getAfter(catchPath(id)).data.uid == me();
-      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+        && (getAfter(catchPath(id)).data.uid == me() || getAfter(catchPath(id)).data.get("enteredBy", null) == me());
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin() || testingOrganiserOf(get(catchPath(id)).data));
     }
 
     // GPS spot of a catch. Kept out of the catch so a private spot is only ever readable by its owner.
@@ -188,9 +207,11 @@ service cloud.firestore {
         && request.resource.data.name is string && request.resource.data.name.size() <= 60
         && request.resource.data.shared is bool
         // Must match its catch, so the catch never says "shared" while the spot is private or the other way round.
-        && getAfter(catchPath(id)).data.uid == me()
+        // A spot an organiser tags for someone else's entry must be shared, so the angler can see it too.
+        && (getAfter(catchPath(id)).data.uid == me()
+            || (getAfter(catchPath(id)).data.get("enteredBy", null) == me() && request.resource.data.shared == true))
         && getAfter(catchPath(id)).data.locShared == request.resource.data.shared;
-      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin() || testingOrganiserOf(get(catchPath(id)).data));
     }
 
     // ---------- Derbies ----------
@@ -198,7 +219,8 @@ service cloud.firestore {
       return d.keys().hasOnly(["name", "description", "organiserUid", "start", "end", "syncGraceHours", "species", "scoring",
                                "bagSize", "minWeightOz", "minLengthIn", "maxEntries", "proof", "requireLocation", "catchRelease",
                                "requireCrew", "prizeNote", "cancelled", "createdAt",
-                               "entryFee", "addedMoney", "payoutPcts", "unpaidCanWin", "captainPct", "netmanPct", "roundTo", "sidePotFee"])
+                               "entryFee", "addedMoney", "payoutPcts", "unpaidCanWin", "captainPct", "netmanPct", "roundTo", "sidePotFee",
+                               "testing"])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.description is string && d.description.size() <= 500
         && d.start is number && d.end is number && d.end > d.start
@@ -212,6 +234,7 @@ service cloud.firestore {
         && d.requireLocation is bool && d.catchRelease is bool && d.requireCrew is bool
         && d.prizeNote is string && d.prizeNote.size() <= 300
         && d.cancelled is bool && d.createdAt is number
+        && d.get("testing", false) is bool
         && validMoney(d);
     }
     // Entry fees and payouts (the app only keeps track; nobody pays through it). Older derbies have none of these.
@@ -230,9 +253,13 @@ service cloud.firestore {
       allow read: if isMember();
       allow create: if isMember() && validDerby(request.resource.data) && request.resource.data.organiserUid == me()
         && request.resource.data.cancelled == false;
-      // The organiser or an admin can change it (or cancel it). Derbies are never deleted, so results stay.
+      // The organiser or an admin can change it (cancel it, or end it early). Only the league owner can change
+      // whether it's a testing derby, so a real derby can't be turned into a deletable one.
       allow update: if isMember() && (resource.data.organiserUid == me() || isAdmin())
-        && validDerby(request.resource.data) && !changed().hasAny(["organiserUid", "createdAt"]);
+        && validDerby(request.resource.data) && !changed().hasAny(["organiserUid", "createdAt"])
+        && (!changed().hasAny(["testing"]) || isOwner());
+      // Deleting: the league owner, any derby; its organiser, only a testing derby. Real results otherwise stay.
+      allow delete: if isMember() && (isOwner() || (resource.data.organiserUid == me() && resource.data.get("testing", false) == true));
 
       // Joining: yourself, until the derby ends. Leaving: yourself, or removed by the organiser or an admin.
       match /entrants/{who} {
@@ -265,7 +292,7 @@ service cloud.firestore {
           && request.resource.data.uid == me()
           && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 1000
           && request.resource.data.at is number && request.resource.data.at <= request.time.toMillis() + 600000;
-        allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+        allow delete: if isMember() && (resource.data.uid == me() || isAdmin() || get(derbyPath(did)).data.organiserUid == me());
       }
     }
     match /{path=**}/entrants/{who} { allow read: if isMember(); }

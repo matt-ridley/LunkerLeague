@@ -1,6 +1,6 @@
 /* Derbies: the list, a derby's page (leaderboard, rules, entries, anglers) and the create/edit form. */
 import { el, field, avatar, fill, fmtDate, fmtDay, fmtWeight, fmtLength, toast, icon, openSheet, closeSheet, confirmButton, copyText } from "./ui.js";
-import { store, uid, isAdmin, memberName, saveDerby, setDerbyCancelled, joinDerby, leaveDerby, setDisqualified,
+import { store, uid, isAdmin, isOwner, memberName, endDerbyNow, deleteDerby, saveDerby, setDerbyCancelled, joinDerby, leaveDerby, setDisqualified,
   setPaid, setSettled, watchSettlements } from "./cloud.js";
 import { payouts, hasMoney, fmtMoney, ordinal, PAYOUT_PRESETS } from "./payout.js";
 import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEntries, standings } from "./derby.js";
@@ -61,7 +61,8 @@ function derbyCard(d) {
   const st = derbyStatus(d), ent = entrantsOf(d.id);
   const top = st === "upcoming" || st === "cancelled" ? null : standings(d, catches(), ent)[0];
   return el("a", { class: "derby-card", href: `#/d/${d.id}` },
-    el("div", { class: "row spread" }, el("b", { class: "derby-name", text: d.name }), el("span", { class: `pill ${st}`, text: STATUS_LABEL[st] })),
+    el("div", { class: "row spread" }, el("b", { class: "derby-name", text: d.name }),
+      el("span", { class: "pills" }, d.testing ? el("span", { class: "pill testing", text: "TEST" }) : null, el("span", { class: `pill ${st}`, text: STATUS_LABEL[st] }))),
     el("div", { class: "muted small", text: when(d) }),
     el("div", { class: "derby-meta" },
       el("span", { text: `🏁 ${(SCORING[d.scoring] || {}).label || ""}${d.scoring === "bag" ? ` (${d.bagSize})` : ""}` }),
@@ -80,10 +81,13 @@ export function renderDerby(main, id) {
   const all = catches();
   const rows = standings(d, all, ent);
   const entries = derbyEntries(d, all, ent);
-  const canEnter = joined && (st === "active" || st === "closing");
+  const open = st === "active" || st === "closing";
+  const canEnter = joined && open;
+  const organiserHere = d.organiserUid === uid(); // the person who created it
 
   const head = el("section", { class: `derby-head ${st}` },
-    el("span", { class: `pill ${st}`, text: STATUS_LABEL[st] }),
+    el("span", { class: "pills" }, el("span", { class: `pill ${st}`, text: STATUS_LABEL[st] }),
+      d.testing ? el("span", { class: "pill testing", text: "TEST DERBY" }) : null),
     el("h2", { text: d.name }),
     el("p", { class: "derby-when", text: when(d) }),
     d.description ? el("p", { text: d.description }) : null,
@@ -92,6 +96,7 @@ export function renderDerby(main, id) {
 
   const actions = el("div", { class: "row" },
     canEnter ? el("a", { class: "btn lime", href: `#/enter/${id}`, html: icon.plus }, "Enter a catch") : null,
+    organiserHere && open && ent.size ? el("a", { class: "btn", href: `#/enter/${id}`, text: "Enter for an angler" }) : null,
     !joined && (st === "upcoming" || st === "active") ? el("button", { class: "btn primary", type: "button", text: "Join this derby",
       onclick: () => { joinDerby(id); toast(`You're in ${d.name}. Tight lines!`); } }) : null,
     el("a", { class: "btn", href: `#/dchat/${id}`, html: icon.chat }, "Chat"));
@@ -110,21 +115,53 @@ export function renderDerby(main, id) {
   else if (derbyTab === "money") body = moneyView(d, money, ent, st);
   else body = boardView(d, rows, st, money);
 
+  const canDelete = isOwner() || (organiserHere && d.testing);
   const organiser = isOrganiser(d) ? el("section", { class: "card stack" },
     el("h3", { text: "Organiser" }),
     el("div", { class: "row" },
       el("a", { class: "btn", href: `#/dedit/${id}`, text: "Edit derby" }),
+      st === "active" ? confirmButton("End derby now", "Tap again to end it", () => { endDerbyNow(id); toast("Derby ended. Late entries can still arrive."); }, "btn") : null),
+    el("div", { class: "row" },
       d.cancelled
         ? el("button", { class: "btn", type: "button", text: "Un-cancel", onclick: () => setDerbyCancelled(id, false) })
-        : confirmButton("Cancel derby", "Tap again to cancel", () => { setDerbyCancelled(id, true); toast("Derby cancelled."); })),
+        : confirmButton("Cancel derby", "Tap again to cancel", () => { setDerbyCancelled(id, true); toast("Derby cancelled."); }),
+      canDelete ? el("button", { class: "btn danger", type: "button", text: "Delete derby", onclick: () => deleteSheet(d) }) : null),
     el("p", { class: "hint", text: st === "ended"
       ? "This derby has finished. Editing it now (for example its times) can change the results, so only fix real mistakes."
-      : "You can disqualify entries on the Entries tab. Derbies can't be deleted, so the results stay in the league's history." })) : null;
+      : "You can disqualify entries on the Entries tab." + (canDelete ? "" : " Only test derbies can be deleted (or any derby, by the league owner), so real results stay in the league's history.") })) : null;
 
   const leave = joined && st !== "ended" && st !== "cancelled"
     ? confirmButton("Leave this derby", "Tap again to leave", () => { leaveDerby(id); toast("You left the derby."); }, "btn quiet block") : null;
 
   fill(main, head, actions, tabs, body, organiser, leave);
+}
+
+function deleteSheet(d) {
+  const entries = [...store.catches.values()].filter(c => c.derbyId === d.id);
+  const n = entries.length;
+  openSheet(box => {
+    const withEntries = el("input", { type: "checkbox", checked: !!d.testing });
+    const msg = el("p", { class: "msg" });
+    const go = el("button", { class: "btn danger block", type: "button", text: "Delete for good" });
+    go.addEventListener("click", async () => {
+      if (!navigator.onLine) { msg.className = "msg err"; msg.textContent = "Deleting a derby needs signal."; return; }
+      go.disabled = true; msg.className = "msg ok"; msg.textContent = "Deleting…";
+      try {
+        await deleteDerby(d, { withEntries: withEntries.checked });
+        closeSheet(); location.hash = "#/derbies"; toast(`${d.name} was deleted.`);
+      } catch (e) {
+        console.warn(e); go.disabled = false; msg.className = "msg err";
+        msg.textContent = "Some of it couldn't be deleted. Check your signal and try again.";
+      }
+    });
+    box.append(el("div", { class: "stack" },
+      el("h2", { text: `Delete ${d.name}?` }),
+      el("p", { text: `This removes the derby, who joined, its chat and its payout ticks. It can't be undone.` }),
+      n ? el("label", { class: "check" }, withEntries, el("span", { text: `Also delete the ${n} ${n === 1 ? "catch" : "catches"} entered in it` })) : null,
+      n ? el("p", { class: "hint", text: "Leave this off to keep them as ordinary catches (they still count for personal bests)." }) : null,
+      msg, go,
+      el("button", { class: "btn quiet block", type: "button", text: "Keep it", onclick: closeSheet })));
+  });
 }
 
 function boardView(d, rows, st, money) {
@@ -334,6 +371,10 @@ export function renderDerbyForm(main, id) {
   const [reqLoc, reqLocRow, reqLocHint] = check("Spot required (GPS, shared with the league)", d.requireLocation, "Each entry must tag its GPS spot, and the spot is shown to everyone.");
   const [cr, crRow] = check("Catch and release only", d.catchRelease);
   const [crew, crewRow, crewHint] = check("Boat crew required (captain and net man)", d.requireCrew, "Each entry names who captained the boat and who netted the fish.");
+  const canSetTesting = !editing || isOwner();
+  const [testing, testingRow, testingHint] = check("Testing derby", !!d.testing,
+    canSetTesting ? "For trying things out. You can delete a test derby (and its entries) when you're done. Can't be changed later." : null);
+  testing.disabled = !canSetTesting;
   const prize = el("input", { type: "text", maxlength: 300, value: d.prizeNote, placeholder: "e.g. Loser buys breakfast" });
   const dollars = v => el("input", { type: "text", inputmode: "decimal", placeholder: "0", value: v ? String(v) : "" });
   const fee = dollars(d.entryFee), added = dollars(d.addedMoney), side = dollars(d.sidePotFee);
@@ -379,6 +420,8 @@ export function renderDerbyForm(main, id) {
       field("Photo proof", proof),
       reqLocRow, reqLocHint, crRow, crewRow, crewHint,
       field("Late entries", grace, "Lets catches made during the derby sync afterwards, for anglers who had no signal on the water.")),
+    el("section", { class: "card stack" }, testingRow, testingHint,
+      editing && !canSetTesting ? el("p", { class: "hint", text: d.testing ? "This is a test derby." : "This is a real derby." }) : null),
     el("section", { class: "card stack" }, el("h3", { text: "💵 Entry fee and prizes" }),
       field("Entry fee ($ per angler)", fee, "Leave at 0 for a free derby. The app only keeps track; settle up by e-transfer or cash."),
       moneyBox,
@@ -405,6 +448,7 @@ export function renderDerbyForm(main, id) {
       minWeightOz: Math.round((num(minLb.value) * 16 + num(minOz.value)) * 10) / 10, minLengthIn: Math.round(num(minIn.value) * 4) / 4,
       maxEntries: Math.min(100, Math.max(0, Math.round(num(maxEntries.value)))), proof: proof.value,
       requireLocation: reqLoc.checked, catchRelease: cr.checked, requireCrew: crew.checked, prizeNote: prize.value.trim().slice(0, 300),
+      testing: canSetTesting ? testing.checked : !!d.testing,
       cancelled: editing ? !!editing.cancelled : false, createdAt: editing ? editing.createdAt : Date.now(),
       entryFee: Math.max(0, num(fee.value)), addedMoney: Math.max(0, num(added.value)), payoutPcts: pcts.length ? pcts : [100],
       unpaidCanWin: unpaidWin.checked, captainPct: Math.min(50, Math.max(0, num(capPct.value))), netmanPct: Math.min(50, Math.max(0, num(netPct.value))),

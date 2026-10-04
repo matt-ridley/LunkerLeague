@@ -394,6 +394,9 @@ textarea { resize: vertical; line-height: 1.4; }
 .chip.removable { border: 0; min-height: 36px; padding: 0 12px; }
 .back-link { text-decoration: none; }
 
+.pills { display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pill.testing { background: var(--tangerine); color: #fff; }
+
 /* Derby money */
 .seg.tabs-5 button { font-size: 14px; padding: 0 2px; }
 .board-right { display: grid; justify-items: end; gap: 4px; }

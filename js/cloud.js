@@ -491,6 +491,37 @@ export function watchSettlements(derbyId) {
   }, syncError));
 }
 
+/* Ends a running derby now (fishing over; the late-entry window still applies). */
+export function endDerbyNow(id) {
+  write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "derbies", id), { end: Date.now() }));
+}
+
+/* Deletes a derby and everything that belongs to it: who joined, its chat, its payout ticks and, if asked,
+   the catches entered in it (with their photos, spots, comments and reactions). Needs signal. */
+export async function deleteDerby(d, { withEntries }) {
+  const { doc, collection, getDocs, writeBatch } = cloud.api;
+  const refs = [];
+  if (withEntries) {
+    for (const c of [...store.catches.values()].filter(x => x.derbyId === d.id)) {
+      for (const cm of store.comments.get(c.id) || []) refs.push(doc(cloud.db, "catches", c.id, "comments", cm.id));
+      for (const who of (store.reactions.get(c.id) || new Map()).keys()) refs.push(doc(cloud.db, "catches", c.id, "reactions", who));
+      refs.push(doc(cloud.db, "photos", c.id));
+      if (c.hasSpot) refs.push(doc(cloud.db, "spots", c.id));
+      refs.push(doc(cloud.db, "catches", c.id));
+    }
+  }
+  for (const sub of ["chat", "settlements", "entrants"]) {
+    for (const x of (await getDocs(collection(cloud.db, "derbies", d.id, sub))).docs) refs.push(x.ref);
+  }
+  refs.push(doc(cloud.db, "derbies", d.id)); // last, so the rules can still see the derby while clearing its parts
+  // A batch holds up to 500 writes; the derby itself goes in the final one.
+  for (let i = 0; i < refs.length; i += 450) {
+    const b = writeBatch(cloud.db);
+    refs.slice(i, i + 450).forEach(r => b.delete(r));
+    await b.commit();
+  }
+}
+
 export function setDisqualified(catchId, dq, reason = "") {
   write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "catches", catchId), dq ? { dq: true, dqReason: cleanText(reason, 200) } : { dq: false, dqReason: "" }));
 }
