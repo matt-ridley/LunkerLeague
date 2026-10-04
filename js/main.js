@@ -9,6 +9,7 @@ import { renderFeed, renderCatch, renderLog, maybeShowRejected } from "./catches
 import { renderLeaders } from "./leaders.js";
 import { renderChat, chatUnread } from "./social.js";
 import { renderDerbies, renderDerby, renderDerbyForm } from "./derbies.js";
+import { renderScoring } from "./scoring.js";
 import { applyTheme } from "./theme.js";
 
 /* Each route renders into <main>. `live` routes re-render when league data changes; forms don't, so typing isn't lost. */
@@ -27,6 +28,7 @@ const ROUTES = {
   me: { tab: null, live: true, render: main => renderProfile(main) },
   u: { tab: null, live: true, render: (main, id) => renderProfile(main, id) },
   admin: { tab: null, live: true, render: renderAdmin },
+  scoring: { tab: "leaders", live: false, render: renderScoring },
 };
 
 function parseRoute() {
@@ -71,7 +73,7 @@ function renderHeader(inApp) {
   if (!inApp) return;
   const s = syncStatus(), r = parseRoute();
   const sub = r.tab ? null : el("a", { class: "icon-btn", href: "#/feed", "aria-label": "Back", html: icon.back });
-  fill(head, 
+  fill(head,
     sub || el("span", { class: "brand-mark", html: icon.fish }),
     el("div", { class: "brand" },
       el("div", { class: "brand-name", text: (store.league && store.league.name) || "Lunker League" })),
@@ -86,7 +88,7 @@ function renderNav(inApp, active) {
   const item = (tab, label, svg, cls = "", badge = 0) => el("a", { class: "nav-item " + cls, href: `#/${tab}`,
     "aria-current": active === tab ? "page" : null, "aria-label": badge ? `${label}, ${badge} new` : null, html: svg },
     el("span", { text: label }), badge ? el("b", { class: "nav-badge", text: badge > 9 ? "9+" : String(badge) }) : null);
-  fill(nav, 
+  fill(nav,
     item("feed", "Feed", icon.feed),
     item("leaders", "Leaders", icon.trophy),
     item("log", "Log", icon.plus, "log"),

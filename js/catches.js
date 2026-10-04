@@ -252,7 +252,7 @@ export function renderLog(main, editId, derbyArg) {
     value: editing ? editing.spotName || (oldSpot && oldSpot.name) || "" : "" });
   const spotBox = el("div", { class: "stack" });
   const drawSpot = () => {
-    fill(spotBox, 
+    fill(spotBox,
       st.spot
         ? el("div", { class: "row spread" },
             el("span", { class: "spot-ok", text: `📍 Spot tagged (±${Math.round(st.spot.acc)} m)` }),
