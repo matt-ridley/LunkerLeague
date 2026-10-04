@@ -39,7 +39,11 @@ export function renderAdmin(main) {
         owner || m.id === uid() ? null : el("button", { class: "btn small", type: "button", text: "Manage", onclick: () => memberSheet(m.id) }));
     })));
 
-  fill(main, el("h2", { class: "page-title", text: "League admin" }), invite, league, list);
+  const points = el("section", { class: "card stack" },
+    el("h3", { text: "Ranking points" }),
+    el("p", { text: "Change how many points catches, species, records and derbies are worth, with a preview before saving." }),
+    el("a", { class: "btn block", href: "#/scoring", text: "Change points" }));
+  fill(main, el("h2", { class: "page-title", text: "League admin" }), invite, league, points, list);
 }
 
 function codeSheet(current) {

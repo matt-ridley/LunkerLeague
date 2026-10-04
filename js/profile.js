@@ -5,6 +5,8 @@ import { squareAvatar, pickImage } from "./photos.js";
 import { VERSION } from "./config.js";
 import { getTheme, setTheme } from "./theme.js";
 import { pbWall } from "./catches.js";
+import { rankings, badgesFor } from "./rank.js";
+import { rankInput, howPointsSheet } from "./leaders.js";
 
 export function renderProfile(main, id) {
   const mine = !id || id === uid();
@@ -19,7 +21,16 @@ export function renderProfile(main, id) {
       el("p", { class: "muted small", text: `Joined ${fmtDay(m.joinedAt || Date.now())}` }),
       store.league && (store.league.admins || []).includes(m.id) ? el("span", { class: "chip gold", text: store.league.ownerUid === m.id ? "League owner" : "Admin" }) : null));
 
-  const parts = [head, ...pbWall(m.id)];
+  const input = rankInput(), rows = rankings(input);
+  const place = rows.findIndex(r => r.uid === m.id), me = rows[place];
+  const badges = badgesFor(m.id, input);
+  const rankCard = me ? el("button", { type: "button", class: "rank-card", onclick: howPointsSheet },
+    el("div", {}, el("div", { class: "eyebrow", text: "Angler rank" }), el("div", { class: "rank-card-title", text: me.title })),
+    el("div", { class: "rank-card-pts" }, el("b", { text: String(me.points) }), el("span", { text: `pts · #${place + 1} of ${rows.length}` }))) : null;
+  const badgeRow = el("div", { class: "badge-row" }, ...(badges.length
+    ? badges.map(b => el("span", { class: "trophy", title: b.name }, el("span", { text: b.icon }), el("small", { text: b.name })))
+    : [el("span", { class: "muted small", text: "No badges yet. First Fish is one catch away!" })]));
+  const parts = [head, rankCard, badgeRow, ...pbWall(m.id)];
 
   if (mine) {
     parts.push(el("section", { class: "card stack" },
@@ -43,7 +54,7 @@ export function renderProfile(main, id) {
   }
 
   parts.push(el("footer", { class: "credit" },
-    el("span", { text: `Lunker League v${VERSION}` }),
+    el("span", { text: `Lunker League v${VERSION}${VERSION.startsWith("0.") ? " (beta)" : ""}` }),
     el("span", { text: "Built by Matt Ridley" })));
   fill(main, ...parts);
 }

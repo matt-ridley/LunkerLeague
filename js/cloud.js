@@ -35,6 +35,7 @@ export const store = {
   entrants: new Map(),    // derby id -> Map(uid -> { joinedAt })
   derbyChat: new Map(),   // derby id -> [message] (loaded when a derby's chat is opened)
   settlements: new Map(), // derby id -> Map(payee key -> { amount, settledAt, by }) (loaded when its Money tab is opened)
+  scoring: [],            // ranking point versions, oldest first
 };
 
 const subs = new Set();
@@ -157,6 +158,11 @@ function refreshMemberListeners() {
     store.reactions = by;
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "scoring"), OPTS, snap => {
+    seen("scoring", snap);
+    store.scoring = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "derbies"), OPTS, snap => {
     seen("derbies", snap);
     store.derbies = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -234,7 +240,7 @@ function stopListeners() {
 function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
-  store.derbies = new Map(); store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map();
+  store.derbies = new Map(); store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.scoring = [];
 }
 
 function syncError(e) {
@@ -524,4 +530,14 @@ export async function deleteDerby(d, { withEntries }) {
 
 export function setDisqualified(catchId, dq, reason = "") {
   write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "catches", catchId), dq ? { dq: true, dqReason: cleanText(reason, 200) } : { dq: false, dqReason: "" }));
+}
+
+/* ---------- Ranking points ---------- */
+/* mode "retro": the new values apply to all history. mode "forward": from now on; earlier events keep their values. */
+export function saveScoring(values, mode, note) {
+  const now = Date.now();
+  const { doc, collection, setDoc } = cloud.api;
+  write(setDoc(doc(collection(cloud.db, "scoring")), {
+    mode, effectiveFrom: mode === "retro" ? 0 : now, createdAt: now, createdBy: uid(), note: String(note || "").trim().slice(0, 200), values,
+  }));
 }

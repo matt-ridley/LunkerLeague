@@ -297,6 +297,28 @@ service cloud.firestore {
     }
     match /{path=**}/entrants/{who} { allow read: if isMember(); }
 
+    // ---------- Ranking points ----------
+    // Each change to the scoring values is a new version; old versions are never edited or deleted, so the
+    // history of how points worked can't be rewritten. Points themselves are never stored.
+    function pts(n) { return n is number && n >= 0 && n <= 1000; }
+    function validScoring(v) {
+      return v.keys().hasOnly(["catchPts", "dailyCap", "speciesPts", "recordPts", "derbyPts", "participationPts", "beatPts", "titles"])
+        && pts(v.catchPts) && pts(v.dailyCap) && pts(v.speciesPts) && pts(v.participationPts) && pts(v.beatPts)
+        && v.recordPts is list && v.recordPts.size() == 3
+        && v.derbyPts is list && v.derbyPts.size() == 3
+        && v.titles is list && v.titles.size() == 7;
+    }
+    match /scoring/{vid} {
+      allow read: if isMember();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(["mode", "effectiveFrom", "createdAt", "createdBy", "note", "values"])
+        && request.resource.data.mode in ["retro", "forward"]
+        && request.resource.data.effectiveFrom is number && request.resource.data.createdAt is number
+        && request.resource.data.createdBy == me()
+        && request.resource.data.note is string && request.resource.data.note.size() <= 200
+        && validScoring(request.resource.data.values);
+    }
+
     // Anything not listed above is closed.
     match /{document=**} {
       allow read, write: if false;
