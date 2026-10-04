@@ -130,3 +130,68 @@ test("settled ticks: the organiser or an admin records them; everyone can see th
   await assertSucceeds(getDoc(doc(as(env, "member"), "derbies/d1/settlements/u:member")));
   await assertSucceeds(deleteDoc(doc(as(env, "owner"), "derbies/d1/settlements/u:member")));
 });
+
+test("deleting: the organiser only a testing derby; the league owner any derby; nobody can sneak the flag on", async () => {
+  await seedDerby();                                                    // organised by admin2, not testing
+  await assertFails(deleteDoc(doc(as(env, "admin2"), "derbies/d1")));
+  await assertFails(updateDoc(doc(as(env, "admin2"), "derbies/d1"), { testing: true }));
+  await assertSucceeds(deleteDoc(doc(as(env, "owner"), "derbies/d1")));
+  await assertSucceeds(setDoc(doc(as(env, "member"), "derbies/t1"), derbyData("member", { testing: true })));
+  await assertSucceeds(deleteDoc(doc(as(env, "member"), "derbies/t1")));
+});
+
+test("ending early: the organiser moves the end time to now", async () => {
+  await seedDerby();
+  await assertSucceeds(updateDoc(doc(as(env, "admin2"), "derbies/d1"), { end: Date.now() }));
+  await assertFails(updateDoc(doc(as(env, "member"), "derbies/d1"), { end: Date.now() }));
+});
+
+test("the organiser can enter a catch for an angler who joined, and edit or delete it", async () => {
+  await seedDerby();                                                    // member has joined; admin2 organises
+  const db = as(env, "admin2");
+  await assertSucceeds(setDoc(doc(db, "catches/ob1"), entry("member", { enteredBy: "admin2" })));
+  await assertFails(setDoc(doc(db, "catches/ob2"), entry("owner", { enteredBy: "admin2" })));         // owner didn't join
+  await assertFails(setDoc(doc(db, "catches/ob3"), entry("member", { enteredBy: "admin2", derbyId: null })));  // only for a derby
+  await assertFails(setDoc(doc(as(env, "owner"), "catches/ob4"), entry("member", { enteredBy: "owner" })));  // not the organiser
+  await assertFails(setDoc(doc(as(env, "member"), "catches/ob5"), entry("member", { enteredBy: "admin2" }))); // can't fake enteredBy
+  await assertSucceeds(updateDoc(doc(db, "catches/ob1"), { weightOz: 90 }));
+  await assertSucceeds(updateDoc(doc(as(env, "member"), "catches/ob1"), { notes: "Thanks for entering it" }));
+  await assertFails(updateDoc(doc(as(env, "member"), "catches/ob1"), { enteredBy: null }));
+  // a spot the organiser tags for someone else must be shared
+  const b = (await import("firebase/firestore")).writeBatch(db);
+  b.set(doc(db, "catches/ob6"), entry("member", { enteredBy: "admin2", hasSpot: true, locShared: false }));
+  b.set(doc(db, "spots/ob6"), { uid: "admin2", lat: 1, lng: 1, acc: 5, name: "", shared: false });
+  await assertFails(b.commit());
+  await assertSucceeds(deleteDoc(doc(db, "catches/ob1")));
+});
+
+test("clearing out a testing derby: its organiser can delete everyone's entries in it; not in a real one", async () => {
+  // "member" is an ordinary member (not an admin) organising a testing derby that "other" entered.
+  await env.withSecurityRulesDisabled(async ctx => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "members/other"), { displayName: "other", joinedAt: 1, suspended: false });
+    await setDoc(doc(db, "derbies/t1"), derbyData("member", { testing: true }));
+    await setDoc(doc(db, "derbies/t1/entrants/other"), { joinedAt: 1 });
+    await setDoc(doc(db, "catches/te1"), entry("other", { derbyId: "t1" }));
+    await setDoc(doc(db, "photos/te1"), { uid: "other", src: "x" });
+    await setDoc(doc(db, "catches/te1/comments/k1"), { uid: "owner", text: "fake!", at: 1 });
+    await setDoc(doc(db, "catches/te1/reactions/owner"), { uid: "owner", emojis: ["🤥"], at: 1 });
+    await setDoc(doc(db, "derbies/r1"), derbyData("member"));            // a real derby by the same organiser
+    await setDoc(doc(db, "derbies/r1/entrants/other"), { joinedAt: 1 });
+    await setDoc(doc(db, "catches/re1"), entry("other", { derbyId: "r1" }));
+  });
+  const db = as(env, "member");
+  const { writeBatch } = await import("firebase/firestore");
+  const b = writeBatch(db);
+  for (const p of ["catches/te1/comments/k1", "catches/te1/reactions/owner", "photos/te1", "catches/te1", "derbies/t1/entrants/other", "derbies/t1"]) b.delete(doc(db, p));
+  await assertSucceeds(b.commit());
+  await assertFails(deleteDoc(doc(db, "catches/re1")));
+  await assertFails(deleteDoc(doc(db, "derbies/r1")));
+});
+
+test("after the owner deletes a real derby, its old entries become ordinary catches the angler can edit", async () => {
+  await seedDerby();
+  await setDoc(doc(as(env, "member"), "catches/e1"), entry("member"));
+  await deleteDoc(doc(as(env, "owner"), "derbies/d1"));
+  await assertSucceeds(updateDoc(doc(as(env, "member"), "catches/e1"), { derbyId: null, notes: "now just a catch" }));
+});

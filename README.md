@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.5.0
+**Current version:** 0.6.0
 
 ## Features
 
@@ -39,7 +39,9 @@ Done:
   - species, minimums, release, spot and crew
   - entries locking when the derby closes
 
-  Derbies can be cancelled but never deleted, so results stay.
+  - **Organiser tools:** the person who created a derby can end it early, enter a catch for any angler in it (the catch counts as theirs and shows who entered it), and cancel it.
+  - **Test derbies:** tick **Testing derby** when creating one to try things out. Its organiser can delete it, with or without the catches entered in it.
+  - **League owner:** can edit or delete any derby. Real derbies can't otherwise be deleted, so results stay.
 - **Derby money.** The app keeps track of the money; nobody pays through it, so settle up by e-transfer or cash.
   - **Settings:**
     - an entry fee, plus optional added money
@@ -164,6 +166,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.6.0 | 2026-Oct-04 10:48:43 AM | Derby management: a Testing derby flag (off by default, set when creating) that lets its organiser delete it, optionally with its catches. The league owner can delete any derby, with or without its catches (kept catches become ordinary catches). The organiser can end a derby early and enter catches for anglers in it, shown as "Entered by". **New security rules: publish firestore.rules.** |
 | 0.5.0 | 2026-Oct-04 10:22:25 AM | Derby money: entry fee, added money, payout split (presets or custom), unpaid-can-win option, captain and net-man cuts, big-fish side pot and rounding. The organiser ticks off who has paid. The Money tab shows the pot, projected or final payouts with breakdowns, paid-out ticks and a copyable summary, and the leaderboard shows projected winnings. **New security rules: publish firestore.rules.** |
 | 0.4.0 | 2026-Oct-04 12:02:50 AM | Derbies: create with times, a late-entry window, scoring (heaviest, longest, bag, most fish, most species) and rules (species, minimums, entry limit, photo proof, spot, catch and release, boat crew), plus a prize note. Join, enter catches, live leaderboard, final podium, organiser disqualification, derby chat, and entries lock when the derby closes. A refused derby entry can be kept as a regular catch. **New security rules: publish firestore.rules.** |
 | 0.3.0 | 2026-Oct-03 11:46:42 PM | Emoji reactions and comments on catches, league chat with an unread badge, and an emoji picker. The screen no longer redraws while you're typing, so a friend's reaction can't wipe a half-written comment. **New security rules: publish firestore.rules.** |
