@@ -1,14 +1,15 @@
 /* Profile: your own (with edit, theme and sign out) or another member's. */
-import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, icon } from "./ui.js";
+import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, icon, fill } from "./ui.js";
 import { store, uid, isAdmin, updateMe, signOut, syncStatus } from "./cloud.js";
 import { squareAvatar, pickImage } from "./photos.js";
 import { VERSION } from "./config.js";
 import { getTheme, setTheme } from "./theme.js";
+import { pbWall } from "./catches.js";
 
 export function renderProfile(main, id) {
   const mine = !id || id === uid();
   const m = mine ? { ...store.me, id: uid() } : store.members.get(id);
-  if (!m) return main.replaceChildren(el("div", { class: "card" }, el("p", { text: "That member isn't in the league any more." })));
+  if (!m) return fill(main, el("div", { class: "card" }, el("p", { text: "That member isn't in the league any more." })));
 
   const head = el("section", { class: "profile-head" },
     avatar(m, "xl"),
@@ -18,10 +19,7 @@ export function renderProfile(main, id) {
       el("p", { class: "muted small", text: `Joined ${fmtDay(m.joinedAt || Date.now())}` }),
       store.league && (store.league.admins || []).includes(m.id) ? el("span", { class: "chip gold", text: store.league.ownerUid === m.id ? "League owner" : "Admin" }) : null));
 
-  const parts = [head,
-    el("section", { class: "card" },
-      el("h3", { text: "Personal bests" }),
-      el("p", { class: "muted", text: "Catches, PBs and trophies arrive in the next update." }))];
+  const parts = [head, ...pbWall(m.id)];
 
   if (mine) {
     parts.push(el("section", { class: "card stack" },
@@ -47,7 +45,7 @@ export function renderProfile(main, id) {
   parts.push(el("footer", { class: "credit" },
     el("span", { text: `Lunker League v${VERSION}` }),
     el("span", { text: "Built by Matt Ridley" })));
-  main.replaceChildren(...parts);
+  fill(main, ...parts);
 }
 
 async function changePhoto(camera) {

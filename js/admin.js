@@ -1,11 +1,11 @@
 /* League admin: name, invite code, members and (owner only) admins. */
-import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, copyText, confirmButton } from "./ui.js";
+import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, copyText, confirmButton, fill } from "./ui.js";
 import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode } from "./cloud.js";
 
 const appUrl = () => location.href.split("#")[0];
 
 export function renderAdmin(main) {
-  if (!isAdmin()) return main.replaceChildren(el("div", { class: "card" }, el("p", { text: "Only league admins can open this page." })));
+  if (!isAdmin()) return fill(main, el("div", { class: "card" }, el("p", { text: "Only league admins can open this page." })));
   const L = store.league;
   const code = store.invite;
 
@@ -39,7 +39,7 @@ export function renderAdmin(main) {
         owner || m.id === uid() ? null : el("button", { class: "btn small", type: "button", text: "Manage", onclick: () => memberSheet(m.id) }));
     })));
 
-  main.replaceChildren(el("h2", { class: "page-title", text: "League admin" }), invite, league, list);
+  fill(main, el("h2", { class: "page-title", text: "League admin" }), invite, league, list);
 }
 
 function codeSheet(current) {

@@ -8,7 +8,7 @@ setLogLevel("silent"); // denied writes are expected in these tests
 export async function startEnv() {
   const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080").split(":");
   return initializeTestEnvironment({
-    projectId: "demo-lunker",
+    projectId: "demo-lunker-tests", // separate from the "demo-lunker" data the app uses with ?emulator
     firestore: { rules: readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8"), host, port: Number(port) },
   });
 }

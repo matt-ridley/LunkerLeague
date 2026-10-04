@@ -9,7 +9,7 @@ const SDK = "https://www.gstatic.com/firebasejs/12.19.0/";
 const APP_FILES = [
   "./", "index.html", "manifest.webmanifest", "css/app.css",
   "js/main.js", "js/config.js", "js/ui.js", "js/cloud.js", "js/gate.js", "js/profile.js", "js/admin.js",
-  "js/theme.js", "js/photos.js",
+  "js/theme.js", "js/photos.js", "js/catches.js", "js/leaders.js", "js/stats.js", "js/species.js", "js/exif.js", "js/outbox.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
 ];
 const SDK_FILES = ["app", "auth", "firestore"].map(m => `${SDK}firebase-${m}.js`);
@@ -45,7 +45,9 @@ self.addEventListener("fetch", e => {
 async function networkFirst(req) {
   const cache = await caches.open(SHELL);
   const key = req.mode === "navigate" ? "index.html" : req;
-  const fromNet = fetch(req).then(res => {
+  // "no-cache" makes the browser check with the server every time (a quick "not modified" when nothing changed),
+  // so a new deploy never mixes fresh and stale files from the browser's own HTTP cache.
+  const fromNet = fetch(new Request(req.url, { cache: "no-cache", credentials: "same-origin" })).then(res => {
     if (res.ok && res.type === "basic") cache.put(key, res.clone());
     return res;
   });

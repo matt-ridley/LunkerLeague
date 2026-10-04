@@ -5,8 +5,9 @@
   "description": "Dev tools only. The app itself has no build step and no npm dependencies.",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "test:rules": "firebase emulators:exec --only firestore,auth --project demo-lunker \"node --test tests/rules/*.test.mjs\"",
-    "emulators": "firebase emulators:start --only firestore,auth --project demo-lunker"
+    "test:rules": "firebase emulators:exec --only firestore,auth --project demo-lunker \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
+    "emulators": "firebase emulators:start --only firestore,auth --project demo-lunker",
+    "deploy:rules": "firebase deploy --only firestore:rules"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",

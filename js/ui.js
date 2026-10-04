@@ -18,6 +18,12 @@ export function el(tag, attrs = {}, ...kids) {
   return n;
 }
 
+/* Replaces a node's contents, skipping empty (null/false) parts. */
+export function fill(node, ...kids) {
+  node.replaceChildren(...kids.flat().filter(k => k != null && k !== false));
+  return node;
+}
+
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = n => String(n).padStart(2, "0");
 const toDate = d => d instanceof Date ? d : new Date(d);

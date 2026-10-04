@@ -3,6 +3,7 @@
    Firestore's persistent cache keeps a copy on the phone, so the app opens and accepts changes with no signal;
    queued writes are sent when the phone is back online. Times are stored as epoch milliseconds from the phone clock. */
 import { FIREBASE_CONFIG, FIREBASE_SDK } from "./config.js";
+import { outboxPut, outboxRemove, outboxAll } from "./outbox.js";
 
 /* Add ?emulator to a localhost address to use the local Firebase emulator (npm run emulators) instead of the real project. */
 export const USE_EMULATOR = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).has("emulator");
@@ -20,6 +21,11 @@ export const store = {
   meFromCache: true,
   members: new Map(),     // uid -> member
   invite: undefined,      // current invite code (admins only)
+  catches: new Map(),     // id -> catch (with a small thumbnail)
+  catchesLoaded: false,
+  pending: new Set(),     // ids of catches still waiting to reach the server
+  spots: new Map(),       // catch id -> GPS spot (shared ones, plus all of this user's own)
+  rejected: [],           // outbox entries the server refused
 };
 
 const subs = new Set();
@@ -102,10 +108,34 @@ function refreshMemberListeners() {
   memberKey = key;
   cloud.memberUnsubs.forEach(u => u());
   cloud.memberUnsubs = [];
-  for (const k of ["members", "invite"]) delete cloud.meta[k];
+  for (const k of ["members", "invite", "catches", "spotsShared", "spotsMine"]) delete cloud.meta[k];
   store.members = new Map(); store.invite = undefined;
+  store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map();
   if (!member) return;
-  const { onSnapshot, collection, doc } = cloud.api;
+  const { onSnapshot, collection, doc, query, where } = cloud.api;
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "catches"), OPTS, snap => {
+    seen("catches", snap);
+    const pending = new Set();
+    store.catches = new Map(snap.docs.map(d => {
+      if (d.metadata.hasPendingWrites) pending.add(d.id);
+      return [d.id, { id: d.id, ...d.data() }];
+    }));
+    store.pending = pending;
+    store.catchesLoaded = true;
+    if (!snap.metadata.fromCache) checkOutbox();
+    emit();
+  }, syncError));
+  // Spots: everyone's shared ones, and all of your own. Other people's private spots never reach this phone.
+  const spotSets = { spotsShared: new Map(), spotsMine: new Map() };
+  const spotListener = (key, q) => onSnapshot(q, OPTS, snap => {
+    seen(key, snap);
+    spotSets[key] = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    store.spots = new Map([...spotSets.spotsShared, ...spotSets.spotsMine]);
+    emit();
+  }, syncError);
+  cloud.memberUnsubs.push(
+    spotListener("spotsShared", query(collection(cloud.db, "spots"), where("shared", "==", true))),
+    spotListener("spotsMine", query(collection(cloud.db, "spots"), where("uid", "==", uid()))));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "members"), OPTS, snap => {
     seen("members", snap);
     if (snap.docChanges().length || !store.members.size) {
@@ -128,6 +158,7 @@ function stopListeners() {
   cloud.unsubs = []; cloud.memberUnsubs = []; memberKey = "";
   cloud.meta = {};
   store.league = undefined; store.me = undefined; store.members = new Map(); store.invite = undefined;
+  store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map(); store.rejected = [];
 }
 
 function syncError(e) {
@@ -234,4 +265,75 @@ const CODE_WORDS = ["WALLEYE", "MUSKIE", "PIKE", "BASS", "PERCH", "CRAPPIE", "TR
 export function randomCode() {
   const n = crypto.getRandomValues(new Uint32Array(2));
   return `${CODE_WORDS[n[0] % CODE_WORDS.length]}-${1000 + (n[1] % 9000)}`;
+}
+
+/* ---------- Catches ---------- */
+export const newCatchId = () => cloud.api.doc(cloud.api.collection(cloud.db, "catches")).id;
+
+/* Saves a catch, its full photo and (optionally) its GPS spot in one go. Works offline: the batch waits on the
+   phone until there is signal. New catches also go in the outbox until the server confirms them.
+   spot: an object to save, null to remove an existing spot, undefined to leave it alone. */
+export function saveCatch({ id, data, photo, spot, isNew }) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db);
+  const me = uid();
+  b.set(doc(cloud.db, "catches", id), data, isNew ? {} : { merge: true });
+  if (photo) b.set(doc(cloud.db, "photos", id), { uid: me, src: photo });
+  if (spot) b.set(doc(cloud.db, "spots", id), { ...spot, uid: me });
+  else if (spot === null) b.delete(doc(cloud.db, "spots", id));
+  if (isNew) outboxPut({ id, uid: me, catchData: data, photo, spot: spot || null, savedAt: Date.now() });
+  b.commit().catch(e => console.warn("Catch not saved", e)); // a refusal is picked up by checkOutbox()
+}
+
+export function deleteCatch(c) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db);
+  b.delete(doc(cloud.db, "catches", c.id));
+  b.delete(doc(cloud.db, "photos", c.id));
+  if (c.hasSpot && store.spots.has(c.id)) b.delete(doc(cloud.db, "spots", c.id));
+  outboxRemove(c.id);
+  b.commit().catch(syncError);
+}
+
+/* Full-size photos load only when a catch is opened. Ones opened before are kept for offline use. */
+const photoCache = new Map();
+export const cachedPhoto = id => photoCache.get(id) || "";
+export async function loadPhoto(id) {
+  if (photoCache.has(id)) return photoCache.get(id);
+  const snap = await cloud.api.getDoc(cloud.api.doc(cloud.db, "photos", id));
+  const src = snap.exists() ? String(snap.data().src || "") : "";
+  if (src) photoCache.set(id, src);
+  return src;
+}
+
+/* Compares the outbox with what the server has: confirmed catches leave the outbox; a catch that is neither on the
+   server nor waiting to be sent was refused, so the app asks what to do with it. */
+let checking = false;
+async function checkOutbox() {
+  if (checking) return;
+  checking = true;
+  try {
+    const rejected = [];
+    for (const e of await outboxAll()) {
+      if (e.uid !== uid()) continue;
+      if (store.catches.has(e.id)) { if (!store.pending.has(e.id)) outboxRemove(e.id); }
+      else rejected.push(e);
+    }
+    const before = store.rejected.map(e => e.id).join();
+    store.rejected = rejected;
+    if (rejected.map(e => e.id).join() !== before) emit();
+  } finally { checking = false; }
+}
+
+/* A refused catch: send it again (without anything that made it invalid), or let it go. */
+export function retryRejected(entry, changes = {}) {
+  store.rejected = store.rejected.filter(e => e.id !== entry.id);
+  outboxRemove(entry.id);
+  saveCatch({ id: newCatchId(), data: { ...entry.catchData, ...changes }, photo: entry.photo, spot: entry.spot || undefined, isNew: true });
+  emit();
+}
+export function discardRejected(entry) {
+  store.rejected = store.rejected.filter(e => e.id !== entry.id);
+  outboxRemove(entry.id);
+  emit();
 }
