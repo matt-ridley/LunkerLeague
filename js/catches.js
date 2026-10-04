@@ -179,7 +179,8 @@ export function renderLog(main, editId) {
     photoMsg.className = "msg ok"; photoMsg.textContent = "Preparing photo…";
     try {
       const [p, t] = await Promise.all([catchPhoto(file), photoTakenAt(file)]);
-      st.full = p.full; st.thumb = p.thumb; st.takenAt = t;
+      st.full = p.full; st.thumb = p.thumb;
+      st.takenAt = t || (file.inAppCamera ? file.lastModified : null); // in-app photos are taken right now
       photoMsg.textContent = "";
       drawPreview(); drawTimeHint();
     } catch {
@@ -253,7 +254,7 @@ export function renderLog(main, editId) {
         el("button", { class: "btn", type: "button", html: icon.image, onclick: () => takePhoto(false) }, "Gallery")),
       photoMsg,
       el("p", { class: "hint", text: "Show the fish on a scale or measuring board if you can. It settles arguments." }),
-      el("p", { class: "hint", text: "If Camera has trouble on your phone, take the photo with your normal camera app, then tap Gallery to pick it." })),
+      el("p", { class: "hint", text: "Camera opens right here in the app. You can also take the photo with your phone's camera app and pick it with Gallery." })),
     el("section", { class: "card stack" },
       field("Species", species), datalist,
       el("div", { class: "field" }, el("span", { class: "field-label", text: "Weight" }),

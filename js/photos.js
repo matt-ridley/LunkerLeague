@@ -1,8 +1,18 @@
 /* Photos: taken with the camera or picked from the gallery, shrunk on the phone, and saved as JPEG data URLs. */
 import { el } from "./ui.js";
+import { openCamera } from "./camera.js";
 
-/* Opens the camera (capture) or the gallery and resolves with the chosen File, or null if cancelled. */
-export function pickImage({ camera = false } = {}) {
+/* Opens the camera or the gallery and resolves with the chosen File, or null if cancelled.
+   The camera is the in-app viewfinder; the phone's camera app is only a fallback where that can't run. */
+export async function pickImage({ camera = false, facing = "environment" } = {}) {
+  if (camera) {
+    const shot = await openCamera({ facing });
+    if (shot !== "unavailable") return shot;
+  }
+  return pickFile({ camera });
+}
+
+function pickFile({ camera }) {
   return new Promise(resolve => {
     const input = el("input", { type: "file", accept: "image/*", hidden: true });
     if (camera) input.setAttribute("capture", "environment");
