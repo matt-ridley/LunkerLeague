@@ -197,7 +197,8 @@ service cloud.firestore {
     function validDerby(d) {
       return d.keys().hasOnly(["name", "description", "organiserUid", "start", "end", "syncGraceHours", "species", "scoring",
                                "bagSize", "minWeightOz", "minLengthIn", "maxEntries", "proof", "requireLocation", "catchRelease",
-                               "requireCrew", "prizeNote", "cancelled", "createdAt"])
+                               "requireCrew", "prizeNote", "cancelled", "createdAt",
+                               "entryFee", "addedMoney", "payoutPcts", "unpaidCanWin", "captainPct", "netmanPct", "roundTo", "sidePotFee"])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.description is string && d.description.size() <= 500
         && d.start is number && d.end is number && d.end > d.start
@@ -210,7 +211,20 @@ service cloud.firestore {
         && d.proof in ["any", "scale", "board", "both"]
         && d.requireLocation is bool && d.catchRelease is bool && d.requireCrew is bool
         && d.prizeNote is string && d.prizeNote.size() <= 300
-        && d.cancelled is bool && d.createdAt is number;
+        && d.cancelled is bool && d.createdAt is number
+        && validMoney(d);
+    }
+    // Entry fees and payouts (the app only keeps track; nobody pays through it). Older derbies have none of these.
+    function money(d, f) { return d.get(f, 0); }
+    function validMoney(d) {
+      return money(d, "entryFee") is number && money(d, "entryFee") >= 0 && money(d, "entryFee") <= 10000
+        && money(d, "addedMoney") is number && money(d, "addedMoney") >= 0 && money(d, "addedMoney") <= 100000
+        && money(d, "sidePotFee") is number && money(d, "sidePotFee") >= 0 && money(d, "sidePotFee") <= 10000
+        && money(d, "captainPct") is number && money(d, "captainPct") >= 0 && money(d, "captainPct") <= 50
+        && money(d, "netmanPct") is number && money(d, "netmanPct") >= 0 && money(d, "netmanPct") <= 50
+        && money(d, "roundTo") in [0, 1, 5]
+        && d.get("payoutPcts", []) is list && d.get("payoutPcts", []).size() <= 10
+        && d.get("unpaidCanWin", false) is bool;
     }
     match /derbies/{did} {
       allow read: if isMember();
@@ -226,6 +240,21 @@ service cloud.firestore {
           && request.resource.data.joinedAt is number
           && !get(derbyPath(did)).data.cancelled && request.time.toMillis() <= get(derbyPath(did)).data.end;
         allow delete: if isMember() && (who == me() || get(derbyPath(did)).data.organiserUid == me() || isAdmin());
+        // Paid ticks: only the organiser or an admin, and nothing else about the entrant.
+        allow update: if isMember() && (get(derbyPath(did)).data.organiserUid == me() || isAdmin())
+          && changed().hasOnly(["paid", "paidAt", "paidMarkedBy", "sidePotPaid"])
+          && request.resource.data.get("paid", false) is bool && request.resource.data.get("sidePotPaid", false) is bool
+          && request.resource.data.get("paidMarkedBy", me()) == me();
+      }
+
+      // "Paid out" ticks for each payee once the organiser has settled up.
+      match /settlements/{key} {
+        allow read: if isMember();
+        allow create, update: if isMember() && (get(derbyPath(did)).data.organiserUid == me() || isAdmin())
+          && request.resource.data.keys().hasOnly(["amount", "settledAt", "by"])
+          && request.resource.data.amount is number && request.resource.data.settledAt is number
+          && request.resource.data.by == me();
+        allow delete: if isMember() && (get(derbyPath(did)).data.organiserUid == me() || isAdmin());
       }
 
       // Derby chat (trash talk for this derby).

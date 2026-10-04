@@ -101,3 +101,32 @@ test("derby chat: members post as themselves", async () => {
   await assertSucceeds(getDoc(doc(as(env, "admin2"), "derbies/d1/chat/m1")));
   await assertFails(getDoc(doc(as(env, "stranger"), "derbies/d1/chat/m1")));
 });
+
+test("money settings: sensible values only; old derbies without them still work", async () => {
+  const db = as(env, "member");
+  await assertSucceeds(setDoc(doc(db, "derbies/m1"), derbyData("member", { entryFee: 20, addedMoney: 50, payoutPcts: [70, 30],
+    unpaidCanWin: false, captainPct: 10, netmanPct: 5, roundTo: 1, sidePotFee: 5 })));
+  await assertFails(setDoc(doc(db, "derbies/m2"), derbyData("member", { entryFee: -5 })));
+  await assertFails(setDoc(doc(db, "derbies/m3"), derbyData("member", { captainPct: 80 })));
+  await assertFails(setDoc(doc(db, "derbies/m4"), derbyData("member", { roundTo: 3 })));
+  await seedDerby();
+  await assertSucceeds(updateDoc(doc(as(env, "admin2"), "derbies/d1"), { name: "Still fine without money fields" }));
+});
+
+test("only the organiser or an admin can tick who has paid", async () => {
+  await seedDerby({}, ["member", "admin2"]);
+  const paid = by => ({ paid: true, paidAt: Date.now(), paidMarkedBy: by, sidePotPaid: true });
+  await assertFails(updateDoc(doc(as(env, "member"), "derbies/d1/entrants/member"), paid("member")));
+  await assertSucceeds(updateDoc(doc(as(env, "admin2"), "derbies/d1/entrants/member"), paid("admin2")));
+  await assertFails(updateDoc(doc(as(env, "admin2"), "derbies/d1/entrants/member"), { joinedAt: 5 }));
+  await assertFails(updateDoc(doc(as(env, "owner"), "derbies/d1/entrants/admin2"), paid("someone-else")));
+  await assertFails(setDoc(doc(as(env, "member"), "derbies/d1/entrants/member"), { joinedAt: 1, paid: true }));
+});
+
+test("settled ticks: the organiser or an admin records them; everyone can see them", async () => {
+  await seedDerby();
+  await assertSucceeds(setDoc(doc(as(env, "admin2"), "derbies/d1/settlements/u:member"), { amount: 72, settledAt: Date.now(), by: "admin2" }));
+  await assertFails(setDoc(doc(as(env, "member"), "derbies/d1/settlements/u:member"), { amount: 999, settledAt: Date.now(), by: "member" }));
+  await assertSucceeds(getDoc(doc(as(env, "member"), "derbies/d1/settlements/u:member")));
+  await assertSucceeds(deleteDoc(doc(as(env, "owner"), "derbies/d1/settlements/u:member")));
+});
