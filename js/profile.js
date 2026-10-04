@@ -49,7 +49,7 @@ export function renderProfile(main, id) {
 }
 
 async function changePhoto(camera) {
-  const file = await pickImage({ camera });
+  const file = await pickImage({ camera, facing: "user" });
   if (!file) return;
   try { updateMe({ avatar: await squareAvatar(file) }); toast("Photo updated."); }
   catch { toast("That file couldn't be opened as a photo."); }
