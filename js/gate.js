@@ -1,5 +1,5 @@
 /* Screens shown before someone is in the league: setup, sign in / sign up, claim, join, suspended. */
-import { el, field, toast } from "./ui.js";
+import { el, field, toast, fill } from "./ui.js";
 import { gate, signIn, signUp, resetPassword, signOut, authMessage, claimLeague, joinLeague, store, cloud, cleanCode } from "./cloud.js";
 
 const brand = () => el("div", { class: "gate-brand" },
@@ -24,7 +24,7 @@ const showJoin = (text, kind = "err") => {
 export function renderGate(main) {
   const g = gate();
   const wrap = el("div", { class: "gate" }, brand());
-  main.replaceChildren(wrap);
+  fill(main, wrap);
   if (g === "setup") return setupScreen(wrap);
   if (g === "load-error") return wrap.append(el("div", { class: "card" },
     el("h2", { text: "Can't start the app" }),
@@ -55,7 +55,7 @@ function authScreen(wrap) {
   const card = el("div", { class: "card stack" });
   wrap.append(card);
   const draw = () => {
-    card.replaceChildren();
+    fill(card, );
     const tabs = el("div", { class: "seg", role: "tablist" },
       el("button", { type: "button", role: "tab", "aria-selected": String(mode === "in"), text: "Sign in", onclick: () => { mode = "in"; draw(); } }),
       el("button", { type: "button", role: "tab", "aria-selected": String(mode === "up"), text: "Join the league", onclick: () => { mode = "up"; draw(); } }));

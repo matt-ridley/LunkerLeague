@@ -61,6 +61,62 @@ service cloud.firestore {
       allow delete: if isAdmin() && id != league().ownerUid && id != me() && (!(id in league().admins) || isOwner());
     }
 
+    // ---------- Catches ----------
+    // Times are epoch milliseconds from the phone. A catch can't be dated in the future (10 minutes' leeway for clocks).
+    function catchPath(id) { return /databases/$(database)/documents/catches/$(id); }
+    function optNum(d, f, max) { return !(f in d) || d[f] == null || (d[f] is number && d[f] > 0 && d[f] <= max); }
+    function validCatch(d) {
+      return d.keys().hasOnly(["uid", "species", "weightOz", "lengthIn", "caughtAt", "createdAt", "thumb", "photoTakenAt",
+                               "notes", "released", "hasSpot", "locShared", "spotName"])
+        && d.uid == me()
+        && d.species is string && d.species.size() > 0 && d.species.size() <= 40
+        && optNum(d, "weightOz", 16000) && optNum(d, "lengthIn", 200)
+        && (d.get("weightOz", null) != null || d.get("lengthIn", null) != null)
+        && d.caughtAt is number && d.caughtAt <= request.time.toMillis() + 600000
+        && d.createdAt is number
+        && d.thumb is string && d.thumb.size() < 60000
+        && (d.get("photoTakenAt", null) == null || d.photoTakenAt is number)
+        && d.notes is string && d.notes.size() <= 500
+        && d.released is bool && d.hasSpot is bool && d.locShared is bool
+        && d.spotName is string && d.spotName.size() <= 60
+        // A spot's name is only in the catch (where everyone can read it) when the spot is shared.
+        && (d.locShared || d.spotName == "") && (d.hasSpot || !d.locShared);
+    }
+    match /catches/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && validCatch(request.resource.data);
+      allow update: if isMember() && resource.data.uid == me() && validCatch(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+    }
+
+    // The full-size photo of a catch, in its own doc so lists only load thumbnails. Same id as the catch.
+    match /photos/{id} {
+      allow read: if isMember();
+      allow create, update: if isMember() && request.resource.data.keys().hasOnly(["uid", "src"])
+        && request.resource.data.uid == me() && request.resource.data.src is string
+        && request.resource.data.src.size() < 700000
+        && getAfter(catchPath(id)).data.uid == me();
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+    }
+
+    // GPS spot of a catch. Kept out of the catch so a private spot is only ever readable by its owner.
+    match /spots/{id} {
+      allow read: if isMember() && (resource.data.shared == true || resource.data.uid == me());
+      allow create, update: if isMember()
+        && request.resource.data.keys().hasOnly(["uid", "lat", "lng", "acc", "name", "shared"])
+        && request.resource.data.uid == me()
+        && request.resource.data.lat is number && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+        && request.resource.data.lng is number && request.resource.data.lng >= -180 && request.resource.data.lng <= 180
+        && request.resource.data.acc is number
+        && request.resource.data.name is string && request.resource.data.name.size() <= 60
+        && request.resource.data.shared is bool
+        // Must match its catch, so the catch never says "shared" while the spot is private or the other way round.
+        && getAfter(catchPath(id)).data.uid == me()
+        && getAfter(catchPath(id)).data.locShared == request.resource.data.shared;
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+    }
+
     // Anything not listed above is closed.
     match /{document=**} {
       allow read, write: if false;

@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.1.3
+**Current version:** 0.2.0
 
 ## Features
 
@@ -15,14 +15,17 @@ Done:
 - **League owner and admins.** Whoever sets up the league owns it. The owner can make other members admins. Admins can change the invite code, rename the league, and pause or remove members.
 - **Profiles.** Each angler has a name, an optional home water and a photo taken with the camera or picked from the gallery.
 - **Day and Dusk screens.** Day is high contrast for bright sun. Dusk is darker and easier on the eyes at dawn and dusk. Auto follows the phone's setting.
-- **Works with no signal.** After the first sign-in, the app opens and shows the league's data with no connection. Changes made offline are kept on the phone and sent when it has signal again. The header shows **Live**, **Offline** or **Syncing**.
+- **Catches with photo proof.** Log a catch with a photo from the camera or gallery, the species, weight (lb and oz) and/or length (to the quarter inch), when it was caught, whether it was released, and notes. The time the photo was taken is read from the photo and shown with the catch.
+- **Private or shared spots.** Tag the GPS spot (works with no signal). Keep it private, so others only see "Secret spot", or share it with the league with an optional spot name and an Open in Maps link. Only you can read a private spot; the security rules stop anyone else, including admins.
+- **Personal bests.** Your best catch of each species is worked out automatically (heaviest, then longest), with a celebration when you beat it. Each profile has a PB wall, catch and species counts and recent catches.
+- **Leaders.** The league record for every species (heaviest and longest), and a leaderboard per species of everyone's personal best, by weight or by length.
+- **Works with no signal.** After the first sign-in, the app opens and shows the league's data with no connection. Changes made offline are kept on the phone and sent when it has signal again. The header shows **Live**, **Offline** or **Syncing**, and catches still waiting show **Waiting for signal**. If the league ever refuses a catch sent from the phone (for example because the account was paused at the time), the app keeps it, photo included, and offers to send it again.
 
 Planned:
-1. Catches: photo proof, weight in lb/oz, length in inches, private or shared spots, personal-best wall and species leaderboards.
-2. Comments, emoji reactions and league chat.
-3. Derbies: rules, entries, live leaderboards and boat crew.
-4. Derby money: entry fees, paid tracking and payouts, including captain and net-man cuts.
-5. Angler rankings with admin-adjustable points.
+1. Comments, emoji reactions and league chat.
+2. Derbies: rules, entries, live leaderboards and boat crew.
+3. Derby money: entry fees, paid tracking and payouts, including captain and net-man cuts.
+4. Angler rankings with admin-adjustable points.
 
 ## Installing on a phone
 
@@ -63,6 +66,20 @@ Do this right after the first deploy, before sharing the link.
 ### 3. Invite friends
 
 Open your profile, then **League admin > Copy invite**, and text it to your friends. They tap **Join the league**, create an account and enter the code. If you ever need to stop new sign-ups, change the code.
+
+### Updating the security rules
+
+Some new versions change `firestore.rules`, and the changelog says when. Publish them before (or right after) merging, or the new features show a sync problem. Either paste the file into **Firestore > Rules** in the Firebase console and click **Publish**, or from this folder:
+
+```bash
+npx firebase login
+```
+
+```bash
+npm run deploy:rules
+```
+
+`npx firebase login` is needed only once per PC.
 
 ## Where data is stored
 
@@ -120,6 +137,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.2.0 | 2026-Oct-03 11:14:13 PM | Catches: log with a photo (camera or gallery), species, lb/oz, inches, time, released and notes. Private or shared GPS spots. Personal bests with a celebration, PB wall on profiles, Leaders page with species records and per-species leaderboards. Offline catches show Waiting for signal, and a catch the league refuses is kept and can be sent again. The app now always checks for new files so a deploy never mixes versions. **New security rules: publish firestore.rules.** |
 | 0.1.3 | 2026-Oct-03 11:01:46 PM | Local Firebase emulator and automated security-rules tests (13 checks for claiming, joining, admins and paused members). Fixed the wrong-invite-code message disappearing, and a new member no longer counts as joined until the server accepts the code. |
 | 0.1.2 | 2026-Oct-03 10:41:49 PM | Connected the app to the league's Firebase project. |
 | 0.1.1 | 2026-Oct-03 10:30:48 PM | Firebase setup steps updated for the redesigned Firebase console menus (Security, Databases and storage, Settings). |
