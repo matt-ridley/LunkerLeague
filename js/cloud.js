@@ -31,6 +31,9 @@ export const store = {
   chat: [],               // last 100 league chat messages, oldest first
   chatLoaded: false,
   pendingIds: new Set(),  // comment / chat ids still waiting to reach the server
+  derbies: new Map(),     // id -> derby
+  entrants: new Map(),    // derby id -> Map(uid -> { joinedAt })
+  derbyChat: new Map(),   // derby id -> [message] (loaded when a derby's chat is opened)
 };
 
 const subs = new Set();
@@ -74,6 +77,9 @@ window.addEventListener("online", emit);
 window.addEventListener("offline", emit);
 
 /* ---------- Listeners ---------- */
+/* Ids of comments and chat messages still waiting to reach the server, per listener. */
+let pendingOf = {};
+function syncPending() { store.pendingIds = new Set(Object.values(pendingOf).flatMap(set => [...set])); }
 const OPTS = { includeMetadataChanges: true };
 const seen = (key, snap) => { cloud.meta[key] = snap.metadata; cloud.failed = false; };
 
@@ -113,15 +119,14 @@ function refreshMemberListeners() {
   memberKey = key;
   cloud.memberUnsubs.forEach(u => u());
   cloud.memberUnsubs = [];
-  for (const k of ["members", "invite", "catches", "spotsShared", "spotsMine", "comments", "reactions", "chat"]) delete cloud.meta[k];
+  for (const k of Object.keys(cloud.meta)) if (k !== "league" && k !== "me") delete cloud.meta[k];
+  derbyChatUnsubs.forEach(u => u()); derbyChatUnsubs.clear();
   store.members = new Map(); store.invite = undefined;
   store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map();
   resetSocial();
   if (!member) return;
   const { onSnapshot, collection, collectionGroup, doc, query, where, orderBy, limitToLast } = cloud.api;
   // Comments and reactions of every catch, kept under the catch they belong to.
-  const pendingOf = { comments: new Set(), chat: new Set() };
-  const syncPending = () => { store.pendingIds = new Set([...pendingOf.comments, ...pendingOf.chat]); };
   cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "comments"), OPTS, snap => {
     seen("comments", snap);
     const by = new Map();
@@ -149,6 +154,23 @@ function refreshMemberListeners() {
       by.get(catchId).set(d.id, emojis);
     }
     store.reactions = by;
+    emit();
+  }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "derbies"), OPTS, snap => {
+    seen("derbies", snap);
+    store.derbies = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "entrants"), OPTS, snap => {
+    seen("entrants", snap);
+    const by = new Map();
+    for (const d of snap.docs) {
+      const derbyId = d.ref.parent.parent && d.ref.parent.parent.id;
+      if (!derbyId) continue;
+      if (!by.has(derbyId)) by.set(derbyId, new Map());
+      by.get(derbyId).set(d.id, d.data());
+    }
+    store.entrants = by;
     emit();
   }, syncError));
   cloud.memberUnsubs.push(onSnapshot(query(collection(cloud.db, "chat"), orderBy("at"), limitToLast(100)), OPTS, snap => {
@@ -198,6 +220,7 @@ function refreshMemberListeners() {
 }
 
 function stopListeners() {
+  derbyChatUnsubs.forEach(u => u()); derbyChatUnsubs.clear();
   cloud.unsubs.forEach(u => u());
   cloud.memberUnsubs.forEach(u => u());
   cloud.unsubs = []; cloud.memberUnsubs = []; memberKey = "";
@@ -208,7 +231,9 @@ function stopListeners() {
 }
 
 function resetSocial() {
+  pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
+  store.derbies = new Map(); store.entrants = new Map(); store.derbyChat = new Map();
 }
 
 function syncError(e) {
@@ -410,10 +435,40 @@ export function toggleReaction(catchId, emoji) {
   write(next.length ? cloud.api.setDoc(ref, { uid: uid(), emojis: next, at: Date.now() }) : cloud.api.deleteDoc(ref));
 }
 
-export function sendChat(text) {
+/* League chat, or a derby's own chat when derbyId is given. */
+const chatPath = derbyId => derbyId ? ["derbies", derbyId, "chat"] : ["chat"];
+export function sendChat(text, derbyId) {
   const t = cleanText(text, 1000);
   if (!t) return;
   const { doc, collection, setDoc } = cloud.api;
-  write(setDoc(doc(collection(cloud.db, "chat")), { uid: uid(), text: t, at: Date.now() }));
+  write(setDoc(doc(collection(cloud.db, ...chatPath(derbyId))), { uid: uid(), text: t, at: Date.now() }));
 }
-export const deleteChat = id => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "chat", id)));
+export const deleteChat = (id, derbyId) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, ...chatPath(derbyId), id)));
+
+/* A derby's chat is only listened to once someone opens it, then kept live. */
+const derbyChatUnsubs = new Map();
+export function watchDerbyChat(derbyId) {
+  if (derbyChatUnsubs.has(derbyId) || !cloud.db) return;
+  const { onSnapshot, collection, query, orderBy, limitToLast } = cloud.api;
+  derbyChatUnsubs.set(derbyId, onSnapshot(query(collection(cloud.db, "derbies", derbyId, "chat"), orderBy("at"), limitToLast(100)), OPTS, snap => {
+    seen("derbyChat:" + derbyId, snap);
+    pendingOf["derbyChat:" + derbyId] = new Set(snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id));
+    store.derbyChat.set(derbyId, snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    syncPending();
+    emit();
+  }, syncError));
+}
+
+/* ---------- Derbies ---------- */
+export function saveDerby(id, data) {
+  const { doc, collection, setDoc } = cloud.api;
+  const ref = id ? doc(cloud.db, "derbies", id) : doc(collection(cloud.db, "derbies"));
+  write(setDoc(ref, data));
+  return ref.id;
+}
+export const setDerbyCancelled = (id, cancelled) => write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "derbies", id), { cancelled }));
+export const joinDerby = id => write(cloud.api.setDoc(cloud.api.doc(cloud.db, "derbies", id, "entrants", uid()), { joinedAt: Date.now() }));
+export const leaveDerby = (id, who = uid()) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "derbies", id, "entrants", who)));
+export function setDisqualified(catchId, dq, reason = "") {
+  write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "catches", catchId), dq ? { dq: true, dqReason: cleanText(reason, 200) } : { dq: false, dqReason: "" }));
+}

@@ -1,6 +1,6 @@
 /* Social: emoji reactions and comments on catches, league chat, and an emoji picker. */
 import { el, avatar, fmtAgo, fmtDay, fmtDate, openSheet, closeSheet, confirmButton, fill, icon } from "./ui.js";
-import { store, uid, isAdmin, memberName, addComment, deleteComment, toggleReaction, sendChat, deleteChat } from "./cloud.js";
+import { store, uid, isAdmin, memberName, addComment, deleteComment, toggleReaction, sendChat, deleteChat, watchDerbyChat } from "./cloud.js";
 
 export const QUICK_REACTIONS = ["🎣", "🔥", "🐟", "😂", "👏", "🤥"];
 const EMOJI = [
@@ -117,15 +117,19 @@ export function chatUnread() {
   return store.chat.filter(m => m.uid !== uid() && (m.at || 0) > seen).length;
 }
 
-/* The chat screen is built once and then only its message list is refreshed, so typing is never interrupted. */
+/* The chat screen is built once and then only its message list is refreshed, so typing is never interrupted.
+   With a derbyId it is that derby's own chat. */
 let chatInput = null;
-export function renderChat(main) {
+export function renderChat(main, derbyId) {
+  if (derbyId) watchDerbyChat(derbyId);
+  const draftKey = derbyId ? "chat:" + derbyId : "chat";
   let shell = main.querySelector(":scope > .chat");
   if (!shell) {
+    const derby = derbyId && store.derbies.get(derbyId);
     const list = el("div", { class: "chat-list", role: "log", "aria-live": "polite" });
     chatInput = el("textarea", { rows: 1, maxlength: 1000, placeholder: "Message the league…", "aria-label": "Message", class: "grow-input" });
-    chatInput.value = drafts.get("chat") || "";
-    chatInput.addEventListener("input", () => { drafts.set("chat", chatInput.value); autoGrow(chatInput); });
+    chatInput.value = drafts.get(draftKey) || "";
+    chatInput.addEventListener("input", () => { drafts.set(draftKey, chatInput.value); autoGrow(chatInput); });
     chatInput.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !matchMedia("(pointer: coarse)").matches) { e.preventDefault(); form.requestSubmit(); } });
     const { btn, panel } = emojiButton(chatInput);
     const form = el("form", { class: "compose chat-compose" }, btn, chatInput,
@@ -133,29 +137,33 @@ export function renderChat(main) {
     form.addEventListener("submit", e => {
       e.preventDefault();
       if (!chatInput.value.trim()) return;
-      sendChat(chatInput.value);
-      chatInput.value = ""; drafts.delete("chat"); autoGrow(chatInput); panel.hidden = true;
+      sendChat(chatInput.value, derbyId);
+      chatInput.value = ""; drafts.delete(draftKey); autoGrow(chatInput); panel.hidden = true;
       chatInput.focus();
     });
-    shell = el("div", { class: "chat" }, el("h2", { class: "page-title", text: "Chat" }), list, el("div", { class: "chat-bottom" }, panel, form));
+    shell = el("div", { class: "chat" },
+      derbyId ? el("a", { class: "eyebrow back-link", href: `#/d/${derbyId}`, text: "← Back to the derby" }) : null,
+      el("h2", { class: "page-title", text: derbyId ? `${derby ? derby.name : "Derby"} chat` : "Chat" }),
+      list, el("div", { class: "chat-bottom" }, panel, form));
     fill(main, shell);
   }
   const list = shell.querySelector(".chat-list");
   const nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 120;
   const first = !list.childElementCount;
-  fill(list, chatMessages());
+  const messages = derbyId ? store.derbyChat.get(derbyId) : (store.chatLoaded ? store.chat : null);
+  fill(list, chatMessages(messages, derbyId));
   if (first || nearBottom) requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight));
   const last = store.chat[store.chat.length - 1];
-  if (last && !document.hidden) setSeen(Math.max(getSeen(), last.at || 0));
+  if (!derbyId && last && !document.hidden) setSeen(Math.max(getSeen(), last.at || 0));
 }
 
-function chatMessages() {
-  if (!store.chatLoaded) return [el("p", { class: "loading", text: "Loading…" })];
-  if (!store.chat.length) return [el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.chat }),
-    el("p", { text: "No messages yet. Plan a trip, post a brag, or start some trouble." }))];
+function chatMessages(messages, derbyId) {
+  if (!messages) return [el("p", { class: "loading", text: "Loading…" })];
+  if (!messages.length) return [el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.chat }),
+    el("p", { text: derbyId ? "No trash talk yet. Get it started." : "No messages yet. Plan a trip, post a brag, or start some trouble." }))];
   const out = [];
   let lastDay = "", lastUid = "", lastAt = 0;
-  for (const m of store.chat) {
+  for (const m of messages) {
     const day = fmtDay(m.at || 0);
     if (day !== lastDay) { out.push(el("div", { class: "chat-day", text: day })); lastUid = ""; }
     const mine = m.uid === uid(), cont = m.uid === lastUid && (m.at - lastAt) < 5 * 60000;
@@ -163,7 +171,7 @@ function chatMessages() {
     out.push(el("div", { class: "msg-row" + (mine ? " mine" : "") + (cont ? " cont" : "") },
       !mine ? (cont ? el("span", { class: "avatar-gap" }) : avatar(p, "sm")) : null,
       el("button", { type: "button", class: "bubble", title: fmtDate(m.at || 0),
-        onclick: () => (mine || isAdmin()) && confirmDelete("message", () => deleteChat(m.id)) },
+        onclick: () => (mine || isAdmin()) && confirmDelete("message", () => deleteChat(m.id, derbyId)) },
         !mine && !cont ? el("span", { class: "bubble-name", text: p.displayName }) : null,
         el("span", { class: "bubble-text", text: m.text }),
         el("span", { class: "bubble-time", text: store.pendingIds.has(m.id) ? "⏳" : time(m.at) }))));

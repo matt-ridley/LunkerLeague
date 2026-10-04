@@ -358,6 +358,42 @@ textarea { resize: vertical; line-height: 1.4; }
   display: grid; gap: 8px; padding: 10px 0; background: var(--bg);
 }
 
+/* ---------- Derbies ---------- */
+.pill { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 12.5px; font-weight: 800; background: var(--surface-2); color: var(--ink); white-space: nowrap; }
+.pill.active { background: var(--lime); color: var(--lime-ink); }
+.pill.closing { background: var(--gold); color: #1A1205; }
+.pill.upcoming { background: var(--primary-soft); color: var(--primary); }
+.pill.cancelled { background: var(--danger-soft); color: var(--danger); }
+.derby-card { display: grid; gap: 6px; padding: 14px 16px; text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.derby-name { font: 800 20px/1.15 var(--f-display); min-width: 0; }
+.derby-meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 14px; font-weight: 700; color: var(--muted); }
+.derby-leader { display: flex; align-items: center; gap: 6px; font-size: 15px; flex-wrap: wrap; }
+.derby-head { display: grid; gap: 6px; justify-items: start; padding: 18px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+.derby-head.active { border: 2px solid var(--lime); }
+.derby-head h2 { font-size: 28px; }
+.derby-when { font-weight: 800; color: var(--primary); }
+.prize { font-weight: 800; padding: 6px 12px; border-radius: 12px; background: var(--gold); color: #1A1205; }
+.podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 6px; text-align: center; margin: 6px 0 4px; }
+.podium-spot { display: grid; justify-items: center; gap: 4px; min-width: 0; }
+.podium-spot b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.podium-medal { font-size: 28px; }
+.podium-block { width: 100%; border-radius: 12px 12px 0 0; display: grid; place-items: center; font: 800 26px/1 var(--f-display); color: #1A1205; }
+.p1 .podium-block { height: 96px; background: var(--gold); }
+.p2 .podium-block { height: 70px; background: var(--silver); }
+.p3 .podium-block { height: 52px; background: var(--bronze); }
+.entry-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.entry { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.entry.out { opacity: .75; }
+.entry-problem { font-size: 14px; font-weight: 800; color: var(--danger); }
+.derby-rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-weight: 600; }
+.derby-link { display: flex; justify-content: space-between; gap: 10px; text-decoration: none; }
+.derby-entry.out { border-color: var(--danger); }
+.badge.derby { background: var(--primary-soft); color: var(--primary); }
+.badge.dq { background: var(--danger-soft); color: var(--danger); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip.removable { border: 0; min-height: 36px; padding: 0 12px; }
+.back-link { text-decoration: none; }
+
 /* In-app camera */
 .cam { position: fixed; inset: 0; z-index: 50; background: #000; color: #fff; }
 .cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }

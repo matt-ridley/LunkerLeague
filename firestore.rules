@@ -67,7 +67,8 @@ service cloud.firestore {
     function optNum(d, f, max) { return !(f in d) || d[f] == null || (d[f] is number && d[f] > 0 && d[f] <= max); }
     function validCatch(d) {
       return d.keys().hasOnly(["uid", "species", "weightOz", "lengthIn", "caughtAt", "createdAt", "thumb", "photoTakenAt",
-                               "notes", "released", "hasSpot", "locShared", "spotName"])
+                               "notes", "released", "hasSpot", "locShared", "spotName",
+                               "derbyId", "captain", "netman", "dq", "dqReason"])
         && d.uid == me()
         && d.species is string && d.species.size() > 0 && d.species.size() <= 40
         && optNum(d, "weightOz", 16000) && optNum(d, "lengthIn", 200)
@@ -80,13 +81,51 @@ service cloud.firestore {
         && d.released is bool && d.hasSpot is bool && d.locShared is bool
         && d.spotName is string && d.spotName.size() <= 60
         // A spot's name is only in the catch (where everyone can read it) when the spot is shared.
-        && (d.locShared || d.spotName == "") && (d.hasSpot || !d.locShared);
+        && (d.locShared || d.spotName == "") && (d.hasSpot || !d.locShared)
+        && validCrew(d.get("captain", null)) && validCrew(d.get("netman", null))
+        && (d.get("derbyId", null) == null || derbyEntryOk(d));
     }
+    // A boat crew member: a league member ({uid}) or a guest ({guest: "name"}).
+    function validCrew(c) {
+      return c == null || (c is map && c.keys().hasOnly(["uid", "guest"]) && c.keys().size() == 1
+        && ((c.keys().hasAny(["uid"]) && c.uid is string) || (c.keys().hasAny(["guest"]) && c.guest is string
+            && c.guest.size() > 0 && c.guest.size() <= 40)));
+    }
+    function derbyPath(id) { return /databases/$(database)/documents/derbies/$(id); }
+    function entrantPath(id, who) { return /databases/$(database)/documents/derbies/$(id)/entrants/$(who); }
+    function derbyOpen(dz) { return !dz.get("cancelled", false) && request.time.toMillis() <= dz.end + dz.syncGraceHours * 3600000; }
+    // A derby entry: you joined, it was caught during the derby, it arrived before final entries closed (the grace
+    // period lets catches from no-signal spots sync later), and it meets the derby's rules.
+    function derbyEntryOk(d) {
+      let dz = get(derbyPath(d.derbyId)).data;
+      return exists(entrantPath(d.derbyId, me())) && derbyOpen(dz)
+        && d.caughtAt >= dz.start && d.caughtAt <= dz.end
+        && (dz.species.size() == 0 || d.species in dz.species)
+        && (!(dz.scoring in ["heaviest", "bag"]) || d.get("weightOz", null) != null)
+        && (dz.scoring != "longest" || d.get("lengthIn", null) != null)
+        && (dz.minWeightOz == 0 || (d.get("weightOz", null) != null && d.weightOz >= dz.minWeightOz))
+        && (dz.minLengthIn == 0 || (d.get("lengthIn", null) != null && d.lengthIn >= dz.minLengthIn))
+        && (!dz.catchRelease || d.released == true)
+        && (!dz.requireLocation || d.locShared == true)
+        && (!dz.requireCrew || (d.get("captain", null) != null && d.get("netman", null) != null));
+    }
+    function sameDq(a, b) { return a.get("dq", false) == b.get("dq", false) && a.get("dqReason", "") == b.get("dqReason", ""); }
     match /catches/{id} {
       allow read: if isMember();
-      allow create: if isMember() && validCatch(request.resource.data);
-      allow update: if isMember() && resource.data.uid == me() && validCatch(request.resource.data)
-        && request.resource.data.createdAt == resource.data.createdAt;
+      allow create: if isMember() && validCatch(request.resource.data) && request.resource.data.get("dq", false) == false
+        && !request.resource.data.keys().hasAny(["dqReason"]);
+      // The angler can edit their catch, but can't touch a disqualification, and a derby entry is locked once
+      // that derby's final entries have closed.
+      allow update: if (isMember() && resource.data.uid == me() && validCatch(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt
+          && sameDq(request.resource.data, resource.data)
+          && (resource.data.get("derbyId", null) == null || derbyOpen(get(derbyPath(resource.data.derbyId)).data)))
+        // The derby's organiser (or an admin) can disqualify or reinstate an entry, and change nothing else.
+        || (isMember() && resource.data.get("derbyId", null) != null
+            && (get(derbyPath(resource.data.derbyId)).data.organiserUid == me() || isAdmin())
+            && changed().hasOnly(["dq", "dqReason"])
+            && request.resource.data.dq is bool
+            && request.resource.data.get("dqReason", "") is string && request.resource.data.get("dqReason", "").size() <= 200);
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
 
       function catchOwner() { return get(catchPath(id)).data.uid == me(); }
@@ -153,6 +192,54 @@ service cloud.firestore {
         && getAfter(catchPath(id)).data.locShared == request.resource.data.shared;
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
     }
+
+    // ---------- Derbies ----------
+    function validDerby(d) {
+      return d.keys().hasOnly(["name", "description", "organiserUid", "start", "end", "syncGraceHours", "species", "scoring",
+                               "bagSize", "minWeightOz", "minLengthIn", "maxEntries", "proof", "requireLocation", "catchRelease",
+                               "requireCrew", "prizeNote", "cancelled", "createdAt"])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.description is string && d.description.size() <= 500
+        && d.start is number && d.end is number && d.end > d.start
+        && d.syncGraceHours is number && d.syncGraceHours >= 0 && d.syncGraceHours <= 168
+        && d.species is list && d.species.size() <= 40
+        && d.scoring in ["heaviest", "longest", "bag", "most", "species"]
+        && d.bagSize is number && d.bagSize >= 1 && d.bagSize <= 20
+        && d.minWeightOz is number && d.minWeightOz >= 0 && d.minLengthIn is number && d.minLengthIn >= 0
+        && d.maxEntries is number && d.maxEntries >= 0 && d.maxEntries <= 100
+        && d.proof in ["any", "scale", "board", "both"]
+        && d.requireLocation is bool && d.catchRelease is bool && d.requireCrew is bool
+        && d.prizeNote is string && d.prizeNote.size() <= 300
+        && d.cancelled is bool && d.createdAt is number;
+    }
+    match /derbies/{did} {
+      allow read: if isMember();
+      allow create: if isMember() && validDerby(request.resource.data) && request.resource.data.organiserUid == me()
+        && request.resource.data.cancelled == false;
+      // The organiser or an admin can change it (or cancel it). Derbies are never deleted, so results stay.
+      allow update: if isMember() && (resource.data.organiserUid == me() || isAdmin())
+        && validDerby(request.resource.data) && !changed().hasAny(["organiserUid", "createdAt"]);
+
+      // Joining: yourself, until the derby ends. Leaving: yourself, or removed by the organiser or an admin.
+      match /entrants/{who} {
+        allow create: if isMember() && who == me() && request.resource.data.keys().hasOnly(["joinedAt"])
+          && request.resource.data.joinedAt is number
+          && !get(derbyPath(did)).data.cancelled && request.time.toMillis() <= get(derbyPath(did)).data.end;
+        allow delete: if isMember() && (who == me() || get(derbyPath(did)).data.organiserUid == me() || isAdmin());
+      }
+
+      // Derby chat (trash talk for this derby).
+      match /chat/{mid} {
+        allow read: if isMember();
+        allow create: if isMember()
+          && request.resource.data.keys().hasOnly(["uid", "text", "at"])
+          && request.resource.data.uid == me()
+          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 1000
+          && request.resource.data.at is number && request.resource.data.at <= request.time.toMillis() + 600000;
+        allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+      }
+    }
+    match /{path=**}/entrants/{who} { allow read: if isMember(); }
 
     // Anything not listed above is closed.
     match /{document=**} {
