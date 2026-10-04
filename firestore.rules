@@ -1,0 +1,69 @@
+rules_version = '2';
+// Lunker League. Nothing is readable unless you are a signed-in, non-paused member of the league.
+// config/league is created once by whoever sets up the league ("claiming" it); they become owner and admin.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function leaguePath() { return /databases/$(database)/documents/config/league; }
+    function memberPath(id) { return /databases/$(database)/documents/members/$(id); }
+    function league() { return get(leaguePath()).data; }
+    function isMember() {
+      return signedIn() && exists(memberPath(me())) && get(memberPath(me())).data.suspended != true;
+    }
+    function isAdmin() { return isMember() && me() in league().admins; }
+    function isOwner() { return signedIn() && league().ownerUid == me(); }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function cleanName(n) { return n is string && n.size() > 0 && n.size() <= 40; }
+
+    match /config/league {
+      // Signed-in users can see whether a league exists (to show "Start" or "Join"); it holds no secrets.
+      allow get: if signedIn();
+      // Claiming: only while it doesn't exist, and only for yourself.
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == me()
+        && request.resource.data.admins == [me()]
+        && request.resource.data.keys().hasOnly(["name", "ownerUid", "admins", "createdAt"]);
+      // Admins may rename it. Only the owner may change who the admins are, and the owner always stays an admin.
+      allow update: if isAdmin()
+        && !changed().hasAny(["ownerUid", "createdAt"])
+        && (!changed().hasAny(["admins"]) || (isOwner() && resource.data.ownerUid in request.resource.data.admins));
+    }
+
+    match /config/invite {
+      allow get: if isAdmin();
+      // Created by the owner while claiming (same batch), then changed by admins.
+      allow create: if signedIn() && getAfter(leaguePath()).data.ownerUid == me() && request.resource.data.code is string;
+      allow update: if isAdmin() && request.resource.data.code is string && request.resource.data.code.size() >= 4;
+    }
+
+    match /members/{id} {
+      allow get: if isMember() || (signedIn() && id == me());
+      allow list: if isMember();
+      allow create: if signedIn() && id == me()
+        && cleanName(request.resource.data.displayName)
+        && request.resource.data.suspended == false
+        && (
+          // The owner, while claiming the league.
+          (getAfter(leaguePath()).data.ownerUid == me() && !request.resource.data.keys().hasAny(["invite"]))
+          // Everyone else: the invite code must match.
+          || (exists(/databases/$(database)/documents/config/invite)
+              && request.resource.data.invite == get(/databases/$(database)/documents/config/invite).data.code)
+        );
+      // Your own profile, but you can't un-pause yourself or bring back an invite code.
+      allow update: if (signedIn() && id == me() && !changed().hasAny(["suspended", "joinedAt"])
+                         && !request.resource.data.keys().hasAny(["invite"])
+                         && cleanName(request.resource.data.displayName))
+        // Admins can pause or un-pause; only the owner can do that to another admin. Nobody can pause the owner.
+        || (isAdmin() && changed().hasOnly(["suspended"]) && id != league().ownerUid
+            && (!(id in league().admins) || isOwner()));
+      allow delete: if isAdmin() && id != league().ownerUid && id != me() && (!(id in league().admins) || isOwner());
+    }
+
+    // Anything not listed above is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
