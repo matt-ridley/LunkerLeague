@@ -204,11 +204,15 @@ export function renderLog(main, editId, derbyArg) {
   };
 
   // Photo
-  const preview = el("div", { class: "photo-pick" });
+  // The photo area itself opens the camera too (the same as the Camera button), or retakes the photo.
+  const preview = el("button", { type: "button", class: "photo-pick", onclick: () => takePhoto(true) });
   const photoMsg = el("p", { class: "msg" });
-  const drawPreview = () => fill(preview, st.thumb
+  const drawPreview = () => {
+    preview.setAttribute("aria-label", st.thumb ? "Retake the photo with the camera" : "Take a photo with the camera");
+    fill(preview, st.thumb
     ? el("img", { src: st.thumb, alt: "Catch photo" })
-    : el("div", { class: "photo-empty" }, el("span", { html: icon.camera }), el("span", { text: "Add a photo of your catch" })));
+    : el("div", { class: "photo-empty" }, el("span", { html: icon.camera }), el("span", { text: "Tap to take a photo of your catch" })));
+  };
   const takePhoto = async camera => {
     const file = await pickImage({ camera });
     if (!file) return;
