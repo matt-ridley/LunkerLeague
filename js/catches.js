@@ -1,10 +1,12 @@
 /* Catches: logging and editing, the feed, a catch's own page, and the personal-best wall. */
 import { el, field, avatar, fmtDate, fmtAgo, fmtWeight, fmtLength, toast, confirmButton, icon, openSheet, closeSheet, fill } from "./ui.js";
-import { store, uid, memberName, isAdmin, newCatchId, saveCatch, deleteCatch, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
+import { store, uid, memberName, isAdmin, setDisqualified, newCatchId, saveCatch, deleteCatch, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { reactionBar, commentsSection, reactionSummary } from "./social.js";
+import { derbyStatus, entryProblem, PROOF } from "./derby.js";
+import { crewText } from "./derbies.js";
 import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats } from "./stats.js";
 
 const allCatches = () => [...store.catches.values()];
@@ -25,6 +27,8 @@ export function catchCard(c, all = allCatches()) {
       el("div", { class: "badges" },
         rec.length ? el("span", { class: "badge record", text: "👑 League record" }) : null,
         pb ? el("span", { class: "badge pb", text: "PB" }) : null,
+        c.derbyId && store.derbies.get(c.derbyId) ? el("span", { class: "badge derby", text: `🏁 ${store.derbies.get(c.derbyId).name}` }) : null,
+        c.dq ? el("span", { class: "badge dq", text: "Disqualified" }) : null,
         c.released ? el("span", { class: "badge", text: "Released" }) : null,
         c.hasSpot ? el("span", { class: "badge", text: c.locShared ? "📍 Spot" : "🔒 Secret spot" }) : null,
         store.pending.has(c.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null),
@@ -100,6 +104,7 @@ export function renderCatch(main, id) {
         rec.includes("length") ? el("span", { class: "badge record", text: "👑 Longest in the league" }) : null,
         pb ? el("span", { class: "badge pb", text: `${mine ? "Your" : "Their"} PB` }) : null,
         store.pending.has(c.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null)),
+    derbyBox(c),
     el("a", { class: "member-row card", href: `#/u/${c.uid}` }, avatar(m),
       el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), el("div", { class: "muted small", text: "View profile" }))),
     el("dl", { class: "facts card" },
@@ -109,15 +114,36 @@ export function renderCatch(main, id) {
       fact("Length", fmtLength(c.lengthIn) || "Not measured"),
       fact("Released", c.released ? "Yes" : "No"),
       c.notes ? fact("Notes", c.notes) : null,
+      c.captain || c.netman ? fact("Boat crew", crewText(c)) : null,
       fact("Spot", spotView(c, spot, mine))));
 
   parts.push(reactionBar(c.id), commentsSection(c));
   if (mine || isAdmin()) {
     parts.push(el("div", { class: "row" },
-      mine ? el("a", { class: "btn", href: `#/log/${c.id}`, text: "Edit" }) : null,
+      mine && !lockedEntry(c) ? el("a", { class: "btn", href: `#/log/${c.id}`, text: "Edit" }) : null,
       confirmButton("Delete", "Tap again to delete", () => { deleteCatch(c); location.hash = "#/feed"; toast("Catch deleted."); })));
   }
   fill(main, ...parts);
+}
+
+/* A derby entry can't be changed once that derby's final entries have closed. */
+function lockedEntry(c) {
+  const d = c.derbyId && store.derbies.get(c.derbyId);
+  return !!d && ["ended", "cancelled"].includes(derbyStatus(d));
+}
+
+/* A derby entry: which derby, and any disqualification (with the organiser's controls). */
+function derbyBox(c) {
+  const d = c.derbyId && store.derbies.get(c.derbyId);
+  if (!d) return null;
+  const organiser = d.organiserUid === uid() || isAdmin();
+  return el("section", { class: "card stack derby-entry" + (c.dq ? " out" : "") },
+    el("a", { href: `#/d/${d.id}`, class: "derby-link" }, el("span", { text: "🏁 Derby entry" }), el("b", { text: d.name })),
+    c.dq ? el("p", { class: "entry-problem", text: `Disqualified${c.dqReason ? ": " + c.dqReason : ""}` }) : null,
+    lockedEntry(c) && c.uid === uid() ? el("p", { class: "hint", text: "🔒 The derby is over, so this entry can't be changed." }) : null,
+    organiser ? (c.dq
+      ? el("button", { class: "btn small", type: "button", text: "Reinstate entry", onclick: () => setDisqualified(c.id, false) })
+      : el("a", { class: "btn small", href: `#/d/${d.id}`, text: "Organiser: review entries" })) : null);
 }
 
 const fact = (k, v) => el("div", { class: "fact" }, el("dt", { text: k }), el("dd", {}, v));
@@ -164,7 +190,7 @@ const pad = n => String(n).padStart(2, "0");
 const toLocalInput = ms => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const num = s => { const n = parseFloat(String(s).replace(",", ".")); return isFinite(n) ? n : 0; };
 
-export function renderLog(main, editId) {
+export function renderLog(main, editId, derbyArg) {
   const editing = editId ? store.catches.get(editId) : null;
   if (editId && (!editing || editing.uid !== uid())) {
     return fill(main, el("div", { class: "card" }, el("p", { text: "You can only edit your own catches." })));
@@ -254,9 +280,41 @@ export function renderLog(main, editId) {
   };
   drawSpot();
 
+  // Derby entry: the derbies this angler has joined that are open for entries.
+  const openDerbies = [...store.derbies.values()].filter(d =>
+    (store.entrants.get(d.id) || new Map()).has(uid())
+    && (["active", "closing"].includes(derbyStatus(d)) || (editing && editing.derbyId === d.id)));
+  const derbySel = el("select", { "aria-label": "Derby" }, el("option", { value: "", text: "Not a derby entry" }),
+    ...openDerbies.map(d => el("option", { value: d.id, text: d.name })));
+  derbySel.value = (editing && editing.derbyId) || derbyArg || "";
+  if (derbySel.value === "" && derbyArg) derbyArg = null; // not joined or not open
+  const captain = crewPicker(editing && editing.captain), netman = crewPicker(editing && editing.netman);
+  const derbyInfo = el("div", { class: "stack" });
+  const chosenDerby = () => store.derbies.get(derbySel.value) || null;
+  const drawDerby = () => {
+    const d = chosenDerby();
+    if (!d) return fill(derbyInfo, openDerbies.length ? null : el("p", { class: "hint", text: "Join a derby on the Derbies tab to enter catches in it." }));
+    if (d.catchRelease) released.checked = true;
+    const mine = [...store.catches.values()].filter(x => x.derbyId === d.id && x.uid === uid() && !x.dq && (!editing || x.id !== editing.id)).length;
+    fill(derbyInfo,
+      el("ul", { class: "derby-rules" },
+        el("li", { text: `📸 ${PROOF[d.proof]}` }),
+        d.species.length ? el("li", { text: `🐟 Counts: ${d.species.join(", ")}` }) : null,
+        d.minWeightOz ? el("li", { text: `⚖️ At least ${fmtWeight(d.minWeightOz)}` }) : null,
+        d.minLengthIn ? el("li", { text: `📏 At least ${fmtLength(d.minLengthIn)}` }) : null,
+        d.catchRelease ? el("li", { text: "🔄 Catch and release only" }) : null,
+        d.requireLocation ? el("li", { text: "📍 Tag your spot and share it with the league" }) : null,
+        d.maxEntries ? el("li", { text: `🎟️ You've entered ${mine} of ${d.maxEntries}. Only your first ${d.maxEntries} count.` }) : null),
+      el("div", { class: "field" }, el("span", { class: "field-label", text: d.requireCrew ? "Captain (required)" : "Captain (optional)" }), captain.node),
+      el("div", { class: "field" }, el("span", { class: "field-label", text: d.requireCrew ? "Net man (required)" : "Net man (optional)" }), netman.node),
+      el("p", { class: "hint", text: "Pick Me if you did it yourself. Guests who aren't in the league can be typed in." }));
+  };
+  derbySel.addEventListener("change", drawDerby);
+  drawDerby();
+
   const msg = el("p", { class: "msg", role: "status" });
   const form = el("form", { class: "stack", novalidate: true },
-    el("h2", { class: "page-title", text: editing ? "Edit catch" : "Log a catch" }),
+    el("h2", { class: "page-title", text: editing ? "Edit catch" : chosenDerby() && derbyArg ? `Enter: ${chosenDerby().name}` : "Log a catch" }),
     el("section", { class: "card stack" }, preview,
       el("div", { class: "row" },
         el("button", { class: "btn", type: "button", html: icon.camera, onclick: () => takePhoto(true) }, "Camera"),
@@ -275,6 +333,8 @@ export function renderLog(main, editId) {
       el("label", { class: "check" }, released, el("span", { text: "Released" })),
       field("Notes (optional)", notes)),
     el("section", { class: "card stack" }, el("h3", { text: "Where" }), spotBox),
+    openDerbies.length || (editing && editing.derbyId) ? el("section", { class: "card stack" }, el("h3", { text: "🏁 Derby" }), derbySel, derbyInfo)
+      : el("section", { class: "card stack" }, el("h3", { text: "🏁 Derby" }), derbyInfo),
     msg,
     el("button", { class: "btn lime block big", type: "submit", text: editing ? "Save changes" : "Save catch" }),
     el("a", { class: "btn quiet block", href: editing ? `#/c/${editing.id}` : "#/feed", text: "Cancel" }));
@@ -300,6 +360,15 @@ export function renderLog(main, editId) {
       notes: notes.value.trim().slice(0, 500), released: released.checked,
       hasSpot: !!st.spot, locShared: !!st.spot && st.share, spotName: st.spot && st.share ? spotName.value.trim().slice(0, 60) : "",
     };
+    const d = chosenDerby();
+    if (d) {
+      Object.assign(data, { derbyId: d.id, captain: captain.value(), netman: netman.value() });
+      if (captain.value() === undefined || netman.value() === undefined) return fail("Type the guest's name, or pick someone else.");
+      const problem = entryProblem({ ...data, released: released.checked }, d);
+      if (problem) return fail(`This entry doesn't meet the derby rules: ${problem}.`);
+    } else if (editing && editing.derbyId) {
+      Object.assign(data, { derbyId: null, captain: null, netman: null });
+    }
     const spot = st.spot ? { ...st.spot, name: spotName.value.trim().slice(0, 60), shared: st.share } : (oldSpot ? null : undefined);
     const check = checkNewPB({ id, ...data }, allCatches());
     saveCatch({ id, data, photo: st.full, spot, isNew: !editing });
@@ -309,6 +378,29 @@ export function renderLog(main, editId) {
   });
 
   fill(main, form);
+}
+
+/* Captain / net man picker: not named, me, a league member, or a guest typed in by name.
+   value(): null (not named), { uid }, { guest }, or undefined when "Guest" is picked but no name is typed. */
+function crewPicker(initial) {
+  const sel = el("select", {}, el("option", { value: "", text: "Not named" }), el("option", { value: "me", text: "Me" }),
+    ...[...store.members.values()].filter(m => m.id !== uid() && !m.suspended).sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .map(m => el("option", { value: "u:" + m.id, text: m.displayName })),
+    el("option", { value: "guest", text: "Guest (not in the league)…" }));
+  const guest = el("input", { type: "text", maxlength: 40, autocapitalize: "words", placeholder: "Guest's name", hidden: true });
+  if (initial && initial.uid) sel.value = initial.uid === uid() ? "me" : "u:" + initial.uid;
+  else if (initial && initial.guest) { sel.value = "guest"; guest.value = initial.guest; }
+  const sync = () => { guest.hidden = sel.value !== "guest"; };
+  sel.addEventListener("change", sync); sync();
+  return {
+    node: el("div", { class: "stack-tight" }, sel, guest),
+    value() {
+      if (!sel.value) return null;
+      if (sel.value === "me") return { uid: uid() };
+      if (sel.value === "guest") return guest.value.trim() ? { guest: guest.value.trim().slice(0, 40) } : undefined;
+      return { uid: sel.value.slice(2) };
+    },
+  };
 }
 
 /* ---------- Catches the server refused ---------- */
@@ -322,6 +414,9 @@ export function maybeShowRejected() {
     el("h2", { text: "A catch wasn't saved" }),
     el("p", { text: `Your ${d.species || "catch"} (${sizeText(d)}) from ${fmtDate(d.caughtAt || e.savedAt)} didn't reach the league. The server refused it, for example because your account was paused when it was sent.` }),
     el("p", { text: "This phone still has it, photo included." }),
-    el("button", { class: "btn primary block", type: "button", text: "Try again", onclick: () => { retryRejected(e); closeSheet(); toast("Sending it again."); } }),
+    d.derbyId ? el("p", { text: "If it was a derby entry, the derby may have closed. You can keep it as a regular catch instead." }) : null,
+    d.derbyId ? el("button", { class: "btn primary block", type: "button", text: "Save as a regular catch",
+      onclick: () => { retryRejected(e, { derbyId: null, captain: null, netman: null }); closeSheet(); toast("Saved as a regular catch."); } }) : null,
+    el("button", { class: d.derbyId ? "btn block" : "btn primary block", type: "button", text: "Try again", onclick: () => { retryRejected(e); closeSheet(); toast("Sending it again."); } }),
     confirmButton("Discard it", "Tap again to discard", () => { discardRejected(e); closeSheet(); }, "btn danger block"))));
 }

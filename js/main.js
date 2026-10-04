@@ -8,6 +8,7 @@ import { renderAdmin } from "./admin.js";
 import { renderFeed, renderCatch, renderLog, maybeShowRejected } from "./catches.js";
 import { renderLeaders } from "./leaders.js";
 import { renderChat, chatUnread } from "./social.js";
+import { renderDerbies, renderDerby, renderDerbyForm } from "./derbies.js";
 import { applyTheme } from "./theme.js";
 
 /* Each route renders into <main>. `live` routes re-render when league data changes; forms don't, so typing isn't lost. */
@@ -16,7 +17,12 @@ const ROUTES = {
   leaders: { tab: "leaders", live: true, render: renderLeaders },
   log: { tab: "log", live: false, render: renderLog },
   c: { tab: null, live: true, render: renderCatch },
-  derbies: { tab: "derbies", live: true, render: main => soon(main, "Derbies", "Set up fishing derbies with live leaderboards. Coming soon.") },
+  derbies: { tab: "derbies", live: true, render: renderDerbies },
+  d: { tab: "derbies", live: true, render: renderDerby },
+  dnew: { tab: "derbies", live: false, render: main => renderDerbyForm(main) },
+  dedit: { tab: "derbies", live: false, render: renderDerbyForm },
+  dchat: { tab: "derbies", live: true, inPlace: true, render: renderChat },
+  enter: { tab: "log", live: false, render: (main, derbyId) => renderLog(main, null, derbyId) },
   chat: { tab: "chat", live: true, inPlace: true, render: renderChat },
   me: { tab: null, live: true, render: main => renderProfile(main) },
   u: { tab: null, live: true, render: (main, id) => renderProfile(main, id) },
@@ -38,6 +44,8 @@ const typing = () => {
 const flushPending = () => { if (pendingRender && !typing()) { pendingRender = false; render(); } };
 document.addEventListener("focusout", () => setTimeout(flushPending, 0));
 setInterval(flushPending, 2000); // backup: focus events don't always fire (e.g. when the app is in the background)
+// Countdowns and "x min ago" times: refresh live screens once a minute.
+setInterval(() => { if (!document.hidden && parseRoute().live && !parseRoute().inPlace) render(); }, 60000);
 
 let lastKey = "";
 function render(force = false) {
@@ -86,10 +94,6 @@ function renderNav(inApp, active) {
     item("chat", "Chat", icon.chat, "", active === "chat" ? 0 : chatUnread()));
 }
 
-function soon(main, title, text) {
-  fill(main, el("h2", { class: "page-title", text: title }),
-    el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.fish }), el("p", { text })));
-}
 
 /* ---------- Service worker: lets the app open with no signal ---------- */
 function registerWorker() {
