@@ -13,6 +13,13 @@ const say = (box, text, kind = "err") => { box.className = "msg " + kind; box.te
 
 /* Sign-up details are kept here between creating the account and joining, so nothing is typed twice. */
 let pending = null;
+/* The join result outlives a redraw of the screen (the first, automatic try can finish after one). */
+let joinNote = null;
+const showJoin = (text, kind = "err") => {
+  joinNote = text ? { text, kind } : null;
+  const box = document.querySelector(".gate .msg");
+  if (box) say(box, text || "", kind);
+};
 
 export function renderGate(main) {
   const g = gate();
@@ -136,23 +143,24 @@ function joinScreen(wrap) {
     field("Your name in the league", name),
     msg,
     el("button", { class: "btn primary block", type: "submit", text: "Join" }),
-    el("button", { class: "btn quiet block", type: "button", text: `Sign out (${(cloud.user && cloud.user.email) || ""})`, onclick: () => { pending = null; signOut(); } }));
+    el("button", { class: "btn quiet block", type: "button", text: `Sign out (${(cloud.user && cloud.user.email) || ""})`, onclick: () => { pending = null; joinNote = null; signOut(); } }));
   const go = async () => {
-    if (!cleanCode(code.value)) return say(msg, "Enter the invite code.");
-    if (!name.value.trim()) return say(msg, "Enter your name.");
-    if (!navigator.onLine) return say(msg, "Joining needs an internet connection.");
-    say(msg, "Joining…", "ok");
+    if (!cleanCode(code.value)) return showJoin("Enter the invite code.");
+    if (!name.value.trim()) return showJoin("Enter your name.");
+    if (!navigator.onLine) return showJoin("Joining needs an internet connection.");
+    showJoin("Joining…", "ok");
     try {
       await joinLeague({ inviteCode: code.value, displayName: name.value });
-      pending = null;
+      pending = null; joinNote = null;
       toast("Welcome to the league!");
     } catch (err) {
       console.warn(err);
-      say(msg, err && err.code === "permission-denied" ? "That invite code isn't right. Check it with the league admin." : "That didn't work. Check your signal and try again.");
+      showJoin(err && err.code === "permission-denied" ? "That invite code isn't right. Check it with the league admin." : "That didn't work. Check your signal and try again.");
     }
   };
   form.addEventListener("submit", e => { e.preventDefault(); go(); });
   wrap.append(el("div", { class: "card" }, form));
+  if (joinNote) say(msg, joinNote.text, joinNote.kind);
   // Coming straight from sign-up with a code already typed: try it once automatically.
   if (pending && cleanCode(pending.inviteCode) && !pending.tried) { pending.tried = true; go(); }
 }

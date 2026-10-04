@@ -4,6 +4,9 @@
    queued writes are sent when the phone is back online. Times are stored as epoch milliseconds from the phone clock. */
 import { FIREBASE_CONFIG, FIREBASE_SDK } from "./config.js";
 
+/* Add ?emulator to a localhost address to use the local Firebase emulator (npm run emulators) instead of the real project. */
+export const USE_EMULATOR = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).has("emulator");
+
 export const cloud = {
   on: !!FIREBASE_CONFIG, api: null, db: null, auth: null,
   user: null, authKnown: false, failed: false, loadError: false,
@@ -80,6 +83,8 @@ function startListeners() {
     onSnapshot(doc(cloud.db, "members", uid()), OPTS, snap => {
       seen("me", snap);
       if (!snap.exists() && snap.metadata.fromCache) { if (store.me === undefined) emit(); return; }
+      // A join this phone just sent isn't real until the server accepts the invite code.
+      if (snap.exists() && snap.metadata.hasPendingWrites && !store.me) return;
       store.me = snap.exists() ? { id: snap.id, ...snap.data() } : null;
       store.meFromCache = snap.metadata.fromCache;
       refreshMemberListeners();
@@ -140,11 +145,18 @@ export async function initCloud() {
   try {
     const [app, auth, fs] = await Promise.all(["app", "auth", "firestore"].map(m => import(`${FIREBASE_SDK}firebase-${m}.js`)));
     cloud.api = { ...auth, ...fs };
-    const fbApp = app.initializeApp(FIREBASE_CONFIG);
+    const fbApp = app.initializeApp(USE_EMULATOR ? { ...FIREBASE_CONFIG, projectId: "demo-lunker" } : FIREBASE_CONFIG);
     cloud.auth = auth.getAuth(fbApp);
-    cloud.db = fs.initializeFirestore(fbApp, {
-      localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager(), cacheSizeBytes: 200 * 1024 * 1024 }),
-    });
+    if (USE_EMULATOR) {
+      // Local testing only: pretend accounts and data in the Firebase emulator, never the real league.
+      cloud.db = fs.initializeFirestore(fbApp, { localCache: fs.memoryLocalCache() });
+      auth.connectAuthEmulator(cloud.auth, "http://127.0.0.1:9099", { disableWarnings: true });
+      fs.connectFirestoreEmulator(cloud.db, "127.0.0.1", 8080);
+    } else {
+      cloud.db = fs.initializeFirestore(fbApp, {
+        localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager(), cacheSizeBytes: 200 * 1024 * 1024 }),
+      });
+    }
   } catch (e) {
     console.warn("Firebase didn't load", e);
     cloud.loadError = true;

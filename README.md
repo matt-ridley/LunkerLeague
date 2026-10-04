@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.1.2
+**Current version:** 0.1.3
 
 ## Features
 
@@ -78,6 +78,28 @@ py -m http.server 8766
 
 Then open http://localhost:8766. Service workers and sign-in need `localhost` or HTTPS, not `file://`.
 
+### Testing with the Firebase emulator
+
+The emulator is a pretend Firebase that runs only on this PC, so tests never touch the real league. It needs Java 21 (installed with `winget install Microsoft.OpenJDK.21`) and the dev tools:
+
+```bash
+npm install
+```
+
+Check the security rules (`firestore.rules`) with the automated tests:
+
+```bash
+npm run test:rules
+```
+
+Try the app against the emulator: start it in one terminal, run the web server in another, then open http://localhost:8766/?emulator. Any made-up email such as `owner@example.test` works, and everything is wiped when the emulator stops. Use http://127.0.0.1:8766/?emulator in a second tab to be a second person.
+
+```bash
+npm run emulators
+```
+
+`?emulator` only works on `localhost` and `127.0.0.1`. The live site always uses the real project.
+
 To redraw the app icons after changing `tools/make-icons.mjs`:
 
 ```bash
@@ -98,6 +120,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.1.3 | 2026-Oct-03 11:01:46 PM | Local Firebase emulator and automated security-rules tests (13 checks for claiming, joining, admins and paused members). Fixed the wrong-invite-code message disappearing, and a new member no longer counts as joined until the server accepts the code. |
 | 0.1.2 | 2026-Oct-03 10:41:49 PM | Connected the app to the league's Firebase project. |
 | 0.1.1 | 2026-Oct-03 10:30:48 PM | Firebase setup steps updated for the redesigned Firebase console menus (Security, Databases and storage, Settings). |
 | 0.1.0 | 2026-Oct-03 10:23:57 PM | First version: accounts with invite codes, claim-the-league setup, league owner and admins, member profiles with photos, Day/Dusk/Auto screens, phone home-screen install, and offline start-up. |
