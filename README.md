@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.9.2 (beta)
+**Current version:** 0.9.3 (beta)
 
 ## Features
 
@@ -58,7 +58,68 @@ A private fishing league for a group of friends. Log personal bests with a photo
   - **Admin control:** admins can change every value and the title thresholds, choosing **All history** (everything is rescored) or **From now on** (points already earned stay), with a live preview of the new standings before saving. Every change is kept as a version and can be loaded again.
 - **Works with no signal.** After the first sign-in, the app opens and shows the league's data with no connection. Changes made offline are kept on the phone and sent when it has signal again. The header shows **Live**, **Offline** or **Syncing**, and catches still waiting show **Waiting for signal**. If the league ever refuses a catch sent from the phone (for example because the account was paused at the time), the app keeps it, photo included, and offers to send it again.
 
-The app is in beta: everything planned is in, and it's being tried out by the league before 1.0.
+The app is in beta: everything originally planned is in, and the league is trying it out. What comes next is in the [Roadmap](#roadmap).
+
+## Roadmap
+
+Ideas picked for future versions, grouped into milestones in a rough order. Nothing here is built yet. Sizes are rough: S is small, M is medium, L is large.
+
+### Milestone A: Holder badges (crowns that move)
+A crown sits with whoever currently has the most of something. When someone overtakes, it moves to them and the feed announces it was stolen. All of these come from data the app already has. (M)
+
+- **Derby King**: most derby wins
+- **Golden Net**: most fish netted for other anglers
+- **Best Captain**: most derby wins or placings from fish caught on your boat
+- **Conservationist**: most fish released
+- **Meat Eater**: most fish kept
+- **Species Hunter**: most different species
+- **Grinder**: most catches logged
+- **Record Holder**: most species records held right now
+- **Early Bird** and **Night Owl**: most fish at dawn, most at night
+- **Iron Angler**: most days fished
+- **Explorer**: most different spots
+- **Fish Story King**: most 🤥 reactions received
+- **Hype Man**: most reactions and comments given
+- **Skunk Master**: most derbies finished without a fish
+
+### Milestone B: Fair play and the bet
+- **Photo code word** (S): the derby shows a random word or number that must appear in each entry photo, the anti-cheating trick tournament apps use.
+- **Organiser approval queue** (S–M): entries show as pending until the organiser approves them.
+- **Bet tracker** (M): make a wager in the app ("biggest pike by Sunday, loser buys"). The app settles it from the catches and announces the winner in the chat.
+- **Head-to-head challenges** (S–M): one-on-one weekend matchups, biggest fish wins.
+- **Fish of the Week vote** (S): the league votes, and the winner gets a badge.
+
+### Milestone C: Notifications and social
+- **Push notifications** (M): new catches, your PB or record beaten, derbies starting and ending, chat mentions. This uses Firebase Cloud Messaging, which is free. It works on Android, and on iPhone home-screen apps from iOS 16.4.
+- **@mentions** in chat and comments (S).
+- **Feed events** (S): records stolen, badges earned, derby results.
+- **Trip RSVP** (S–M): "Who's out Saturday?" with In / Out / Maybe.
+- **Several photos or a short video per catch** (M).
+
+### Milestone D: Better derbies
+- **Team or boat derbies** (M): a team leaderboard, using boat crews as teams.
+- **Several categories in one derby** (M): for example Big Bass, Big Walleye and Mystery Fish, each with its own leaderboard and payout.
+- **Mystery weight prize** (S): closest to a secret weight, revealed at the end.
+- **Season series or Angler of the Year** (M): a set of derbies with points across the season.
+- **Copy a derby** (S): start a new derby from an old one's settings.
+
+### Milestone E: Logbook and stats
+- **Bait or lure, depth and technique on each catch** (S–M), with "what's working" stats such as the best lures by species.
+- **Automatic weather on each catch** (M): air temperature, wind, pressure and moon phase, from a free weather service, filled in once the phone has signal.
+- **Personal stats page** (M): catches by month, species, time of day and lure.
+- **Map of catches** (M): your spots and the league's shared spots on a free OpenStreetMap map.
+- **Best-bite times forecast** (M): solunar times.
+- **Estimated weight from length** (S): standard species formulas, for fish that were only measured.
+- **Skunk tracker** (S): log trips with no fish, to show fish per trip.
+- **Export or backup your catches** (S) as a spreadsheet file.
+- **AI fish identification from the photo** (L): only if a free option exists, because it costs money per photo.
+
+### Milestone F: Fun extras
+- **End-of-season awards page** (M): a podium, the season's records, badge winners and a shareable recap.
+- **Hall of Fame** (S): every record ever held, when it was broken and by whom.
+- **Boat profiles** (M): boat name and photo, crew, and stats per boat.
+- **Personal goals** (S): for example "10 species this year", with progress bars.
+- **Profile flair** (S): a cover photo, favourite species and lucky lure.
 
 ## Installing on a phone
 
@@ -170,6 +231,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.9.3 | 2026-Oct-04 12:27:51 PM | Added the roadmap of planned features (holder badges, fair play and bets, notifications, better derbies, logbook and stats, fun extras). No app changes. |
 | 0.9.2 | 2026-Oct-04 11:46:40 AM | Weight and length are now optional, so not every fish has to be measured (derbies scored by size still need them). Unmeasured catches count toward catch and species points but are never a PB or record. A photo is still required, and the security rules now refuse a new catch without one. **New security rules: publish firestore.rules.** |
 | 0.9.1 | 2026-Oct-04 11:15:25 AM | Tapping the photo area on the Log screen opens the camera, the same as the Camera button. Tapping a photo already taken retakes it. |
 | 0.9.0 | 2026-Oct-04 10:55:35 AM | Beta. Angler rankings with points for catches (daily cap), new species, species records held and derby results; titles and badges; all-time and season views; a points breakdown per angler. Admins can change the points with a live preview, applied to all history or from now on, and every version is kept. **New security rules: publish firestore.rules.** |
