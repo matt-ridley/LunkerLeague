@@ -60,3 +60,12 @@ test("species names are tidied so the same fish ranks together", () => {
   assert.equal(normalizeSpecies("tiger trout"), "Tiger Trout");
   assert.equal(normalizeSpecies(""), "");
 });
+
+test("an unmeasured catch counts as a catch but is never a PB or a record", () => {
+  const all = [c("1", "amy", "Walleye", null, null, 1), c("2", "amy", "Perch", null, null, 2), c("3", "amy", "Perch", 8, null, 3)];
+  assert.equal(personalBests(all, "amy").has("Walleye"), false);
+  assert.equal(personalBests(all, "amy").get("Perch").id, "3");
+  assert.equal(checkNewPB(c("n", "amy", "Muskie", null, null, 9), all).pb, false);
+  assert.deepEqual(recordKinds(all[0], all), []);
+  assert.deepEqual(anglerStats(all, "amy"), { catches: 3, species: 2 });
+});

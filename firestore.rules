@@ -72,10 +72,9 @@ service cloud.firestore {
         && d.uid is string
         && d.species is string && d.species.size() > 0 && d.species.size() <= 40
         && optNum(d, "weightOz", 16000) && optNum(d, "lengthIn", 200)
-        && (d.get("weightOz", null) != null || d.get("lengthIn", null) != null)
         && d.caughtAt is number && d.caughtAt <= request.time.toMillis() + 600000
         && d.createdAt is number
-        && d.thumb is string && d.thumb.size() < 60000
+        && d.thumb is string && d.thumb.size() > 100 && d.thumb.size() < 60000
         && (d.get("photoTakenAt", null) == null || d.photoTakenAt is number)
         && d.notes is string && d.notes.size() <= 500
         && d.released is bool && d.hasSpot is bool && d.locShared is bool
@@ -122,7 +121,9 @@ service cloud.firestore {
     function sameDq(a, b) { return a.get("dq", false) == b.get("dq", false) && a.get("dqReason", "") == b.get("dqReason", ""); }
     match /catches/{id} {
       allow read: if isMember();
+      // Weight and length are optional, but every catch needs its photo as proof (saved in the same batch).
       allow create: if isMember() && validCatch(request.resource.data) && writesFor(request.resource.data)
+        && existsAfter(/databases/$(database)/documents/photos/$(id))
         && request.resource.data.get("dq", false) == false
         && !request.resource.data.keys().hasAny(["dqReason"]);
       // The angler can edit their catch, but can't touch a disqualification, and a derby entry is locked once

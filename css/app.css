@@ -227,6 +227,7 @@ body.gated .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 .catch-info { min-width: 0; display: grid; gap: 3px; align-content: start; }
 .catch-species { font: 800 20px/1.1 var(--f-display); }
 .catch-size { font-weight: 800; color: var(--primary); font-size: 18px; }
+.catch-size.unmeasured { color: var(--muted); font-weight: 700; font-size: 15px; }
 .catch-size.big { font: 800 28px/1.1 var(--f-display); }
 .catch-who { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); min-width: 0; }
 .catch-who span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

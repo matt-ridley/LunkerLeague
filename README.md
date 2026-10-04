@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.9.1 (beta)
+**Current version:** 0.9.2 (beta)
 
 ## Features
 
@@ -14,7 +14,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **League owner and admins.** Whoever sets up the league owns it. The owner can make other members admins. Admins can change the invite code, rename the league, and pause or remove members.
 - **Profiles.** Each angler has a name, an optional home water and a photo taken with the camera or picked from the gallery.
 - **Day and Dusk screens.** Day is high contrast for bright sun. Dusk is darker and easier on the eyes at dawn and dusk. Auto follows the phone's setting.
-- **Catches with photo proof.** Log a catch with a photo from the camera or gallery, the species, weight (lb and oz) and/or length (to the quarter inch), when it was caught, whether it was released, and notes. The time the photo was taken is read from the photo and shown with the catch.
+- **Catches with photo proof.** Log a catch with a photo from the camera or gallery, the species, and optionally the weight (lb and oz) and length (to the quarter inch), when it was caught, whether it was released, and notes. The time the photo was taken is read from the photo and shown with the catch.
 - **Private or shared spots.** Tag the GPS spot (works with no signal). Keep it private, so others only see "Secret spot", or share it with the league with an optional spot name and an Open in Maps link. Only you can read a private spot; the security rules stop anyone else, including admins.
 - **Personal bests.** Your best catch of each species is worked out automatically (heaviest, then longest), with a celebration when you beat it. Each profile has a PB wall, catch and species counts and recent catches.
 - **Leaders.** The league record for every species (heaviest and longest), and a leaderboard per species of everyone's personal best, by weight or by length.
@@ -170,6 +170,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.9.2 | 2026-Oct-04 11:46:40 AM | Weight and length are now optional, so not every fish has to be measured (derbies scored by size still need them). Unmeasured catches count toward catch and species points but are never a PB or record. A photo is still required, and the security rules now refuse a new catch without one. **New security rules: publish firestore.rules.** |
 | 0.9.1 | 2026-Oct-04 11:15:25 AM | Tapping the photo area on the Log screen opens the camera, the same as the Camera button. Tapping a photo already taken retakes it. |
 | 0.9.0 | 2026-Oct-04 10:55:35 AM | Beta. Angler rankings with points for catches (daily cap), new species, species records held and derby results; titles and badges; all-time and season views; a points breakdown per angler. Admins can change the points with a live preview, applied to all history or from now on, and every version is kept. **New security rules: publish firestore.rules.** |
 | 0.6.0 | 2026-Oct-04 10:48:43 AM | Derby management: a Testing derby flag (off by default, set when creating) that lets its organiser delete it, optionally with its catches. The league owner can delete any derby, with or without its catches (kept catches become ordinary catches). The organiser can end a derby early and enter catches for anglers in it, shown as "Entered by". **New security rules: publish firestore.rules.** |

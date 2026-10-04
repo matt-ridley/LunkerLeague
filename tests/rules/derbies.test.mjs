@@ -2,7 +2,7 @@
 import { test, before, after, beforeEach } from "node:test";
 import { assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
 import { doc, setDoc, updateDoc, deleteDoc, getDoc } from "firebase/firestore";
-import { startEnv, seedLeague, as } from "./helpers.mjs";
+import { startEnv, seedLeague, as, putCatch, THUMB } from "./helpers.mjs";
 
 const H = 3600 * 1000;
 let env;
@@ -17,7 +17,7 @@ const derbyData = (organiserUid, extra = {}) => ({
 });
 const entry = (uid, extra = {}) => ({
   uid, species: "Walleye", weightOz: 80, lengthIn: 22, caughtAt: Date.now() - H, createdAt: Date.now(),
-  thumb: "data:image/jpeg;base64,AA", photoTakenAt: null, notes: "", released: true, hasSpot: false, locShared: false,
+  thumb: THUMB, photoTakenAt: null, notes: "", released: true, hasSpot: false, locShared: false,
   spotName: "", derbyId: "d1", ...extra,
 });
 const seedDerby = (extra = {}, entrants = ["member"]) => env.withSecurityRulesDisabled(async ctx => {
@@ -55,18 +55,18 @@ test("joining: yourself only, and not after the derby ends", async () => {
 
 test("entering: only anglers who joined, with a catch from during the derby", async () => {
   await seedDerby();
-  await assertSucceeds(setDoc(doc(as(env, "member"), "catches/e1"), entry("member")));
-  await assertFails(setDoc(doc(as(env, "admin2"), "catches/e2"), entry("admin2")));  // didn't join
-  await assertFails(setDoc(doc(as(env, "member"), "catches/e3"), entry("member", { caughtAt: Date.now() - 3 * H })));  // before start
-  await assertFails(setDoc(doc(as(env, "member"), "catches/e4"), entry("member", { weightOz: null })));  // heaviest needs a weight
-  await assertFails(setDoc(doc(as(env, "member"), "catches/e5"), entry("member", { dq: true })));
+  await assertSucceeds(putCatch(as(env, "member"), "e1", entry("member")));
+  await assertFails(putCatch(as(env, "admin2"), "e2", entry("admin2")));  // didn't join
+  await assertFails(putCatch(as(env, "member"), "e3", entry("member", { caughtAt: Date.now() - 3 * H })));  // before start
+  await assertFails(putCatch(as(env, "member"), "e4", entry("member", { weightOz: null })));  // heaviest needs a weight
+  await assertFails(putCatch(as(env, "member"), "e5", entry("member", { dq: true })));
 });
 
 test("late entries sync during the grace period, but not after it", async () => {
   await seedDerby({ start: Date.now() - 10 * H, end: Date.now() - 5 * H, syncGraceHours: 24 });
-  await assertSucceeds(setDoc(doc(as(env, "member"), "catches/e1"), entry("member", { caughtAt: Date.now() - 6 * H })));
+  await assertSucceeds(putCatch(as(env, "member"), "e1", entry("member", { caughtAt: Date.now() - 6 * H })));
   await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), "derbies/d1"), { syncGraceHours: 2 }));
-  await assertFails(setDoc(doc(as(env, "member"), "catches/e2"), entry("member", { caughtAt: Date.now() - 6 * H })));
+  await assertFails(putCatch(as(env, "member"), "e2", entry("member", { caughtAt: Date.now() - 6 * H })));
   await assertFails(updateDoc(doc(as(env, "member"), "catches/e1"), { weightOz: 200 }));  // locked once closed
 });
 
@@ -74,18 +74,18 @@ test("derby rules are enforced: species, minimums, release, spot and crew", asyn
   await seedDerby({ species: ["Walleye"], minWeightOz: 32, minLengthIn: 15, catchRelease: true, requireLocation: true, requireCrew: true });
   const db = as(env, "member");
   const crew = { captain: { uid: "admin2" }, netman: { guest: "Sam" }, hasSpot: true, locShared: true };
-  await assertFails(setDoc(doc(db, "catches/a"), entry("member", { ...crew, species: "Northern Pike" })));
-  await assertFails(setDoc(doc(db, "catches/b"), entry("member", { ...crew, weightOz: 20 })));
-  await assertFails(setDoc(doc(db, "catches/c"), entry("member", { ...crew, lengthIn: 12 })));
-  await assertFails(setDoc(doc(db, "catches/d"), entry("member", { ...crew, released: false })));
-  await assertFails(setDoc(doc(db, "catches/e"), entry("member", { ...crew, locShared: false })));
-  await assertFails(setDoc(doc(db, "catches/f"), entry("member", { ...crew, netman: null })));
-  await assertFails(setDoc(doc(db, "catches/g"), entry("member", { ...crew, captain: { uid: "x", guest: "y" } })));
+  await assertFails(putCatch(db, "a", entry("member", { ...crew, species: "Northern Pike" })));
+  await assertFails(putCatch(db, "b", entry("member", { ...crew, weightOz: 20 })));
+  await assertFails(putCatch(db, "c", entry("member", { ...crew, lengthIn: 12 })));
+  await assertFails(putCatch(db, "d", entry("member", { ...crew, released: false })));
+  await assertFails(putCatch(db, "e", entry("member", { ...crew, locShared: false })));
+  await assertFails(putCatch(db, "f", entry("member", { ...crew, netman: null })));
+  await assertFails(putCatch(db, "g", entry("member", { ...crew, captain: { uid: "x", guest: "y" } })));
 });
 
 test("the organiser can disqualify an entry (and nothing else); the angler can't undo it", async () => {
   await seedDerby();
-  await setDoc(doc(as(env, "member"), "catches/e1"), entry("member"));
+  await putCatch(as(env, "member"), "e1", entry("member"));
   await assertFails(updateDoc(doc(as(env, "admin2"), "catches/e1"), { dq: true, dqReason: "No scale", weightOz: 1 }));
   await assertSucceeds(updateDoc(doc(as(env, "admin2"), "catches/e1"), { dq: true, dqReason: "No scale in the photo" }));
   await assertFails(updateDoc(doc(as(env, "member"), "catches/e1"), { dq: false }));
@@ -149,11 +149,11 @@ test("ending early: the organiser moves the end time to now", async () => {
 test("the organiser can enter a catch for an angler who joined, and edit or delete it", async () => {
   await seedDerby();                                                    // member has joined; admin2 organises
   const db = as(env, "admin2");
-  await assertSucceeds(setDoc(doc(db, "catches/ob1"), entry("member", { enteredBy: "admin2" })));
-  await assertFails(setDoc(doc(db, "catches/ob2"), entry("owner", { enteredBy: "admin2" })));         // owner didn't join
-  await assertFails(setDoc(doc(db, "catches/ob3"), entry("member", { enteredBy: "admin2", derbyId: null })));  // only for a derby
-  await assertFails(setDoc(doc(as(env, "owner"), "catches/ob4"), entry("member", { enteredBy: "owner" })));  // not the organiser
-  await assertFails(setDoc(doc(as(env, "member"), "catches/ob5"), entry("member", { enteredBy: "admin2" }))); // can't fake enteredBy
+  await assertSucceeds(putCatch(db, "ob1", entry("member", { enteredBy: "admin2" })));
+  await assertFails(putCatch(db, "ob2", entry("owner", { enteredBy: "admin2" })));         // owner didn't join
+  await assertFails(putCatch(db, "ob3", entry("member", { enteredBy: "admin2", derbyId: null })));  // only for a derby
+  await assertFails(putCatch(as(env, "owner"), "ob4", entry("member", { enteredBy: "owner" })));  // not the organiser
+  await assertFails(putCatch(as(env, "member"), "ob5", entry("member", { enteredBy: "admin2" }))); // can't fake enteredBy
   await assertSucceeds(updateDoc(doc(db, "catches/ob1"), { weightOz: 90 }));
   await assertSucceeds(updateDoc(doc(as(env, "member"), "catches/ob1"), { notes: "Thanks for entering it" }));
   await assertFails(updateDoc(doc(as(env, "member"), "catches/ob1"), { enteredBy: null }));
@@ -172,13 +172,13 @@ test("clearing out a testing derby: its organiser can delete everyone's entries 
     await setDoc(doc(db, "members/other"), { displayName: "other", joinedAt: 1, suspended: false });
     await setDoc(doc(db, "derbies/t1"), derbyData("member", { testing: true }));
     await setDoc(doc(db, "derbies/t1/entrants/other"), { joinedAt: 1 });
-    await setDoc(doc(db, "catches/te1"), entry("other", { derbyId: "t1" }));
+    await putCatch(db, "te1", entry("other", { derbyId: "t1" }));
     await setDoc(doc(db, "photos/te1"), { uid: "other", src: "x" });
     await setDoc(doc(db, "catches/te1/comments/k1"), { uid: "owner", text: "fake!", at: 1 });
     await setDoc(doc(db, "catches/te1/reactions/owner"), { uid: "owner", emojis: ["🤥"], at: 1 });
     await setDoc(doc(db, "derbies/r1"), derbyData("member"));            // a real derby by the same organiser
     await setDoc(doc(db, "derbies/r1/entrants/other"), { joinedAt: 1 });
-    await setDoc(doc(db, "catches/re1"), entry("other", { derbyId: "r1" }));
+    await putCatch(db, "re1", entry("other", { derbyId: "r1" }));
   });
   const db = as(env, "member");
   const { writeBatch } = await import("firebase/firestore");
@@ -191,7 +191,7 @@ test("clearing out a testing derby: its organiser can delete everyone's entries 
 
 test("after the owner deletes a real derby, its old entries become ordinary catches the angler can edit", async () => {
   await seedDerby();
-  await setDoc(doc(as(env, "member"), "catches/e1"), entry("member"));
+  await putCatch(as(env, "member"), "e1", entry("member"));
   await deleteDoc(doc(as(env, "owner"), "derbies/d1"));
   await assertSucceeds(updateDoc(doc(as(env, "member"), "catches/e1"), { derbyId: null, notes: "now just a catch" }));
 });

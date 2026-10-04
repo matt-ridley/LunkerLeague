@@ -4,6 +4,8 @@
 
 const has = n => typeof n === "number" && n > 0;
 const counts = c => !c.dq;
+/* Weight and length are optional; a fish with neither can't be compared, so it's never a PB or a record. */
+export const measured = c => has(c.weightOz) || has(c.lengthIn);
 
 /* Which catch is the better personal best: heavier wins, then longer, then whoever caught it first. */
 export function better(a, b) {
@@ -19,7 +21,7 @@ export function better(a, b) {
 /* species -> best catch, for one angler. */
 export function personalBests(catches, uid) {
   const out = new Map();
-  for (const c of catches) if (c.uid === uid && counts(c)) out.set(c.species, better(out.get(c.species), c));
+  for (const c of catches) if (c.uid === uid && counts(c) && measured(c)) out.set(c.species, better(out.get(c.species), c));
   return out;
 }
 
@@ -29,6 +31,7 @@ export function isPersonalBest(c, catches) {
 
 /* If this catch were saved, would it beat the angler's current best? Returns { pb, previous }. */
 export function checkNewPB(candidate, catches) {
+  if (!measured(candidate)) return { pb: false, previous: null };
   const others = catches.filter(c => c.id !== candidate.id);
   const previous = personalBests(others, candidate.uid).get(candidate.species) || null;
   return { pb: !previous || better(previous, candidate) === candidate, previous };

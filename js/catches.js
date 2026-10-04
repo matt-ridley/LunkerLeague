@@ -22,7 +22,7 @@ export function catchCard(c, all = allCatches()) {
     el("img", { class: "thumb", src: c.thumb, alt: `${c.species} photo`, loading: "lazy" }),
     el("div", { class: "catch-info" },
       el("div", { class: "catch-species", text: c.species }),
-      el("div", { class: "catch-size", text: sizeText(c) }),
+      el("div", { class: "catch-size" + (sizeText(c) ? "" : " unmeasured"), text: sizeText(c) || "Not measured" }),
       el("div", { class: "catch-who" }, avatar(m, "xs"), el("span", { text: `${m.displayName} · ${fmtAgo(c.caughtAt)}` })),
       el("div", { class: "badges" },
         rec.length ? el("span", { class: "badge record", text: "👑 League record" }) : null,
@@ -98,7 +98,7 @@ export function renderCatch(main, id) {
   parts.push(photoBox, note,
     el("section", { class: "catch-head" },
       el("h2", { text: c.species }),
-      el("div", { class: "catch-size big", text: sizeText(c) }),
+      sizeText(c) ? el("div", { class: "catch-size big", text: sizeText(c) }) : el("div", { class: "muted", text: "Not measured" }),
       el("div", { class: "badges" },
         rec.includes("weight") ? el("span", { class: "badge record", text: "👑 Heaviest in the league" }) : null,
         rec.includes("length") ? el("span", { class: "badge record", text: "👑 Longest in the league" }) : null,
@@ -347,7 +347,7 @@ export function renderLog(main, editId, derbyArg) {
         el("div", { class: "unit-row" }, lb, el("span", { text: "lb" }), oz, el("span", { text: "oz" }))),
       el("div", { class: "field" }, el("span", { class: "field-label", text: "Length" }),
         el("div", { class: "unit-row" }, inches, frac, el("span", { text: "inches" }))),
-      el("p", { class: "hint", text: "Enter the weight, the length, or both." }),
+      el("p", { class: "hint", text: "Optional. Measure the ones that might be a PB or a derby entry; the rest still count toward your catches." }),
       field("Caught", when), timeHint,
       el("label", { class: "check" }, released, el("span", { text: "Released" })),
       field("Notes (optional)", notes)),
@@ -368,7 +368,6 @@ export function renderLog(main, editId, derbyArg) {
     if (!st.thumb) return fail("Add a photo of your catch.");
     if (!sp) return fail("Enter the species.");
     if (num(oz.value) >= 16) return fail("Ounces should be under 16. Put whole pounds in the lb box.");
-    if (!(weightOz > 0) && !(lengthIn > 0)) return fail("Enter the weight, the length, or both.");
     if (!isFinite(caughtAt)) return fail("Enter when you caught it.");
     if (caughtAt > Date.now() + 600000) return fail("The catch time is in the future.");
 

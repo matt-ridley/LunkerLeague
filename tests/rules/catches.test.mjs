@@ -2,7 +2,7 @@
 import { test, before, after, beforeEach } from "node:test";
 import { assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
 import { doc, getDoc, getDocs, collection, query, where, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
-import { startEnv, seedLeague, as } from "./helpers.mjs";
+import { startEnv, seedLeague, as, THUMB } from "./helpers.mjs";
 
 let env;
 before(async () => { env = await startEnv(); });
@@ -11,7 +11,7 @@ beforeEach(async () => { await env.clearFirestore(); await seedLeague(env); });
 
 const catchData = (uid, extra = {}) => ({
   uid, species: "Walleye", weightOz: 88, lengthIn: 22.5, caughtAt: Date.now() - 60000, createdAt: Date.now(),
-  thumb: "data:image/jpeg;base64,AAAA", photoTakenAt: null, notes: "", released: true,
+  thumb: THUMB, photoTakenAt: null, notes: "", released: true,
   hasSpot: false, locShared: false, spotName: "", ...extra,
 });
 const spotData = (uid, shared) => ({ uid, lat: 44.5, lng: -79.4, acc: 12, name: shared ? "North bay" : "", shared });
@@ -36,11 +36,11 @@ test("non-members can't read or log catches", async () => {
   await assertFails(saveAll(as(env, "stranger"), "c2", "stranger"));
 });
 
-test("you can't log a catch as someone else, in the future, or with no size", async () => {
+test("you can't log a catch as someone else or in the future; weight and length are optional", async () => {
   const db = as(env, "member");
   await assertFails(saveAll(db, "c1", "admin2"));
   await assertFails(saveAll(db, "c2", "member", { extra: { caughtAt: Date.now() + 3 * 3600 * 1000 } }));
-  await assertFails(saveAll(db, "c3", "member", { extra: { weightOz: null, lengthIn: null } }));
+  await assertSucceeds(saveAll(db, "c3", "member", { extra: { weightOz: null, lengthIn: null } }));
   await assertFails(saveAll(db, "c4", "member", { extra: { weightOz: -5 } }));
   await assertSucceeds(saveAll(db, "c5", "member", { extra: { weightOz: null } }));
 });
@@ -84,4 +84,12 @@ test("photos can only be attached to your own catch and must be a sensible size"
   b.set(doc(other, "photos", "c1"), { uid: "admin2", src: "x" });
   await assertFails(b.commit());
   await assertFails(saveAll(as(env, "member"), "c2", "member", { photo: "x".repeat(800000) }));
+});
+
+test("every new catch needs its photo as proof", async () => {
+  const db = as(env, "member");
+  await assertFails(saveAll(db, "np1", "member", { photo: null }));
+  await assertFails(saveAll(db, "np2", "member", { extra: { thumb: "" } }));
+  await assertSucceeds(saveAll(db, "np3", "member"));
+  await assertSucceeds(updateDoc(doc(db, "catches/np3"), { notes: "edits don't need a new photo" }));
 });
