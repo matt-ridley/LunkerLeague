@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.4.0
+**Current version:** 0.5.0
 
 ## Features
 
@@ -40,11 +40,19 @@ Done:
   - entries locking when the derby closes
 
   Derbies can be cancelled but never deleted, so results stay.
+- **Derby money.** The app keeps track of the money; nobody pays through it, so settle up by e-transfer or cash.
+  - **Settings:**
+    - an entry fee, plus optional added money
+    - the payout split: winner takes all, 70/30, 60/30/10, 50/30/20, or custom
+    - whether unpaid anglers can win
+    - captain and net-man cuts as a % of each winning
+    - a big-fish side pot (heaviest single fish takes it)
+    - rounding to $1, $5 or the cent
+  - **Tracking:** the organiser ticks off who has paid. The Money tab shows the pot, projected payouts (and final ones when the derby finishes) with each person's breakdown, "paid out" ticks, and a summary to copy into the chat. The leaderboard shows what each angler stands to win.
 - **Works with no signal.** After the first sign-in, the app opens and shows the league's data with no connection. Changes made offline are kept on the phone and sent when it has signal again. The header shows **Live**, **Offline** or **Syncing**, and catches still waiting show **Waiting for signal**. If the league ever refuses a catch sent from the phone (for example because the account was paused at the time), the app keeps it, photo included, and offers to send it again.
 
 Planned:
-1. Derby money: entry fees, paid tracking and payouts, including captain and net-man cuts.
-2. Angler rankings with admin-adjustable points.
+1. Angler rankings with admin-adjustable points.
 
 ## Installing on a phone
 
@@ -156,6 +164,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.5.0 | 2026-Oct-04 10:22:25 AM | Derby money: entry fee, added money, payout split (presets or custom), unpaid-can-win option, captain and net-man cuts, big-fish side pot and rounding. The organiser ticks off who has paid. The Money tab shows the pot, projected or final payouts with breakdowns, paid-out ticks and a copyable summary, and the leaderboard shows projected winnings. **New security rules: publish firestore.rules.** |
 | 0.4.0 | 2026-Oct-04 12:02:50 AM | Derbies: create with times, a late-entry window, scoring (heaviest, longest, bag, most fish, most species) and rules (species, minimums, entry limit, photo proof, spot, catch and release, boat crew), plus a prize note. Join, enter catches, live leaderboard, final podium, organiser disqualification, derby chat, and entries lock when the derby closes. A refused derby entry can be kept as a regular catch. **New security rules: publish firestore.rules.** |
 | 0.3.0 | 2026-Oct-03 11:46:42 PM | Emoji reactions and comments on catches, league chat with an unread badge, and an emoji picker. The screen no longer redraws while you're typing, so a friend's reaction can't wipe a half-written comment. **New security rules: publish firestore.rules.** |
 | 0.2.2 | 2026-Oct-03 11:33:29 PM | In-app camera: Camera now opens a viewfinder inside Lunker League (with retake, front/back switch and a flash toggle where the phone supports it), because opening the phone's camera app made Android close the browser on some phones (Galaxy S24) and lose the photo. The camera app is still used where the in-app camera can't run. Fixed pages being wider than the screen on phones with large text settings. |

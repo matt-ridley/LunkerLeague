@@ -394,6 +394,22 @@ textarea { resize: vertical; line-height: 1.4; }
 .chip.removable { border: 0; min-height: 36px; padding: 0 12px; }
 .back-link { text-decoration: none; }
 
+/* Derby money */
+.seg.tabs-5 button { font-size: 14px; padding: 0 2px; }
+.board-right { display: grid; justify-items: end; gap: 4px; }
+.money-chip { font-size: 13px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: var(--ok-soft); color: var(--ok); white-space: nowrap; }
+.pot { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+.pot .hint { color: inherit; opacity: .85; }
+.pot-total { display: flex; justify-content: space-between; align-items: baseline; }
+.pot-total span { font-weight: 800; font-size: 18px; }
+.pot-total b { font: 800 40px/1 var(--f-display); }
+.payout-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.payout { display: flex; gap: 10px; align-items: flex-start; }
+.payout-right { display: grid; justify-items: end; gap: 6px; }
+.payout-amount { font: 800 22px/1 var(--f-display); color: var(--ok); }
+.settled { font-size: 13px; font-weight: 800; color: var(--ok); }
+.avatar.guest { --tint: var(--muted); }
+
 /* In-app camera */
 .cam { position: fixed; inset: 0; z-index: 50; background: #000; color: #fff; }
 .cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }

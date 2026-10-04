@@ -9,7 +9,7 @@ const SDK = "https://www.gstatic.com/firebasejs/12.19.0/";
 const APP_FILES = [
   "./", "index.html", "manifest.webmanifest", "css/app.css",
   "js/main.js", "js/config.js", "js/ui.js", "js/cloud.js", "js/gate.js", "js/profile.js", "js/admin.js",
-  "js/theme.js", "js/photos.js", "js/catches.js", "js/leaders.js", "js/stats.js", "js/species.js", "js/exif.js", "js/outbox.js", "js/camera.js", "js/social.js", "js/derby.js", "js/derbies.js",
+  "js/theme.js", "js/photos.js", "js/catches.js", "js/leaders.js", "js/stats.js", "js/species.js", "js/exif.js", "js/outbox.js", "js/camera.js", "js/social.js", "js/derby.js", "js/derbies.js", "js/payout.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
 ];
 const SDK_FILES = ["app", "auth", "firestore"].map(m => `${SDK}firebase-${m}.js`);

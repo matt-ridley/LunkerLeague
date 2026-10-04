@@ -34,6 +34,7 @@ export const store = {
   derbies: new Map(),     // id -> derby
   entrants: new Map(),    // derby id -> Map(uid -> { joinedAt })
   derbyChat: new Map(),   // derby id -> [message] (loaded when a derby's chat is opened)
+  settlements: new Map(), // derby id -> Map(payee key -> { amount, settledAt, by }) (loaded when its Money tab is opened)
 };
 
 const subs = new Set();
@@ -233,7 +234,7 @@ function stopListeners() {
 function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
-  store.derbies = new Map(); store.entrants = new Map(); store.derbyChat = new Map();
+  store.derbies = new Map(); store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map();
 }
 
 function syncError(e) {
@@ -469,6 +470,27 @@ export function saveDerby(id, data) {
 export const setDerbyCancelled = (id, cancelled) => write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "derbies", id), { cancelled }));
 export const joinDerby = id => write(cloud.api.setDoc(cloud.api.doc(cloud.db, "derbies", id, "entrants", uid()), { joinedAt: Date.now() }));
 export const leaveDerby = (id, who = uid()) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "derbies", id, "entrants", who)));
+/* Entry fees: the organiser ticks who has paid (and who paid into the side pot). */
+export function setPaid(derbyId, who, fields) {
+  const f = { ...fields, paidMarkedBy: uid() };
+  if ("paid" in fields) f.paidAt = fields.paid ? Date.now() : null;
+  write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "derbies", derbyId, "entrants", who), f));
+}
+/* Payouts: a tick per payee once they've been paid out. */
+export function setSettled(derbyId, key, amount) {
+  const ref = cloud.api.doc(cloud.db, "derbies", derbyId, "settlements", key);
+  write(amount == null ? cloud.api.deleteDoc(ref) : cloud.api.setDoc(ref, { amount, settledAt: Date.now(), by: uid() }));
+}
+export function watchSettlements(derbyId) {
+  if (derbyChatUnsubs.has("s:" + derbyId) || !cloud.db) return;
+  const { onSnapshot, collection } = cloud.api;
+  derbyChatUnsubs.set("s:" + derbyId, onSnapshot(collection(cloud.db, "derbies", derbyId, "settlements"), OPTS, snap => {
+    seen("settlements:" + derbyId, snap);
+    store.settlements.set(derbyId, new Map(snap.docs.map(d => [d.id, d.data()])));
+    emit();
+  }, syncError));
+}
+
 export function setDisqualified(catchId, dq, reason = "") {
   write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "catches", catchId), dq ? { dq: true, dqReason: cleanText(reason, 200) } : { dq: false, dqReason: "" }));
 }

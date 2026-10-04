@@ -1,6 +1,8 @@
 /* Derbies: the list, a derby's page (leaderboard, rules, entries, anglers) and the create/edit form. */
-import { el, field, avatar, fill, fmtDate, fmtDay, fmtWeight, fmtLength, toast, icon, openSheet, closeSheet, confirmButton } from "./ui.js";
-import { store, uid, isAdmin, memberName, saveDerby, setDerbyCancelled, joinDerby, leaveDerby, setDisqualified } from "./cloud.js";
+import { el, field, avatar, fill, fmtDate, fmtDay, fmtWeight, fmtLength, toast, icon, openSheet, closeSheet, confirmButton, copyText } from "./ui.js";
+import { store, uid, isAdmin, memberName, saveDerby, setDerbyCancelled, joinDerby, leaveDerby, setDisqualified,
+  setPaid, setSettled, watchSettlements } from "./cloud.js";
+import { payouts, hasMoney, fmtMoney, ordinal, PAYOUT_PRESETS } from "./payout.js";
 import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEntries, standings } from "./derby.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 
@@ -94,14 +96,19 @@ export function renderDerby(main, id) {
       onclick: () => { joinDerby(id); toast(`You're in ${d.name}. Tight lines!`); } }) : null,
     el("a", { class: "btn", href: `#/dchat/${id}`, html: icon.chat }, "Chat"));
 
-  const tabs = el("div", { class: "seg" }, ...[["board", "Leaderboard"], ["entries", "Entries"], ["rules", "Rules"], ["anglers", "Anglers"]].map(([k, label]) =>
+  const money = hasMoney(d) ? payouts(d, rows, ent, entries.filter(e => !e.problem)) : null;
+  if (derbyTab === "money" && !money) derbyTab = "board";
+  const tabList = [["board", "Board"], ["entries", "Entries"], ["rules", "Rules"], ["anglers", "Anglers"]];
+  if (money) tabList.splice(1, 0, ["money", "💵 Money"]);
+  const tabs = el("div", { class: "seg tabs-" + tabList.length }, ...tabList.map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(derbyTab === k), text: label, onclick: () => { derbyTab = k; renderDerby(main, id); } })));
 
   let body;
   if (derbyTab === "entries") body = entriesView(d, entries);
   else if (derbyTab === "rules") body = rulesView(d);
   else if (derbyTab === "anglers") body = anglersView(d, ent, entries);
-  else body = boardView(d, rows, st);
+  else if (derbyTab === "money") body = moneyView(d, money, ent, st);
+  else body = boardView(d, rows, st, money);
 
   const organiser = isOrganiser(d) ? el("section", { class: "card stack" },
     el("h3", { text: "Organiser" }),
@@ -120,7 +127,9 @@ export function renderDerby(main, id) {
   fill(main, head, actions, tabs, body, organiser, leave);
 }
 
-function boardView(d, rows, st) {
+function boardView(d, rows, st, money) {
+  const won = new Map();
+  if (money) for (const p of money.payees) if (p.payee.uid) won.set(p.payee.uid, p.amount);
   if (st === "upcoming") return el("div", { class: "card empty" }, el("p", { text: `The leaderboard opens when the derby starts. ${when(d)}.` }));
   if (!rows.length) return el("div", { class: "card empty" }, el("p", { text: "No entries yet. First fish takes the lead!" }));
   const final = st === "ended";
@@ -132,7 +141,8 @@ function boardView(d, rows, st) {
         avatar(who(r.uid)),
         el("div", { class: "grow" }, el("div", { class: "name", text: who(r.uid).displayName }),
           el("div", { class: "muted small", text: r.fish.length > 1 ? `${r.fish.length} fish counted` : r.fish[0].species })),
-        el("b", { class: "board-size", text: scoreText(d, r) }))))),
+        el("div", { class: "board-right" }, el("b", { class: "board-size", text: scoreText(d, r) }),
+          won.get(r.uid) ? el("span", { class: "money-chip", text: `💵 ${fmtMoney(won.get(r.uid))}` }) : null))))),
     st === "closing" ? el("p", { class: "hint", text: "Fishing time is over. Entries from anyone who was out of signal can still arrive until final entries close." }) : null);
 }
 
@@ -210,6 +220,74 @@ function anglersView(d, ent, entries) {
   }));
 }
 
+/* ---------- Money ---------- */
+const payeeName = p => p.uid ? who(p.uid).displayName : `${p.guest} (guest)`;
+const splitText = d => {
+  const pcts = (d.payoutPcts && d.payoutPcts.length ? d.payoutPcts : [100]);
+  const places = pcts.length === 1 ? "Winner takes all" : pcts.map((p, i) => `${ordinal(i + 1)} ${p}%`).join(" · ");
+  const cuts = [d.captainPct ? `captain ${d.captainPct}%` : "", d.netmanPct ? `net man ${d.netmanPct}%` : ""].filter(Boolean).join(", ");
+  return places + (cuts ? `. Crew cut from each winning: ${cuts}` : "") + `. Rounded ${d.roundTo ? `to the nearest $${d.roundTo}` : "to the cent"}.`;
+};
+
+function moneyView(d, m, ent, st) {
+  watchSettlements(d.id);
+  const org = isOrganiser(d), final = st === "ended";
+  const settled = store.settlements.get(d.id) || new Map();
+  const list = [...ent.keys()].sort((a, b) => who(a).displayName.localeCompare(who(b).displayName));
+  const unpaid = list.filter(u => !(ent.get(u) || {}).paid).length;
+
+  const pot = el("section", { class: "card stack pot" },
+    el("div", { class: "pot-total" }, el("span", { text: "Pot" }), el("b", { text: fmtMoney(m.pot) })),
+    el("p", { class: "small", text: `${m.paidCount} paid × ${fmtMoney(d.entryFee || 0)}${d.addedMoney ? ` + ${fmtMoney(d.addedMoney)} added` : ""}` }),
+    d.sidePotFee ? el("p", { class: "small", text: `Big-fish side pot: ${fmtMoney(m.side.amount)} (${m.side.players} in × ${fmtMoney(d.sidePotFee)}), heaviest single fish takes it` }) : null,
+    el("p", { class: "hint", text: splitText(d) + (d.unpaidCanWin ? " Unpaid anglers can still win." : " Only anglers who've paid can win money.") }),
+    el("p", { class: "hint", text: "The app only keeps track. Settle up by e-transfer or cash." }));
+
+  const payoutList = el("section", { class: "card stack" },
+    el("h3", { text: final ? "Payouts" : "Projected payouts" }),
+    !final ? el("p", { class: "hint", text: "If it ended right now. Changes as fish come in and entry fees are ticked off." }) : null,
+    m.payees.length ? el("ul", { class: "payout-list" }, ...m.payees.map(p => {
+      const s = settled.get(p.key);
+      return el("li", { class: "payout" },
+        p.payee.uid ? avatar(who(p.payee.uid), "sm") : el("span", { class: "avatar sm guest", text: "G" }),
+        el("div", { class: "grow" }, el("b", { text: payeeName(p.payee) }), el("div", { class: "muted small", text: p.why.join(" · ") }),
+          s ? el("div", { class: "settled", text: `✓ Paid out ${fmtDay(s.settledAt)}` }) : null),
+        el("div", { class: "payout-right" }, el("b", { class: "payout-amount", text: fmtMoney(p.amount) }),
+          org && final ? el("button", { type: "button", class: "btn small" + (s ? " quiet" : ""), text: s ? "Undo" : "Paid out",
+            onclick: () => setSettled(d.id, p.key, s ? null : p.amount) }) : null));
+    })) : el("p", { class: "muted", text: "No payouts yet." }),
+    m.unclaimed ? el("p", { class: "hint", text: `${fmtMoney(m.unclaimed)} isn't claimed yet: no paid-up angler has a fish that counts.` }) : null,
+    m.payees.length ? el("button", { type: "button", class: "btn block", text: "Copy summary for the chat", onclick: async () => {
+      toast(await copyText(summaryText(d, m, final)) ? "Copied. Paste it into the chat." : "Couldn't copy on this phone.");
+    } }) : null);
+
+  const paidList = el("section", { class: "card stack" },
+    el("h3", { text: `Entry fees${unpaid ? ` (${unpaid} unpaid)` : ""}` }),
+    !list.length ? el("p", { class: "muted", text: "Nobody has joined yet." }) : el("ul", { class: "member-list" }, ...list.map(u => {
+      const e = ent.get(u) || {};
+      return el("li", { class: "member-row" }, avatar(who(u), "sm"),
+        el("div", { class: "grow" }, el("div", { class: "name", text: who(u).displayName }),
+          el("div", { class: "muted small", text: [e.paid ? `Paid${e.paidAt ? " " + fmtDay(e.paidAt) : ""}` : "Not paid yet",
+            d.sidePotFee ? (e.sidePotPaid ? "in the side pot" : "not in the side pot") : ""].filter(Boolean).join(" · ") })),
+        org ? el("div", { class: "row" },
+          el("button", { type: "button", class: "btn small" + (e.paid ? " lime" : ""), "aria-pressed": String(!!e.paid), text: e.paid ? "✓ Paid" : "Paid?",
+            onclick: () => setPaid(d.id, u, { paid: !e.paid }) }),
+          d.sidePotFee ? el("button", { type: "button", class: "btn small" + (e.sidePotPaid ? " lime" : ""), "aria-pressed": String(!!e.sidePotPaid),
+            text: e.sidePotPaid ? "✓ Side" : "Side?", onclick: () => setPaid(d.id, u, { sidePotPaid: !e.sidePotPaid }) }) : null)
+          : el("span", { class: "badge" + (e.paid ? " pb" : ""), text: e.paid ? "✓ Paid" : "Unpaid" }));
+    })),
+    org ? el("p", { class: "hint", text: "Tap to tick off who has paid. Only you (the organiser) and admins can change these." }) : null);
+
+  return el("div", { class: "stack" }, pot, payoutList, paidList);
+}
+
+function summaryText(d, m, final) {
+  const lines = [`🏁 ${d.name} — ${final ? "final payouts" : "projected payouts"}`, `Pot ${fmtMoney(m.pot)} (${m.paidCount} paid)`];
+  for (const p of m.payees) lines.push(`${payeeName(p.payee)}: ${fmtMoney(p.amount)} (${p.why.join(", ")})`);
+  if (m.side && m.side.fish) lines.push(`Big fish: ${who(m.side.fish.uid).displayName}, ${fmtWeight(m.side.fish.weightOz)}`);
+  return lines.join("\n");
+}
+
 /* ---------- Create / edit ---------- */
 const pad = n => String(n).padStart(2, "0");
 const toLocalInput = ms => { const t = new Date(ms); return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`; };
@@ -257,6 +335,33 @@ export function renderDerbyForm(main, id) {
   const [cr, crRow] = check("Catch and release only", d.catchRelease);
   const [crew, crewRow, crewHint] = check("Boat crew required (captain and net man)", d.requireCrew, "Each entry names who captained the boat and who netted the fish.");
   const prize = el("input", { type: "text", maxlength: 300, value: d.prizeNote, placeholder: "e.g. Loser buys breakfast" });
+  const dollars = v => el("input", { type: "text", inputmode: "decimal", placeholder: "0", value: v ? String(v) : "" });
+  const fee = dollars(d.entryFee), added = dollars(d.addedMoney), side = dollars(d.sidePotFee);
+  const presetKey = (d.payoutPcts || [100]).join(",");
+  const split = el("select", {}, el("option", { value: "100", text: "Winner takes all" }), el("option", { value: "70,30", text: "70% / 30%" }),
+    el("option", { value: "60,30,10", text: "60% / 30% / 10%" }), el("option", { value: "50,30,20", text: "50% / 30% / 20%" }),
+    el("option", { value: "custom", text: "Custom…" }));
+  split.value = PAYOUT_PRESETS[presetKey] ? presetKey : "custom";
+  const custom = el("input", { type: "text", inputmode: "decimal", value: presetKey.replace(/,/g, ", "), placeholder: "e.g. 60, 25, 15" });
+  const customField = field("Custom split (% for 1st, 2nd, 3rd…)", custom, "Must add up to 100.");
+  const syncSplit = () => { customField.hidden = split.value !== "custom"; };
+  split.addEventListener("change", syncSplit); syncSplit();
+  const pct = v => el("input", { type: "text", inputmode: "decimal", placeholder: "0", value: v ? String(v) : "" });
+  const capPct = pct(d.captainPct), netPct = pct(d.netmanPct);
+  const roundTo = el("select", {}, el("option", { value: "1", text: "Nearest $1" }), el("option", { value: "5", text: "Nearest $5" }), el("option", { value: "0", text: "Exact (to the cent)" }));
+  roundTo.value = String(d.roundTo ?? 1);
+  const [unpaidWin, unpaidWinRow] = check("Unpaid anglers can still win money", !!d.unpaidCanWin);
+  const moneyBox = el("div", { class: "stack" },
+    el("div", { class: "field" }, el("span", { class: "field-label", text: "Payout split" }), split), customField,
+    field("Added money ($, optional)", added, "From a sponsor or the organiser, on top of the entry fees."),
+    unpaidWinRow,
+    el("div", { class: "field" }, el("span", { class: "field-label", text: "Crew cuts (% of each winning)" }),
+      el("div", { class: "unit-row" }, capPct, el("span", { text: "% captain" }), netPct, el("span", { text: "% net man" }))),
+    el("p", { class: "hint", text: "Taken from a winner's money for the captain and net man of their boat. No cut when it's the angler themselves." }),
+    field("Big-fish side pot ($ per angler, optional)", side, "A separate pot: everyone who pays in, the heaviest single fish takes it all."),
+    field("Rounding", roundTo, "Any rounding difference goes to (or comes off) 1st place."));
+  const syncMoney = () => { moneyBox.hidden = !(num(fee.value) > 0) && !(num(side.value) > 0); };
+  fee.addEventListener("input", syncMoney); side.addEventListener("input", syncMoney); syncMoney();
   const msg = el("p", { class: "msg" });
 
   const form = el("form", { class: "stack", novalidate: true },
@@ -274,8 +379,10 @@ export function renderDerbyForm(main, id) {
       field("Photo proof", proof),
       reqLocRow, reqLocHint, crRow, crewRow, crewHint,
       field("Late entries", grace, "Lets catches made during the derby sync afterwards, for anglers who had no signal on the water.")),
-    el("section", { class: "card stack" }, field("Prize or bragging rights (optional)", prize,
-      "Entry fees and payouts arrive in the next update.")),
+    el("section", { class: "card stack" }, el("h3", { text: "💵 Entry fee and prizes" }),
+      field("Entry fee ($ per angler)", fee, "Leave at 0 for a free derby. The app only keeps track; settle up by e-transfer or cash."),
+      moneyBox,
+      field("Prize or bragging rights (optional)", prize)),
     msg,
     el("button", { class: "btn lime block big", type: "submit", text: editing ? "Save changes" : "Create derby" }),
     el("a", { class: "btn quiet block", href: editing ? `#/d/${id}` : "#/derbies", text: "Cancel" }));
@@ -288,6 +395,9 @@ export function renderDerbyForm(main, id) {
     if (!name.value.trim()) return fail("Give the derby a name.");
     if (!isFinite(s) || !isFinite(en)) return fail("Set when it starts and ends.");
     if (en <= s) return fail("It has to end after it starts.");
+    const pcts = (split.value === "custom" ? custom.value : split.value).split(/[,\s/]+/).map(num).filter(x => x > 0);
+    if ((num(fee.value) > 0 || num(added.value) > 0) && Math.round(pcts.reduce((a, b) => a + b, 0)) !== 100) return fail("The payout split has to add up to 100%.");
+    if (num(capPct.value) + num(netPct.value) > 50) return fail("Crew cuts can't add up to more than 50%.");
     const data = {
       ...DEFAULTS, name: name.value.trim().slice(0, 60), description: desc.value.trim().slice(0, 500),
       organiserUid: editing ? editing.organiserUid : uid(), start: s, end: en, syncGraceHours: num(grace.value),
@@ -296,6 +406,9 @@ export function renderDerbyForm(main, id) {
       maxEntries: Math.min(100, Math.max(0, Math.round(num(maxEntries.value)))), proof: proof.value,
       requireLocation: reqLoc.checked, catchRelease: cr.checked, requireCrew: crew.checked, prizeNote: prize.value.trim().slice(0, 300),
       cancelled: editing ? !!editing.cancelled : false, createdAt: editing ? editing.createdAt : Date.now(),
+      entryFee: Math.max(0, num(fee.value)), addedMoney: Math.max(0, num(added.value)), payoutPcts: pcts.length ? pcts : [100],
+      unpaidCanWin: unpaidWin.checked, captainPct: Math.min(50, Math.max(0, num(capPct.value))), netmanPct: Math.min(50, Math.max(0, num(netPct.value))),
+      roundTo: +roundTo.value, sidePotFee: Math.max(0, num(side.value)),
     };
     const newId = saveDerby(editing ? id : null, data);
     if (!editing) joinDerby(newId); // the organiser is in by default
