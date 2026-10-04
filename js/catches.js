@@ -4,6 +4,7 @@ import { store, uid, memberName, isAdmin, newCatchId, saveCatch, deleteCatch, lo
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
+import { reactionBar, commentsSection, reactionSummary } from "./social.js";
 import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats } from "./stats.js";
 
 const allCatches = () => [...store.catches.values()];
@@ -26,7 +27,14 @@ export function catchCard(c, all = allCatches()) {
         pb ? el("span", { class: "badge pb", text: "PB" }) : null,
         c.released ? el("span", { class: "badge", text: "Released" }) : null,
         c.hasSpot ? el("span", { class: "badge", text: c.locShared ? "📍 Spot" : "🔒 Secret spot" }) : null,
-        store.pending.has(c.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null)));
+        store.pending.has(c.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null),
+      socialLine(c.id)));
+}
+
+function socialLine(id) {
+  const r = reactionSummary(id), n = (store.comments.get(id) || []).length;
+  if (!r && !n) return null;
+  return el("div", { class: "social-line" }, r ? el("span", { text: r }) : null, n ? el("span", { text: `💬 ${n}` }) : null);
 }
 
 /* ---------- Feed ---------- */
@@ -103,6 +111,7 @@ export function renderCatch(main, id) {
       c.notes ? fact("Notes", c.notes) : null,
       fact("Spot", spotView(c, spot, mine))));
 
+  parts.push(reactionBar(c.id), commentsSection(c));
   if (mine || isAdmin()) {
     parts.push(el("div", { class: "row" },
       mine ? el("a", { class: "btn", href: `#/log/${c.id}`, text: "Edit" }) : null,

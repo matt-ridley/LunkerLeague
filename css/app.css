@@ -301,6 +301,63 @@ textarea { resize: vertical; line-height: 1.4; }
 .pb-text b { font: 800 17px/1.1 var(--f-display); }
 .pb-text span { font-size: 14px; font-weight: 700; }
 
+/* ---------- Social ---------- */
+.nav-item { position: relative; }
+.nav-badge {
+  position: absolute; top: 6px; left: calc(50% + 6px); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px;
+  background: var(--tangerine); color: #fff; font-size: 12px; font-weight: 800; display: grid; place-items: center;
+}
+.social-line { display: flex; gap: 10px; font-size: 14px; font-weight: 700; color: var(--muted); }
+.reactions { display: grid; gap: 8px; }
+.reaction-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.reaction {
+  min-height: 44px; min-width: 52px; padding: 0 12px; border-radius: 99px; border: 2px solid var(--line);
+  background: var(--surface); display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.reaction-emoji { font-size: 22px; line-height: 1; }
+.reaction-n { font-weight: 800; }
+.reaction[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); }
+.reaction.more { font-size: 20px; font-weight: 800; color: var(--muted); }
+.reaction-who { overflow-wrap: anywhere; }
+.emoji-panel {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 2px; padding: 8px;
+  max-height: 220px; overflow-y: auto; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line);
+}
+.emoji-pick { min-height: 44px; border: 0; border-radius: 10px; background: transparent; font-size: 24px; }
+.emoji-pick:active { background: var(--line); }
+.compose { display: flex; align-items: flex-end; gap: 8px; }
+.compose textarea { flex: 1; min-height: 48px; max-height: 160px; padding: 11px 14px; border-radius: 24px; resize: none; }
+.emoji-btn, .send-btn { flex: none; width: 48px; height: 48px; border-radius: 50%; border: 0; display: grid; place-items: center; }
+.emoji-btn { background: var(--surface-2); font-size: 24px; }
+.send-btn { background: var(--primary); color: var(--primary-ink); }
+.send-btn svg { width: 22px; height: 22px; }
+.comment-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.comment { display: flex; gap: 10px; align-items: flex-start; }
+.comment-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.comment-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.link-btn { border: 0; background: none; padding: 4px 2px; color: var(--muted); font-size: 13px; font-weight: 700; text-decoration: underline; margin-left: auto; }
+
+/* Chat */
+.chat { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.chat-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-bottom: 8px; }
+.chat-day { justify-self: center; margin: 12px 0 6px; padding: 4px 12px; border-radius: 99px; background: var(--surface-2); font-size: 13px; font-weight: 800; color: var(--muted); }
+.msg-row { display: flex; align-items: flex-end; gap: 8px; margin-top: 8px; }
+.msg-row.cont { margin-top: 0; }
+.msg-row.mine { justify-content: flex-end; }
+.avatar-gap { width: 36px; flex: none; }
+.bubble {
+  max-width: 78%; text-align: left; border: 0; padding: 8px 12px 6px; border-radius: 18px 18px 18px 6px;
+  background: var(--surface); border: 1px solid var(--line); display: grid; gap: 2px; font: inherit; color: inherit;
+}
+.mine .bubble { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); border-radius: 18px 18px 6px 18px; }
+.bubble-name { font-size: 13px; font-weight: 800; color: var(--primary); }
+.bubble-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble-time { justify-self: end; font-size: 11.5px; opacity: .75; }
+.chat-bottom {
+  position: sticky; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); z-index: 5;
+  display: grid; gap: 8px; padding: 10px 0; background: var(--bg);
+}
+
 /* In-app camera */
 .cam { position: fixed; inset: 0; z-index: 50; background: #000; color: #fff; }
 .cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }

@@ -7,6 +7,7 @@ import { renderProfile } from "./profile.js";
 import { renderAdmin } from "./admin.js";
 import { renderFeed, renderCatch, renderLog, maybeShowRejected } from "./catches.js";
 import { renderLeaders } from "./leaders.js";
+import { renderChat, chatUnread } from "./social.js";
 import { applyTheme } from "./theme.js";
 
 /* Each route renders into <main>. `live` routes re-render when league data changes; forms don't, so typing isn't lost. */
@@ -16,7 +17,7 @@ const ROUTES = {
   log: { tab: "log", live: false, render: renderLog },
   c: { tab: null, live: true, render: renderCatch },
   derbies: { tab: "derbies", live: true, render: main => soon(main, "Derbies", "Set up fishing derbies with live leaderboards. Coming soon.") },
-  chat: { tab: "chat", live: true, render: main => soon(main, "Chat", "League chat, comments and emoji reactions are coming soon.") },
+  chat: { tab: "chat", live: true, inPlace: true, render: renderChat },
   me: { tab: null, live: true, render: main => renderProfile(main) },
   u: { tab: null, live: true, render: (main, id) => renderProfile(main, id) },
   admin: { tab: null, live: true, render: renderAdmin },
@@ -27,6 +28,17 @@ function parseRoute() {
   return ROUTES[name] ? { name, arg, arg2, ...ROUTES[name] } : { name: "feed", ...ROUTES.feed };
 }
 
+/* Redraws wait while someone is typing in a box on the page, so a new reaction from a friend can't wipe a
+   half-written comment. Screens that update in place (chat) are exempt. */
+let pendingRender = false;
+const typing = () => {
+  const a = document.activeElement;
+  return !!(a && $("main").contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+};
+const flushPending = () => { if (pendingRender && !typing()) { pendingRender = false; render(); } };
+document.addEventListener("focusout", () => setTimeout(flushPending, 0));
+setInterval(flushPending, 2000); // backup: focus events don't always fire (e.g. when the app is in the background)
+
 let lastKey = "";
 function render(force = false) {
   const g = gate(), main = $("main"), r = parseRoute();
@@ -36,7 +48,9 @@ function render(force = false) {
   renderNav(inApp, r.tab);
   const key = inApp ? `in:${r.name}:${r.arg || ""}:${r.arg2 || ""}` : `gate:${g}`;
   if (!force && key === lastKey && !(inApp && r.live)) return;
+  if (!force && key === lastKey && !r.inPlace && typing()) { pendingRender = true; return; }
   const changed = key !== lastKey;
+  if (changed && r.inPlace) $("main").replaceChildren(); // start the in-place screen fresh
   lastKey = key;
   if (inApp) r.render(main, r.arg, r.arg2); else renderGate(main);
   if (changed) window.scrollTo(0, 0);
@@ -61,14 +75,15 @@ function renderNav(inApp, active) {
   const nav = $("nav");
   nav.hidden = !inApp;
   if (!inApp) return;
-  const item = (tab, label, svg, cls = "") => el("a", { class: "nav-item " + cls, href: `#/${tab}`,
-    "aria-current": active === tab ? "page" : null, html: svg }, el("span", { text: label }));
+  const item = (tab, label, svg, cls = "", badge = 0) => el("a", { class: "nav-item " + cls, href: `#/${tab}`,
+    "aria-current": active === tab ? "page" : null, "aria-label": badge ? `${label}, ${badge} new` : null, html: svg },
+    el("span", { text: label }), badge ? el("b", { class: "nav-badge", text: badge > 9 ? "9+" : String(badge) }) : null);
   fill(nav, 
     item("feed", "Feed", icon.feed),
     item("leaders", "Leaders", icon.trophy),
     item("log", "Log", icon.plus, "log"),
     item("derbies", "Derbies", icon.flag),
-    item("chat", "Chat", icon.chat));
+    item("chat", "Chat", icon.chat, "", active === "chat" ? 0 : chatUnread()));
 }
 
 function soon(main, title, text) {

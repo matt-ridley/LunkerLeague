@@ -88,6 +88,43 @@ service cloud.firestore {
       allow update: if isMember() && resource.data.uid == me() && validCatch(request.resource.data)
         && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+
+      function catchOwner() { return get(catchPath(id)).data.uid == me(); }
+
+      // Comments: anyone in the league, as themselves. The author, the catch's angler or an admin can remove one.
+      match /comments/{cid} {
+        allow create: if isMember() && exists(catchPath(id))
+          && request.resource.data.keys().hasOnly(["uid", "text", "at"])
+          && request.resource.data.uid == me()
+          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 500
+          && request.resource.data.at is number && request.resource.data.at <= request.time.toMillis() + 600000;
+        allow delete: if isMember() && (resource.data.uid == me() || isAdmin() || catchOwner());
+      }
+
+      // Emoji reactions: one doc per person per catch, named by their user id, so nobody can change anyone else's.
+      match /reactions/{rid} {
+        allow create, update: if isMember() && rid == me() && exists(catchPath(id))
+          && request.resource.data.keys().hasOnly(["uid", "emojis", "at"])
+          && request.resource.data.uid == me()
+          && request.resource.data.emojis is list && request.resource.data.emojis.size() > 0 && request.resource.data.emojis.size() <= 8
+          && request.resource.data.at is number;
+        allow delete: if isMember() && (rid == me() || isAdmin() || catchOwner());
+      }
+    }
+
+    // Reading comments and reactions across all catches at once (the app keeps them all, like the catches).
+    match /{path=**}/comments/{cid} { allow read: if isMember(); }
+    match /{path=**}/reactions/{rid} { allow read: if isMember(); }
+
+    // League chat.
+    match /chat/{mid} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(["uid", "text", "at"])
+        && request.resource.data.uid == me()
+        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 1000
+        && request.resource.data.at is number && request.resource.data.at <= request.time.toMillis() + 600000;
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
     }
 
     // The full-size photo of a catch, in its own doc so lists only load thumbnails. Same id as the catch.

@@ -26,6 +26,11 @@ export const store = {
   pending: new Set(),     // ids of catches still waiting to reach the server
   spots: new Map(),       // catch id -> GPS spot (shared ones, plus all of this user's own)
   rejected: [],           // outbox entries the server refused
+  comments: new Map(),    // catch id -> [comment], oldest first
+  reactions: new Map(),   // catch id -> Map(uid -> [emoji])
+  chat: [],               // last 100 league chat messages, oldest first
+  chatLoaded: false,
+  pendingIds: new Set(),  // comment / chat ids still waiting to reach the server
 };
 
 const subs = new Set();
@@ -108,11 +113,51 @@ function refreshMemberListeners() {
   memberKey = key;
   cloud.memberUnsubs.forEach(u => u());
   cloud.memberUnsubs = [];
-  for (const k of ["members", "invite", "catches", "spotsShared", "spotsMine"]) delete cloud.meta[k];
+  for (const k of ["members", "invite", "catches", "spotsShared", "spotsMine", "comments", "reactions", "chat"]) delete cloud.meta[k];
   store.members = new Map(); store.invite = undefined;
   store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map();
+  resetSocial();
   if (!member) return;
-  const { onSnapshot, collection, doc, query, where } = cloud.api;
+  const { onSnapshot, collection, collectionGroup, doc, query, where, orderBy, limitToLast } = cloud.api;
+  // Comments and reactions of every catch, kept under the catch they belong to.
+  const pendingOf = { comments: new Set(), chat: new Set() };
+  const syncPending = () => { store.pendingIds = new Set([...pendingOf.comments, ...pendingOf.chat]); };
+  cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "comments"), OPTS, snap => {
+    seen("comments", snap);
+    const by = new Map();
+    pendingOf.comments = new Set();
+    for (const d of snap.docs) {
+      const catchId = d.ref.parent.parent && d.ref.parent.parent.id;
+      if (!catchId || d.ref.parent.parent.parent.id !== "catches") continue;
+      if (d.metadata.hasPendingWrites) pendingOf.comments.add(d.id);
+      if (!by.has(catchId)) by.set(catchId, []);
+      by.get(catchId).push({ id: d.id, catchId, ...d.data() });
+    }
+    for (const list of by.values()) list.sort((a, b) => (a.at || 0) - (b.at || 0));
+    store.comments = by; syncPending();
+    emit();
+  }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "reactions"), OPTS, snap => {
+    seen("reactions", snap);
+    const by = new Map();
+    for (const d of snap.docs) {
+      const catchId = d.ref.parent.parent && d.ref.parent.parent.id;
+      if (!catchId) continue;
+      const emojis = Array.isArray(d.data().emojis) ? d.data().emojis : [];
+      if (!emojis.length) continue;
+      if (!by.has(catchId)) by.set(catchId, new Map());
+      by.get(catchId).set(d.id, emojis);
+    }
+    store.reactions = by;
+    emit();
+  }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(query(collection(cloud.db, "chat"), orderBy("at"), limitToLast(100)), OPTS, snap => {
+    seen("chat", snap);
+    pendingOf.chat = new Set(snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id));
+    store.chat = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    store.chatLoaded = true; syncPending();
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "catches"), OPTS, snap => {
     seen("catches", snap);
     const pending = new Set();
@@ -159,6 +204,11 @@ function stopListeners() {
   cloud.meta = {};
   store.league = undefined; store.me = undefined; store.members = new Map(); store.invite = undefined;
   store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map(); store.rejected = [];
+  resetSocial();
+}
+
+function resetSocial() {
+  store.comments = new Map(); store.reactions = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
 }
 
 function syncError(e) {
@@ -291,6 +341,9 @@ export function deleteCatch(c) {
   b.delete(doc(cloud.db, "catches", c.id));
   b.delete(doc(cloud.db, "photos", c.id));
   if (c.hasSpot && store.spots.has(c.id)) b.delete(doc(cloud.db, "spots", c.id));
+  // Its comments and reactions go with it (the rules let a catch's angler or an admin remove them).
+  for (const cm of store.comments.get(c.id) || []) b.delete(doc(cloud.db, "catches", c.id, "comments", cm.id));
+  for (const who of (store.reactions.get(c.id) || new Map()).keys()) b.delete(doc(cloud.db, "catches", c.id, "reactions", who));
   outboxRemove(c.id);
   b.commit().catch(syncError);
 }
@@ -337,3 +390,30 @@ export function discardRejected(entry) {
   outboxRemove(entry.id);
   emit();
 }
+
+/* ---------- Comments, reactions and chat ---------- */
+const cleanText = (t, max) => String(t || "").replace(/\s+$/g, "").replace(/^\s+/g, "").slice(0, max);
+
+export function addComment(catchId, text) {
+  const t = cleanText(text, 500);
+  if (!t) return;
+  const { doc, collection, setDoc } = cloud.api;
+  write(setDoc(doc(collection(cloud.db, "catches", catchId, "comments")), { uid: uid(), text: t, at: Date.now() }));
+}
+export const deleteComment = (catchId, id) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "catches", catchId, "comments", id)));
+
+/* Turns one emoji on or off for this user on a catch. Each person has one small doc per catch. */
+export function toggleReaction(catchId, emoji) {
+  const mine = ((store.reactions.get(catchId) || new Map()).get(uid())) || [];
+  const next = mine.includes(emoji) ? mine.filter(e => e !== emoji) : [...mine, emoji].slice(-8);
+  const ref = cloud.api.doc(cloud.db, "catches", catchId, "reactions", uid());
+  write(next.length ? cloud.api.setDoc(ref, { uid: uid(), emojis: next, at: Date.now() }) : cloud.api.deleteDoc(ref));
+}
+
+export function sendChat(text) {
+  const t = cleanText(text, 1000);
+  if (!t) return;
+  const { doc, collection, setDoc } = cloud.api;
+  write(setDoc(doc(collection(cloud.db, "chat")), { uid: uid(), text: t, at: Date.now() }));
+}
+export const deleteChat = id => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "chat", id)));
