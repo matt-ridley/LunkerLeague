@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.1.0
+**Current version:** 0.1.1
 
 ## Features
 
@@ -39,11 +39,11 @@ Planned:
 The app uses a free Firebase project (Google) for accounts and to share data between phones.
 
 1. Go to https://console.firebase.google.com and create a project named `lunkerleague`. Google Analytics isn't needed.
-2. **Build > Authentication > Get started**, then enable **Email/Password**. Leave **Email link** off.
-3. **Authentication > Settings > Authorized domains:** add `matt-ridley.github.io`. `localhost` is already there.
-4. **Build > Firestore Database > Create database:** pick a nearby location and start in **production mode**.
-5. **Firestore Database > Rules:** paste the whole of [`firestore.rules`](firestore.rules) and click **Publish**.
-6. **Project settings > General > Your apps:** add a **Web** app (no hosting needed). Copy its `firebaseConfig` values into `FIREBASE_CONFIG` in [`js/config.js`](js/config.js).
+2. In the left menu, open **Security > Authentication** and click **Get started**. On the **Sign-in method** tab, choose **Email/Password**, turn on the first switch only (leave **Email link** off) and click **Save**.
+3. Still in Authentication, open the **Settings** tab, then **Authorized domains > Add domain**, and add `matt-ridley.github.io`. `localhost` is already there.
+4. Open **Databases and storage > Firestore** and click **Create database**. Pick a nearby location and start in **production mode**.
+5. On Firestore's **Rules** tab: paste the whole of [`firestore.rules`](firestore.rules) and click **Publish**.
+6. Open **Settings** (the gear) **> General**, scroll to **Your apps** and click the web icon `</>`. Give it a nickname and leave Hosting unticked. Copy its `firebaseConfig` values into `FIREBASE_CONFIG` in [`js/config.js`](js/config.js).
    - These values are public by design. The rules are what keep the data private.
 7. Optional but recommended: in the Google Cloud console under **APIs & Services > Credentials**, restrict the **Browser key** to these websites:
    - `matt-ridley.github.io/*`
@@ -98,6 +98,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.1.1 | 2026-Oct-03 10:30:48 PM | Firebase setup steps updated for the redesigned Firebase console menus (Security, Databases and storage, Settings). |
 | 0.1.0 | 2026-Oct-03 10:23:57 PM | First version: accounts with invite codes, claim-the-league setup, league owner and admins, member profiles with photos, Day/Dusk/Auto screens, phone home-screen install, and offline start-up. |
 
 ## Credits
