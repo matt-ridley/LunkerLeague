@@ -44,21 +44,36 @@ function finishedDerbies({ catches, derbies, entrants, now }) {
 
 const asMap = x => (x instanceof Map ? x : new Map((x || []).map(d => [d.id, d])));
 
+/* When the league could first see a catch: when it was logged, never before it was caught. */
+export const postedAt = c => Math.max(c.caughtAt || 0, c.createdAt || 0);
+
+/* News worked out from catch times (badges, crowns) is dated by when the fish was caught. A catch logged late
+   (within the grace days) would bury its news days down the feed, so date news by when its catch was posted.
+   Returns at(t, uids): the posted time of the catch by one of `uids` caught at t, or t itself. */
+function postedTimes(catches) {
+  const by = new Map();
+  for (const c of catches) {
+    const k = `${c.uid}:${c.caughtAt}`;
+    by.set(k, Math.max(by.get(k) || 0, postedAt(c)));
+  }
+  return (t, uids) => Math.max(t, ...uids.map(u => by.get(`${u}:${t}`) || 0));
+}
+
 /* Feed news: [{ id, at, icon, text, href, uids }], newest first. `uids` are the anglers it's about.
    `crowns` (from crownStandings) adds crowns changing hands. */
 export function leagueEvents(data) {
   const { catches, derbies, entrants = new Map(), crowns = [], name, now = Date.now() } = data;
-  const derbyMap = asMap(derbies), out = [];
+  const derbyMap = asMap(derbies), out = [], posted = postedTimes(catches);
   for (const s of recordSteals(catches)) {
-    out.push({ id: `rec:${s.c.id}:${s.field}`, at: s.c.caughtAt, icon: "👑", href: `#/c/${s.c.id}`, uids: [s.c.uid, s.from.uid],
+    out.push({ id: `rec:${s.c.id}:${s.field}`, at: postedAt(s.c), icon: "👑", href: `#/c/${s.c.id}`, uids: [s.c.uid, s.from.uid],
       text: `${name(s.c.uid)} took the ${s.species} ${s.field === "weightOz" ? "weight" : "length"} record from ${name(s.from.uid)}` });
   }
   for (const b of data.badges || badgeTimeline({ ...data, derbies: derbyMap })) {
-    out.push({ id: `badge:${b.uid}:${b.badge.id}`, at: b.at, icon: b.badge.icon, href: `#/u/${b.uid}`, uids: [b.uid],
+    out.push({ id: `badge:${b.uid}:${b.badge.id}`, at: posted(b.at, [b.uid]), icon: b.badge.icon, href: `#/u/${b.uid}`, uids: [b.uid],
       text: `${name(b.uid)} earned the ${b.badge.name} badge` });
   }
   for (const s of crownSteals(crowns)) {
-    out.push({ id: `crown:${s.crown.id}:${s.at}`, at: s.at, icon: s.crown.icon, href: "#/leaders", uids: [s.uid, s.from],
+    out.push({ id: `crown:${s.crown.id}:${s.at}`, at: posted(s.at, [s.uid]), icon: s.crown.icon, href: "#/leaders", uids: [s.uid, s.from],
       text: `${name(s.uid)} stole the ${s.crown.name} crown from ${name(s.from)}` });
   }
   for (const { d, rows, at } of finishedDerbies({ catches, derbies: derbyMap, entrants, now })) {
@@ -78,7 +93,7 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
   const { catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), chat = [], derbyChat = new Map(),
     trips = new Map(), rsvps = new Map(), crowns = [], name, now = Date.now() } = data;
   const catchMap = new Map(catches.map(c => [c.id, c]));
-  const derbyMap = asMap(derbies), out = [];
+  const derbyMap = asMap(derbies), out = [], posted = postedTimes(catches);
   const add = a => { if (a.at <= now + 600000) out.push(a); };
 
   // Mentions in the league chat and in the chats of derbies this phone has loaded.
@@ -114,18 +129,18 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
 
   // Records taken from you, and badges you earned.
   for (const s of recordSteals(catches)) if (s.from.uid === me && s.c.uid !== me) {
-    add({ id: `rec:${s.c.id}:${s.field}`, at: s.c.caughtAt, icon: "😱", href: `#/c/${s.c.id}`,
+    add({ id: `rec:${s.c.id}:${s.field}`, at: postedAt(s.c), icon: "😱", href: `#/c/${s.c.id}`,
       text: `${name(s.c.uid)} took your ${s.species} ${s.field === "weightOz" ? "weight" : "length"} record` });
   }
   for (const b of data.badges || badgeTimeline({ ...data, derbies: derbyMap })) if (b.uid === me) {
-    add({ id: `badge:${b.badge.id}`, at: b.at, icon: b.badge.icon, href: "#/me", text: `You earned the ${b.badge.name} badge` });
+    add({ id: `badge:${b.badge.id}`, at: posted(b.at, [me]), icon: b.badge.icon, href: "#/me", text: `You earned the ${b.badge.name} badge` });
   }
 
   // Crowns you took (claimed or stole) and crowns stolen from you.
   for (const s of crowns) for (const h of s.history) {
-    if (h.uid === me) add({ id: `crown:${s.crown.id}:${h.from || "claim"}:${h.from ? h.at : ""}`, at: h.at, icon: s.crown.icon, href: "#/leaders",
+    if (h.uid === me) add({ id: `crown:${s.crown.id}:${h.from || "claim"}:${h.from ? h.at : ""}`, at: posted(h.at, [me]), icon: s.crown.icon, href: "#/leaders",
       text: h.from ? `You stole the ${s.crown.name} crown from ${name(h.from)}` : `You claimed the ${s.crown.name} crown` });
-    else if (h.from === me && h.uid) add({ id: `crownlost:${s.crown.id}:${h.at}`, at: h.at, icon: "😤", href: "#/leaders",
+    else if (h.from === me && h.uid) add({ id: `crownlost:${s.crown.id}:${h.at}`, at: posted(h.at, [h.uid]), icon: "😤", href: "#/leaders",
       text: `${name(h.uid)} stole your ${s.crown.name} crown` });
   }
 

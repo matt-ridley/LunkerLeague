@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.23.0 (beta)
+**Current version:** 0.24.0 (beta)
 
 ## Features
 
@@ -235,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.24.0 | 2026-Oct-05 07:24:49 PM | **Feed order fix:** the feed now lists catches by when they were posted, so a fish logged a day or two after it was caught shows up at the top instead of days down the feed. Its badges, records and crowns move up with it, in the feed and on the bell. A catch posted more than 12 hours after it was caught says when it was posted. |
 | 0.23.0 | 2026-Oct-05 12:04:57 AM | **Admins can set the league start** (League admin, League start), with a preview of how many catches change. Catches and derbies before the start count for PBs and the all-time records only: no points, badges or crowns; derby results still show. Moving the start later turns earlier catches into past catches; moving it earlier turns them back into league catches. Only "logged too late" is now saved on the catch (and locked); "before the start" follows the start date. **New security rules: publish firestore.rules.** |
 | 0.22.0 | 2026-Oct-04 11:52:43 PM | **Length records earn record points too**, the same as weight: 1st to 3rd on each species' length board as well as its weight board (each board counts on its own). The Records tab, species boards, How points work and the points page say so. Accepted measurements per species is in the roadmap backlog. No new security rules. |
 | 0.21.0 | 2026-Oct-04 11:47:05 PM | **PB fix**: a fish measured one way (e.g. weighed) no longer beats a PB measured only the other way (e.g. a past musky with just a length), so a smaller new fish isn't called a PB; and no "First Muskie!" when one is already logged. **Records**: the Records tab shows the 👑 league record (league catches, with its points) and the 📜 all-time record when a past catch beats it, with a note on what's worth points; species boards switch between League and All-time, and show the points for 1st to 3rd by weight. Catch badges say 👑 League record or 📜 All-time record. No new security rules. |
