@@ -68,7 +68,7 @@ service cloud.firestore {
     function validCatch(d) {
       return d.keys().hasOnly(["uid", "species", "weightOz", "lengthIn", "caughtAt", "createdAt", "thumb", "photoTakenAt",
                                "notes", "released", "hasSpot", "locShared", "spotName",
-                               "derbyId", "captain", "netman", "dq", "dqReason", "enteredBy"])
+                               "derbyId", "captain", "netman", "dq", "dqReason", "enteredBy", "fishCount", "limit"])
         && d.uid is string
         && d.species is string && d.species.size() > 0 && d.species.size() <= 40
         && optNum(d, "weightOz", 16000) && optNum(d, "lengthIn", 200)
@@ -82,7 +82,15 @@ service cloud.firestore {
         // A spot's name is only in the catch (where everyone can read it) when the spot is shared.
         && (d.locShared || d.spotName == "") && (d.hasSpot || !d.locShared)
         && validCrew(d.get("captain", null)) && validCrew(d.get("netman", null))
+        && (d.get("fishCount", null) == null ? d.get("limit", null) == null : validStringer(d))
         && (d.get("derbyId", null) == null || derbyEntryOk(d));
+    }
+    // A stringer: one photo of 2 to 500 fish, said to be a limit or not. Never measured, never released.
+    function validStringer(d) {
+      return d.fishCount is int && d.fishCount >= 2 && d.fishCount <= 500
+        && d.get("limit", null) is bool
+        && d.get("weightOz", null) == null && d.get("lengthIn", null) == null
+        && d.released == false;
     }
     // A boat crew member: a league member ({uid}) or a guest ({guest: "name"}).
     function validCrew(c) {
@@ -97,7 +105,8 @@ service cloud.firestore {
     // period lets catches from no-signal spots sync later), and it meets the derby's rules.
     function derbyEntryOk(d) {
       let dz = get(derbyPath(d.derbyId)).data;
-      return exists(derbyPath(d.derbyId)) && exists(entrantPath(d.derbyId, d.uid)) && derbyOpen(dz)
+      return d.get("fishCount", null) == null // a stringer is never a derby entry
+        && exists(derbyPath(d.derbyId)) && exists(entrantPath(d.derbyId, d.uid)) && derbyOpen(dz)
         && d.caughtAt >= dz.start && d.caughtAt <= dz.end
         && (dz.species.size() == 0 || d.species in dz.species)
         && (!(dz.scoring in ["heaviest", "bag"]) || d.get("weightOz", null) != null)
@@ -303,7 +312,8 @@ service cloud.firestore {
     // history of how points worked can't be rewritten. Points themselves are never stored.
     function pts(n) { return n is number && n >= 0 && n <= 1000; }
     function validScoring(v) {
-      return v.keys().hasOnly(["catchPts", "dailyCap", "speciesPts", "recordPts", "derbyPts", "participationPts", "beatPts", "titles"])
+      return v.keys().hasOnly(["catchPts", "dailyCap", "limitPts", "speciesPts", "recordPts", "derbyPts", "participationPts", "beatPts", "titles"])
+        && (!("limitPts" in v) || pts(v.limitPts))
         && pts(v.catchPts) && pts(v.dailyCap) && pts(v.speciesPts) && pts(v.participationPts) && pts(v.beatPts)
         && v.recordPts is list && v.recordPts.size() == 3
         && v.derbyPts is list && v.derbyPts.size() == 3

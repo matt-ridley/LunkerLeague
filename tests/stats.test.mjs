@@ -69,3 +69,14 @@ test("an unmeasured catch counts as a catch but is never a PB or a record", () =
   assert.deepEqual(recordKinds(all[0], all), []);
   assert.deepEqual(anglerStats(all, "amy"), { catches: 3, species: 2 });
 });
+
+test("a stringer is never a PB or on a board, but its fish all count", () => {
+  const str = { ...c("s", "u", "Yellow Perch", 400, null), fishCount: 50, limit: true }; // weight somehow present
+  const all = [str, c("a", "u", "Yellow Perch", 8, null)];
+  assert.equal(personalBests(all, "u").get("Yellow Perch").id, "a");
+  assert.equal(checkNewPB(str, all).pb, false);
+  assert.deepEqual(speciesBoard(all, "Yellow Perch").map(x => x.id), ["a"]);
+  assert.deepEqual(recordKinds(str, all), []);
+  assert.deepEqual(anglerStats(all, "u"), { catches: 51, species: 1 });
+  assert.equal(speciesRecords(all)[0].count, 51);
+});

@@ -39,6 +39,7 @@ export const STATUS_LABEL = { upcoming: "Upcoming", active: "Live now", closing:
    because derby settings can change after a catch was entered. */
 export function entryProblem(c, d) {
   if (c.dq) return `Disqualified${c.dqReason ? ": " + c.dqReason : ""}`;
+  if (c.fishCount != null) return "Stringers can't be entered in a derby";
   if (c.caughtAt < d.start || c.caughtAt > d.end) return "Caught outside the derby time";
   if (d.species && d.species.length && !d.species.includes(c.species)) return "Species doesn't count in this derby";
   const needs = (SCORING[d.scoring] || {}).needs;

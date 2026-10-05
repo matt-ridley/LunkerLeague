@@ -2,12 +2,13 @@
    Points are never stored. The admin's scoring values are versioned: every change is a new version, either
    "apply to all history" (retro) or "from now on" (forward), and each event is scored with the version in effect
    at its time. Pure functions on plain data. */
-import { speciesBoard } from "./stats.js";
+import { speciesBoard, isStringer, fishIn } from "./stats.js";
 import { derbyStatus, standings } from "./derby.js";
 
 export const DEFAULT_SCORING = {
   catchPts: 1,          // per catch logged…
   dailyCap: 3,          // …counting at most this many catches per angler per day
+  limitPts: 5,          // bonus for a stringer marked as a limit, once per angler per day
   speciesPts: 3,        // per species caught for the first time
   recordPts: [5, 3, 1], // holding 1st / 2nd / 3rd on a species' weight board (current standing)
   derbyPts: [25, 15, 10], // finishing 1st / 2nd / 3rd in a derby
@@ -53,12 +54,23 @@ export function rankEvents({ catches, derbies, entrants, versions, now = Date.no
   const events = [];
 
   // Catches, with a daily cap per angler; and the first catch of each species.
-  const perDay = new Map(), seen = new Map();
+  // A stringer fills whatever is left of that day's cap, and a limit adds a bonus once a day.
+  const perDay = new Map(), seen = new Map(), limitDays = new Set();
   for (const c of counted) {
     const v = scoringAt(line, c.caughtAt);
-    const k = c.uid + "|" + dayKey(c.caughtAt), n = (perDay.get(k) || 0) + 1;
-    perDay.set(k, n);
-    if (n <= v.dailyCap && v.catchPts) events.push({ uid: c.uid, at: c.caughtAt, pts: v.catchPts, kind: "catch", label: `Caught a ${c.species}` });
+    const k = c.uid + "|" + dayKey(c.caughtAt), used = perDay.get(k) || 0;
+    if (isStringer(c)) {
+      const slots = Math.max(0, v.dailyCap - used);
+      perDay.set(k, Math.max(used, v.dailyCap));
+      if (slots && v.catchPts) events.push({ uid: c.uid, at: c.caughtAt, pts: slots * v.catchPts, kind: "catch", label: `Stringer of ${c.fishCount} ${c.species}` });
+      if (c.limit && v.limitPts && !limitDays.has(k)) {
+        limitDays.add(k);
+        events.push({ uid: c.uid, at: c.caughtAt, pts: v.limitPts, kind: "limit", label: `Limited out on ${c.species}` });
+      }
+    } else {
+      perDay.set(k, used + 1);
+      if (used < v.dailyCap && v.catchPts) events.push({ uid: c.uid, at: c.caughtAt, pts: v.catchPts, kind: "catch", label: `Caught a ${c.species}` });
+    }
     if (!seen.has(c.uid)) seen.set(c.uid, new Set());
     if (!seen.get(c.uid).has(c.species)) {
       seen.get(c.uid).add(c.species);
@@ -95,9 +107,10 @@ export function rankings(input, { since = -Infinity } = {}) {
   const events = rankEvents(input).filter(e => e.standing || e.at >= since);
   const cur = currentScoring(scoringTimeline(input.versions));
   const by = new Map();
-  for (const u of input.members || []) by.set(u, { uid: u, points: 0, byKind: { catch: 0, species: 0, record: 0, derby: 0 }, events: [] });
+  const blank = u => ({ uid: u, points: 0, byKind: { catch: 0, limit: 0, species: 0, record: 0, derby: 0 }, events: [] });
+  for (const u of input.members || []) by.set(u, blank(u));
   for (const e of events) {
-    if (!by.has(e.uid)) by.set(e.uid, { uid: e.uid, points: 0, byKind: { catch: 0, species: 0, record: 0, derby: 0 }, events: [] });
+    if (!by.has(e.uid)) by.set(e.uid, blank(e.uid));
     const r = by.get(e.uid);
     r.points += e.pts; r.byKind[e.kind] += e.pts; r.events.push(e);
   }
@@ -125,7 +138,7 @@ export function badgesFor(uid, { catches, derbies, entrants, now = Date.now() })
   const derbyMap = derbies instanceof Map ? derbies : new Map((derbies || []).map(d => [d.id, d]));
   const mine = catches.filter(c => c.uid === uid && countsForRank(c, derbyMap));
   const s = {
-    catches: mine.length, species: new Set(mine.map(c => c.species)).size,
+    catches: mine.reduce((n, c) => n + fishIn(c), 0), species: new Set(mine.map(c => c.species)).size,
     released: mine.filter(c => c.released).length,
     night: mine.filter(c => { const h = new Date(c.caughtAt).getHours(); return h >= 21 || h < 4; }).length,
     derbyWins: 0, luckyNet: 0,

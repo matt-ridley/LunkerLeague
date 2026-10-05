@@ -73,3 +73,36 @@ test("titles and badges", () => {
   const catches = [fish("amy", "Catfish", 100, night, { released: true })];
   assert.deepEqual(badgesFor("amy", { catches, derbies: [], entrants: new Map() }).map(b => b.id), ["first", "owl"]);
 });
+
+const stringer = (uid, species, count, limit, t, extra = {}) => fish(uid, species, null, t, { fishCount: count, limit, ...extra });
+const kindPts = (ev, kind) => ev.filter(e => e.kind === kind).reduce((s, e) => s + e.pts, 0);
+const evFor = catches => rankEvents({ catches, derbies: [], entrants: new Map(), versions: [], now: T0 + 3 * DAY });
+
+test("a stringer fills the day's catch points; a limit adds the bonus once a day", () => {
+  assert.equal(kindPts(evFor([stringer("amy", "Yellow Perch", 50, false, T0)]), "catch"), 3);
+  const lim = evFor([stringer("amy", "Yellow Perch", 50, true, T0)]);
+  assert.equal(kindPts(lim, "catch"), 3);
+  assert.equal(kindPts(lim, "limit"), 5);
+  // Two singles then a stringer, or a stringer then two singles: the day still totals the cap.
+  assert.equal(kindPts(evFor([fish("amy", "Walleye", 30, T0), fish("amy", "Walleye", 30, T0 + 60e3), stringer("amy", "Yellow Perch", 20, false, T0 + 120e3)]), "catch"), 3);
+  assert.equal(kindPts(evFor([stringer("amy", "Yellow Perch", 20, false, T0), fish("amy", "Walleye", 30, T0 + 60e3), fish("amy", "Walleye", 30, T0 + 120e3)]), "catch"), 3);
+  // Two limits on one day pay once; a limit the next day pays again; other anglers are separate.
+  const many = evFor([stringer("amy", "Yellow Perch", 50, true, T0), stringer("amy", "Walleye", 4, true, T0 + H),
+    stringer("amy", "Yellow Perch", 50, true, T0 + DAY), stringer("bo", "Yellow Perch", 50, true, T0)]);
+  assert.equal(kindPts(many.filter(e => e.uid === "amy"), "limit"), 10);
+  assert.equal(kindPts(many.filter(e => e.uid === "amy"), "catch"), 6);
+  assert.equal(kindPts(many.filter(e => e.uid === "bo"), "limit"), 5);
+});
+
+test("a disqualified stringer scores nothing; the limit bonus follows the scoring versions", () => {
+  assert.equal(evFor([stringer("amy", "Yellow Perch", 50, true, T0, { dq: true })]).length, 0);
+  const versions = [{ id: "v1", mode: "retro", createdAt: T0 + 2 * DAY, values: { ...DEFAULT_SCORING, limitPts: 10 } }];
+  const rows = rankings({ catches: [stringer("amy", "Yellow Perch", 50, true, T0)], derbies: [], entrants: new Map(), versions, members: ["amy"], now: T0 + 3 * DAY });
+  assert.equal(rows[0].byKind.limit, 10);
+  assert.equal(rows[0].points, 3 + 10 + 3); // catches + limit + first species
+});
+
+test("a stringer's fish all count toward badges", () => {
+  const ids = badgesFor("amy", { catches: [stringer("amy", "Yellow Perch", 50, true, T0)], derbies: [], entrants: new Map(), now: T0 + DAY }).map(b => b.id);
+  assert.ok(ids.includes("first"));
+});

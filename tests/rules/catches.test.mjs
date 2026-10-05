@@ -93,3 +93,19 @@ test("every new catch needs its photo as proof", async () => {
   await assertSucceeds(saveAll(db, "np3", "member"));
   await assertSucceeds(updateDoc(doc(db, "catches/np3"), { notes: "edits don't need a new photo" }));
 });
+
+test("a stringer has 2 to 500 fish, says whether it's a limit, and is never measured or released", async () => {
+  const db = as(env, "member");
+  const str = (extra = {}) => ({ extra: { weightOz: null, lengthIn: null, released: false, fishCount: 50, limit: true, ...extra } });
+  await assertSucceeds(saveAll(db, "s1", "member", str()));
+  await assertSucceeds(saveAll(db, "s2", "member", str({ fishCount: 2, limit: false })));
+  await assertFails(saveAll(db, "s3", "member", str({ fishCount: 1 })));
+  await assertFails(saveAll(db, "s4", "member", str({ fishCount: 501 })));
+  await assertFails(saveAll(db, "s5", "member", str({ fishCount: 2.5 })));
+  await assertFails(saveAll(db, "s6", "member", str({ limit: null })));
+  await assertFails(saveAll(db, "s7", "member", str({ weightOz: 400 })));
+  await assertFails(saveAll(db, "s8", "member", str({ released: true })));
+  await assertFails(saveAll(db, "s9", "member", { extra: { limit: true } })); // a limit with no stringer
+  // A stringer can be turned back into a single fish by clearing its count.
+  await assertSucceeds(updateDoc(doc(db, "catches/s1"), { fishCount: null, limit: null, weightOz: 40 }));
+});

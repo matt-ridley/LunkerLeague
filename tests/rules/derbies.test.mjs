@@ -195,3 +195,10 @@ test("after the owner deletes a real derby, its old entries become ordinary catc
   await deleteDoc(doc(as(env, "owner"), "derbies/d1"));
   await assertSucceeds(updateDoc(doc(as(env, "member"), "catches/e1"), { derbyId: null, notes: "now just a catch" }));
 });
+
+test("a stringer can't be entered in a derby, even a most-fish one", async () => {
+  await seedDerby({ scoring: "most" });
+  const str = { weightOz: null, lengthIn: null, released: false, fishCount: 20, limit: true };
+  await assertFails(putCatch(as(env, "member"), "s1", entry("member", str)));
+  await assertSucceeds(putCatch(as(env, "member"), "s2", entry("member", { ...str, derbyId: null })));
+});

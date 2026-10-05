@@ -68,3 +68,8 @@ test("most fish and most species", () => {
   assert.deepEqual(standings(derby({ scoring: "most" }), all).map(r => [r.uid, r.score]), [["a", 3], ["b", 2]]);
   assert.deepEqual(standings(derby({ scoring: "species" }), all).map(r => [r.uid, r.score]), [["b", 2], ["a", 1]]);
 });
+
+test("a stringer is never a derby entry", () => {
+  const d = { ...DEFAULTS, scoring: "most", start: 0, end: 100 };
+  assert.equal(entryProblem({ uid: "u", species: "Yellow Perch", caughtAt: 50, fishCount: 20, limit: false }, d), "Stringers can't be entered in a derby");
+});
