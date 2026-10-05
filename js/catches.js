@@ -185,23 +185,53 @@ function viewer(src) {
 }
 
 /* ---------- Personal-best wall (profile) ---------- */
+/* The three stats double as filters: catches (PBs and recent catches), species (each with how many were caught)
+   and records (the league records this angler holds). The choice is kept while the profile redraws live. */
+let wall = { member: null, view: "catches" };
 export function pbWall(memberId) {
-  const all = allCatches();
-  const pbs = [...personalBests(all, memberId).values()].sort((a, b) => a.species.localeCompare(b.species));
+  if (wall.member !== memberId) wall = { member: memberId, view: "catches" };
+  const box = el("div", { class: "stack" });
+  const draw = () => fill(box, ...wallParts(memberId, view => { wall.view = view; draw(); }));
+  draw();
+  return [box];
+}
+
+function wallParts(memberId, choose) {
+  const all = allCatches(), view = wall.view;
+  const mine = all.filter(c => c.uid === memberId);
   const st = anglerStats(all, memberId);
-  const recent = all.filter(c => c.uid === memberId).sort(byNewest).slice(0, 10);
-  return [
-    el("div", { class: "hero-stats plain" }, stat(st.catches, "catches"), stat(st.species, "species"),
-      stat(all.filter(c => c.uid === memberId && recordKinds(c, all).length).length, "records")),
-    el("section", { class: "stack" },
+  const records = mine.filter(c => recordKinds(c, all).length).sort(byNewest);
+  const filter = (key, n, label) => el("button", { type: "button", class: "stat", "aria-pressed": String(view === key),
+    "aria-label": `Show ${label}`, onclick: () => choose(key) }, el("b", { text: String(n) }), el("span", { text: label }));
+  const parts = [el("div", { class: "hero-stats plain filters" },
+    filter("catches", st.catches, "catches"), filter("species", st.species, "species"), filter("records", records.length, "records"))];
+
+  if (view === "species") {
+    const counts = new Map();
+    for (const c of mine) if (!c.dq) counts.set(c.species, (counts.get(c.species) || 0) + (isStringer(c) ? c.fishCount : 1));
+    const list = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    parts.push(el("section", { class: "stack" }, el("h3", { text: "Species" }),
+      list.length ? el("ul", { class: "species-list card" }, ...list.map(([sp, n]) => el("li", {},
+        el("a", { class: "species-row", href: `#/leaders/${encodeURIComponent(sp)}` },
+          el("span", { class: "grow", text: sp }), el("b", { text: `${n} caught` })))))
+        : el("p", { class: "muted", text: "No catches yet." })));
+  } else if (view === "records") {
+    parts.push(el("section", { class: "stack" }, el("h3", { text: "League records" }),
+      records.length ? el("div", { class: "card-list" }, ...records.map(c => catchCard(c, all)))
+        : el("p", { class: "muted", text: "No league records held right now." })));
+  } else {
+    const pbs = [...personalBests(all, memberId).values()].sort((a, b) => a.species.localeCompare(b.species));
+    const recent = [...mine].sort(byNewest).slice(0, 10);
+    parts.push(el("section", { class: "stack" },
       el("h3", { text: "Personal bests" }),
       pbs.length ? el("div", { class: "pb-wall" }, ...pbs.map(c => el("a", { class: "pb-tile", href: `#/c/${c.id}` },
         el("img", { src: c.thumb, alt: "", loading: "lazy" }),
         el("div", { class: "pb-text" }, el("b", { text: c.species }), el("span", { text: sizeText(c) })))))
         : el("p", { class: "muted", text: "No catches yet." })),
     recent.length ? el("section", { class: "stack" }, el("h3", { text: "Recent catches" }),
-      el("div", { class: "card-list" }, ...recent.map(c => catchCard(c, all)))) : null,
-  ];
+      el("div", { class: "card-list" }, ...recent.map(c => catchCard(c, all)))) : null);
+  }
+  return parts;
 }
 
 /* ---------- Log or edit a catch ---------- */

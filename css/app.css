@@ -216,6 +216,13 @@ body.gated .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 .stat span { font-size: 13px; font-weight: 700; opacity: .9; }
 .hero-stats.plain .stat { background: var(--surface); border: 1px solid var(--line); }
 .hero-stats.plain .stat b { color: var(--primary); }
+/* On a profile the stats are filter buttons. */
+.filters .stat { font: inherit; color: inherit; cursor: pointer; border-width: 2px; }
+.filters .stat[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); }
+.species-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.species-list li + li { border-top: 1px solid var(--line); }
+.species-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; min-height: 48px; color: inherit; text-decoration: none; font-weight: 700; }
+.species-row b { color: var(--primary); white-space: nowrap; }
 .card-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .catch-card {
   display: flex; gap: 12px; padding: 10px; text-decoration: none;
