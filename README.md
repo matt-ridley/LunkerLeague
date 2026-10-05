@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.26.0 (beta)
+**Current version:** 0.27.0 (beta)
 
 ## Features
 
@@ -235,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.27.0 | 2026-Oct-05 07:53:15 PM | **Filters do it all:** the feed's search box and Everyone/Mine switch are gone; one Filters button sits in a row with the chips for filters in use. Angler now starts with "Me". Searching moved into the Filters sheet as "Notes or spot contains" (words in notes and shared spot names). |
 | 0.26.0 | 2026-Oct-05 07:39:41 PM | **Search and filter the feed:** a search box (species, angler, notes, shared spot names, derby) and a Filters sheet: angler, species, show (catches, news, records & PBs, throwbacks), when caught (today, 7 days, 30 days, this year), derby, and sort (newest, heaviest, longest). Filters in use show as chips you can tap to remove, with a result count and Clear all. They stay set until the app is closed. Works offline. |
 | 0.25.0 | 2026-Oct-05 07:32:17 PM | **Easier-to-read feed:** day headers (Today, Yesterday, then the date). Badges, records and crowns a catch earned now show on that catch's card (all its badges on one line) instead of as separate cards; other news, such as derby results, still gets its own card. Fewer chips on a card: "Released" and "Spot" moved to the quiet line with reactions and comments, and "Past catch" is dropped when the card already says "All-time record". |
 | 0.24.0 | 2026-Oct-05 07:24:49 PM | **Feed order fix:** the feed now lists catches by when they were posted, so a fish logged a day or two after it was caught shows up at the top instead of days down the feed. Its badges, records and crowns move up with it, in the feed and on the bell. A catch posted more than 12 hours after it was caught says when it was posted. |
