@@ -513,6 +513,7 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 
 /* Derby money */
 .seg.tabs-5 button { font-size: 14px; padding: 0 2px; }
+.seg.tabs-4 button { font-size: 14px; padding: 0 2px; white-space: nowrap; }
 .board-right { display: grid; justify-items: end; gap: 4px; }
 .money-chip { font-size: 13px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: var(--ok-soft); color: var(--ok); white-space: nowrap; }
 .pot { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
