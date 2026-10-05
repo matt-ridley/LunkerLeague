@@ -20,21 +20,23 @@ export const fishIn = c => (isStringer(c) ? c.fishCount : 1);
    Nor is a stringer, which is never measured. */
 export const measured = c => !isStringer(c) && (has(c.weightOz) || has(c.lengthIn));
 
-/* Which catch is the better personal best: heavier wins, then longer, then whoever caught it first. */
+/* Which catch is the better personal best: heavier wins (when both were weighed), then longer (when both were
+   measured). A fish only beats another on a measurement they both have: a 10 lb fish doesn't beat a 50 inch one
+   that was never weighed. When they can't be told apart, the one caught first stands. */
 export function better(a, b) {
   if (!b) return a;
   if (!a) return b;
-  const wa = has(a.weightOz) ? a.weightOz : 0, wb = has(b.weightOz) ? b.weightOz : 0;
-  if (wa !== wb) return wa > wb ? a : b;
-  const la = has(a.lengthIn) ? a.lengthIn : 0, lb = has(b.lengthIn) ? b.lengthIn : 0;
-  if (la !== lb) return la > lb ? a : b;
+  if (has(a.weightOz) && has(b.weightOz) && a.weightOz !== b.weightOz) return a.weightOz > b.weightOz ? a : b;
+  if (has(a.lengthIn) && has(b.lengthIn) && a.lengthIn !== b.lengthIn) return a.lengthIn > b.lengthIn ? a : b;
   return (a.caughtAt || 0) <= (b.caughtAt || 0) ? a : b;
 }
+const byTime = (a, b) => (a.caughtAt || 0) - (b.caughtAt || 0);
 
-/* species -> best catch, for one angler. */
+/* species -> best catch, for one angler (past catches included: there's only ever one PB). Gone through in the
+   order caught, so a fish only takes the PB by beating the one before it. */
 export function personalBests(catches, uid) {
   const out = new Map();
-  for (const c of catches) if (c.uid === uid && counts(c) && measured(c)) out.set(c.species, better(out.get(c.species), c));
+  for (const c of [...catches].sort(byTime)) if (c.uid === uid && counts(c) && measured(c)) out.set(c.species, better(out.get(c.species), c));
   return out;
 }
 
@@ -42,12 +44,14 @@ export function isPersonalBest(c, catches) {
   return personalBests(catches, c.uid).get(c.species) === c;
 }
 
-/* If this catch were saved, would it beat the angler's current best? Returns { pb, previous }. */
+/* If this catch were saved, would it beat the angler's current best? Returns { pb, previous, first }:
+   `first` when it's their first catch of the species at all (measured or not, past catches included). */
 export function checkNewPB(candidate, catches) {
-  if (!measured(candidate)) return { pb: false, previous: null };
   const others = catches.filter(c => c.id !== candidate.id);
+  const first = !others.some(c => c.uid === candidate.uid && c.species === candidate.species && counts(c));
+  if (!measured(candidate)) return { pb: false, previous: null, first };
   const previous = personalBests(others, candidate.uid).get(candidate.species) || null;
-  return { pb: !previous || better(previous, candidate) === candidate, previous };
+  return { pb: !previous || better(previous, candidate) === candidate, previous, first };
 }
 
 /* Best catch per angler for one species, ranked by weight or length. Only catches with that measurement count. */
@@ -62,24 +66,30 @@ export function speciesBoard(catches, species, by = "weight") {
   return [...best.values()].sort((a, b) => b[field] - a[field] || (a.caughtAt || 0) - (b.caughtAt || 0));
 }
 
-/* Every species caught in the league, most-caught first, with its weight and length record holders. */
+/* League records come from league catches only (they're worth points). All-time records include past catches
+   (props, no points); one is only shown separately when a past catch beats the league record. */
+export const leagueCatches = catches => catches.filter(c => !c.past);
+
+/* Every species caught, most-caught first (league catches; species seen only in past catches come last), with
+   the league weight and length records and any all-time records held by past catches. */
 export function speciesRecords(catches) {
-  const n = new Map();
-  for (const c of catches) if (counts(c)) n.set(c.species, (n.get(c.species) || 0) + fishIn(c));
+  const league = leagueCatches(catches), n = new Map();
+  for (const c of catches) if (counts(c)) n.set(c.species, (n.get(c.species) || 0) + (c.past ? 0 : fishIn(c)));
+  const allTime = (sp, by, leagueTop) => { const top = speciesBoard(catches, sp, by)[0] || null; return top && top.past && top !== leagueTop ? top : null; };
   return [...n.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([species, count]) => ({
-      species, count,
-      weight: speciesBoard(catches, species, "weight")[0] || null,
-      length: speciesBoard(catches, species, "length")[0] || null,
-    }));
+    .map(([species, count]) => {
+      const weight = speciesBoard(league, species, "weight")[0] || null, length = speciesBoard(league, species, "length")[0] || null;
+      return { species, count, weight, length, allTimeWeight: allTime(species, "weight", weight), allTimeLength: allTime(species, "length", length) };
+    });
 }
 
-/* Is this catch the league record (by weight or by length) for its species? */
+/* Is this catch a record (by weight or by length) for its species? A league catch is checked against league
+   catches (the league record); a past catch against everything (the all-time record). */
 export function recordKinds(c, catches) {
-  const kinds = [];
-  if (has(c.weightOz) && speciesBoard(catches, c.species, "weight")[0] === c) kinds.push("weight");
-  if (has(c.lengthIn) && speciesBoard(catches, c.species, "length")[0] === c) kinds.push("length");
+  const pool = c.past ? catches : leagueCatches(catches), kinds = [];
+  if (has(c.weightOz) && speciesBoard(pool, c.species, "weight")[0] === c) kinds.push("weight");
+  if (has(c.lengthIn) && speciesBoard(pool, c.species, "length")[0] === c) kinds.push("length");
   return kinds;
 }
 

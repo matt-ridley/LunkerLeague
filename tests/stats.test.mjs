@@ -10,7 +10,9 @@ test("heavier wins, then longer, then whoever caught it first", () => {
   assert.equal(better(c("a", "u", "Walleye", 80, 20), c("b", "u", "Walleye", 90, 18)).id, "b");
   assert.equal(better(c("a", "u", "Walleye", 80, 22), c("b", "u", "Walleye", 80, 20)).id, "a");
   assert.equal(better(c("a", "u", "Walleye", 80, 20, 5), c("b", "u", "Walleye", 80, 20, 3)).id, "b");
-  assert.equal(better(c("a", "u", "Walleye", null, 25), c("b", "u", "Walleye", 10, null)).id, "b");
+  // Only compared on a measurement both have: an unweighed 25" fish isn't beaten by a 10 oz one; the first stands.
+  assert.equal(better(c("a", "u", "Walleye", null, 25, 1), c("b", "u", "Walleye", 10, null, 2)).id, "a");
+  assert.equal(better(c("a", "u", "Walleye", 80, 20, 1), c("b", "u", "Walleye", null, 30, 2)).id, "b"); // longer, both measured
 });
 
 test("personal bests are per angler and per species", () => {
@@ -79,4 +81,26 @@ test("a stringer is never a PB or on a board, but its fish all count", () => {
   assert.deepEqual(recordKinds(str, all), []);
   assert.deepEqual(anglerStats(all, "u"), { catches: 51, species: 1 });
   assert.equal(speciesRecords(all)[0].count, 51);
+});
+
+test("a past PB measured one way isn't beaten by a smaller fish measured the other way", () => {
+  const past = { id: "old", uid: "u", species: "Muskie", lengthIn: 50, weightOz: null, caughtAt: 1, past: true };
+  const now = { id: "new", uid: "u", species: "Muskie", weightOz: 160, lengthIn: null, caughtAt: 9 };
+  assert.deepEqual(checkNewPB(now, [past]), { pb: false, previous: past, first: false });
+  assert.equal(personalBests([now, past], "u").get("Muskie").id, "old");
+  // An unmeasured catch of the species already logged: a measured one becomes the PB, but it isn't the "first".
+  const photoOnly = { id: "p", uid: "u", species: "Pike", weightOz: null, lengthIn: null, caughtAt: 1, past: true };
+  const pike = { id: "k", uid: "u", species: "Pike", weightOz: 100, lengthIn: null, caughtAt: 9 };
+  assert.deepEqual(checkNewPB(pike, [photoOnly]), { pb: true, previous: null, first: false });
+});
+
+test("league records are league catches only; all-time records show a past catch that beats them", () => {
+  const past = { id: "old", uid: "u", species: "Muskie", weightOz: 480, lengthIn: null, caughtAt: 1, past: true };
+  const league = { id: "new", uid: "v", species: "Muskie", weightOz: 192, lengthIn: 40, caughtAt: 9 };
+  const [r] = speciesRecords([past, league]);
+  assert.equal(r.weight.id, "new"); assert.equal(r.allTimeWeight.id, "old");
+  assert.equal(r.length.id, "new"); assert.equal(r.allTimeLength, null); // the past fish was never measured
+  assert.equal(r.count, 1);
+  assert.deepEqual(recordKinds(league, [past, league]), ["weight", "length"]); // the league record
+  assert.deepEqual(recordKinds(past, [past, league]), ["weight"]);             // the all-time record
 });
