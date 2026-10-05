@@ -5,6 +5,7 @@ import { store, memberName, uid, isAdmin } from "./cloud.js";
 import { speciesRecords, speciesBoard } from "./stats.js";
 import { rankings, badgesFor, scoringTimeline, currentScoring, TITLES } from "./rank.js";
 import { crownStandings, crownScore } from "./crowns.js";
+import { badgeTimeline, BADGES } from "./badges.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -18,10 +19,19 @@ export function rankInput() {
   const input = {
     catches: [...store.catches.values()], derbies: store.derbies, entrants: store.entrants, versions: store.scoring,
     members: [...store.members.values()].filter(m => !m.suspended).map(m => m.id),
-    comments: store.comments, reactions, spots,
+    comments: store.comments, reactions, spots, trips: store.trips, rsvps: store.rsvps,
   };
   input.crowns = crownsNow(input);
+  input.badges = badgesNow(input);
   return input;
+}
+
+/* Badges are replayed from all the data too (some depend on crowns), so cache them the same way. */
+let badgeCache = { key: null, value: null };
+function badgesNow(input) {
+  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps];
+  if (!badgeCache.key || key.some((k, i) => k !== badgeCache.key[i])) badgeCache = { key, value: badgeTimeline(input) };
+  return badgeCache.value;
 }
 
 /* Crowns are replayed from all the data, so work them out once per change of data, not on every redraw. */
@@ -81,7 +91,7 @@ function rankView(main) {
       isAdmin() ? el("a", { class: "btn", href: "#/scoring", text: "Change points" }) : null));
 }
 
-const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "🐟 Records held", crown: "👑 Crowns held", derby: "🏁 Derbies" };
+const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "🐟 Records held", crown: "👑 Crowns held", badge: "🏅 Badges", derby: "🏁 Derbies" };
 function breakdownSheet(r, place) {
   const m = who(r.uid);
   const badges = badgesFor(r.uid, rankInput());
@@ -110,6 +120,7 @@ export function howPointsSheet() {
       el("li", { text: `🌈 ${v.speciesPts} for each species you catch for the first time` }),
       el("li", { text: `🐟 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board (changes as records fall)` }),
       el("li", { text: `👑 ${v.crownPts} for each crown you hold right now (they move when someone passes you)` }),
+      el("li", { text: `🏅 ${v.badgePts} for each badge you earn (yours for good; ${BADGES.length} to collect)` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),
       el("li", { text: "Disqualified catches and test derbies don't count." })),
     el("h3", { text: "Titles" }),

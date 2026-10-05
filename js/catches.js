@@ -10,7 +10,7 @@ import { derbyStatus, entryProblem, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
 import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer } from "./stats.js";
 import { leagueEvents } from "./events.js";
-import { crownsNow } from "./leaders.js";
+import { rankInput } from "./leaders.js";
 
 const allCatches = () => [...store.catches.values()];
 const byNewest = (a, b) => (b.caughtAt || 0) - (a.caughtAt || 0);
@@ -52,7 +52,7 @@ export function renderFeed(main) {
   const all = allCatches();
   const me = uid(), stats = anglerStats(all, me), pbs = personalBests(all, me).size;
   // Catches mixed with league news (records stolen, badges, derby results), newest first.
-  const news = store.catchesLoaded ? leagueEvents({ catches: all, derbies: store.derbies, entrants: store.entrants, crowns: crownsNow(), name: memberName }) : [];
+  const news = store.catchesLoaded ? leagueEvents({ ...rankInput(), name: memberName }) : [];
   const list = [
     ...all.filter(c => feedFilter === "all" || c.uid === me).map(c => ({ at: c.caughtAt || 0, c })),
     ...news.filter(e => feedFilter === "all" || e.uids.includes(me)).map(e => ({ at: e.at, e })),

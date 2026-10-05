@@ -84,6 +84,8 @@ export function renderScoring(main) {
       triple("recordPts", "Holding a spot on a species' weight board", "Goes to whoever holds it right now.")),
     el("section", { class: "card stack" }, el("h3", { text: "👑 Crowns" }),
       num(() => draft.crownPts, v => { draft.crownPts = v; }, "Points per crown held", "Goes to whoever holds each crown right now. 0 to turn off.")),
+    el("section", { class: "card stack" }, el("h3", { text: "🏅 Badges" }),
+      num(() => draft.badgePts, v => { draft.badgePts = v; }, "Points per badge", "Badges are kept for good. 0 to turn off.")),
     el("section", { class: "card stack" }, el("h3", { text: "🏁 Derbies" }),
       triple("derbyPts", "Finishing places"),
       num(() => draft.participationPts, v => { draft.participationPts = v; }, "Points for fishing a derby"),

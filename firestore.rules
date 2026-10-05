@@ -345,8 +345,8 @@ service cloud.firestore {
     // history of how points worked can't be rewritten. Points themselves are never stored.
     function pts(n) { return n is number && n >= 0 && n <= 1000; }
     function validScoring(v) {
-      return v.keys().hasOnly(["catchPts", "dailyCap", "limitPts", "speciesPts", "recordPts", "crownPts", "derbyPts", "participationPts", "beatPts", "titles"])
-        && (!("limitPts" in v) || pts(v.limitPts)) && (!("crownPts" in v) || pts(v.crownPts))
+      return v.keys().hasOnly(["catchPts", "dailyCap", "limitPts", "speciesPts", "recordPts", "crownPts", "badgePts", "derbyPts", "participationPts", "beatPts", "titles"])
+        && (!("limitPts" in v) || pts(v.limitPts)) && (!("crownPts" in v) || pts(v.crownPts)) && (!("badgePts" in v) || pts(v.badgePts))
         && pts(v.catchPts) && pts(v.dailyCap) && pts(v.speciesPts) && pts(v.participationPts) && pts(v.beatPts)
         && v.recordPts is list && v.recordPts.size() == 3
         && v.derbyPts is list && v.derbyPts.size() == 3

@@ -43,3 +43,9 @@ test("the crown points are optional and must be sensible", async () => {
   await assertSucceeds(setDoc(doc(db, "scoring/c1"), version("admin2", { values: values({ crownPts: 3 }) })));
   await assertFails(setDoc(doc(db, "scoring/c2"), version("admin2", { values: values({ crownPts: 5000 }) })));
 });
+
+test("the badge points are optional and must be sensible", async () => {
+  const db = as(env, "admin2");
+  await assertSucceeds(setDoc(doc(db, "scoring/b1"), version("admin2", { values: values({ badgePts: 1 }) })));
+  await assertFails(setDoc(doc(db, "scoring/b2"), version("admin2", { values: values({ badgePts: -1 }) })));
+});

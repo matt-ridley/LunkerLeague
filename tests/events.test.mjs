@@ -30,8 +30,8 @@ test("badges are dated when they were earned and end up the same as badgesFor", 
   const catches = [fish("amy", "Perch", 5, T0), ...Array.from({ length: 10 }, (_, i) => fish("bo", "Bass", 30, T0 + i * H, { released: true }))];
   const tl = badgeTimeline({ catches, derbies: [], entrants: new Map(), now: T0 + DAY });
   const bo = tl.filter(b => b.uid === "bo");
-  assert.deepEqual(bo.map(b => b.badge.id), ["first", "release"]);
-  assert.equal(bo[1].at, T0 + 9 * H); // the 10th release
+  assert.deepEqual(bo.map(b => b.badge.id), ["first", "recordSet", "lunch", "release", "fish10", "bigDay"]);
+  assert.equal(bo.find(b => b.badge.id === "release").at, T0 + 9 * H); // the 10th release
   for (const u of ["amy", "bo"]) {
     assert.deepEqual(tl.filter(b => b.uid === u).map(b => b.badge.id).sort(),
       badgesFor(u, { catches, derbies: [], entrants: new Map(), now: T0 + DAY }).map(b => b.id).sort());
@@ -75,6 +75,8 @@ test("the bell: mentions, comments and reactions on my catches, records taken fr
     "BO took your Walleye weight record",
     "BO logged a Walleye",
     "You earned the First Fish badge",
+    "You earned the Five Pounder badge",
+    "You earned the Record Setter badge",
   ]);
   assert.equal(unreadCount(a, T0 + 5.5 * H), 3);
 });

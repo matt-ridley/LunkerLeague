@@ -33,6 +33,18 @@ function metres(a, b) {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
+/* Each time an angler logs a catch at a new spot shared with the league (spots within 250 m count as one):
+   [{ uid, at }], in time order. `counted` must be sorted by time caught. */
+export function newSpots(counted, spots) {
+  const places = new Map(), out = [];
+  for (const c of counted) {
+    const s = spots.get(c.id);
+    if (!s || !s.shared || !c.locShared) continue;
+    const mine = places.get(c.uid) || []; places.set(c.uid, mine);
+    if (!mine.some(p => metres(p, s) < SAME_SPOT_M)) { mine.push(s); out.push({ uid: c.uid, at: c.caughtAt }); }
+  }
+  return out;
+}
 const dayKey = ms => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 const asMap = x => (x instanceof Map ? x : new Map((x || []).map(d => [d.id, d])));
 
@@ -45,7 +57,7 @@ export function crownChanges({ catches, derbies, entrants = new Map(), comments 
   const counted = catches.filter(counts).sort((a, b) => a.caughtAt - b.caughtAt);
   const byId = new Map(catches.map(c => [c.id, c]));
 
-  const species = new Map(), days = new Map(), places = new Map();
+  const species = new Map(), days = new Map();
   for (const c of counted) {
     const at = c.caughtAt, h = new Date(at).getHours(), n = fishIn(c);
     add("grinder", at, c.uid);
@@ -59,12 +71,8 @@ export function crownChanges({ catches, derbies, entrants = new Map(), comments 
     const dy = days.get(c.uid) || new Set(); days.set(c.uid, dy);
     const k = dayKey(at);
     if (!dy.has(k)) { dy.add(k); add("ironAngler", at, c.uid); }
-    const s = spots.get(c.id);
-    if (s && s.shared && c.locShared) {
-      const mine = places.get(c.uid) || []; places.set(c.uid, mine);
-      if (!mine.some(p => metres(p, s) < SAME_SPOT_M)) { mine.push(s); add("explorer", at, c.uid); }
-    }
   }
+  for (const s of newSpots(counted, spots)) add("explorer", s.at, s.uid);
 
   // Records held: +1 when an angler takes a species' weight or length record, -1 for the angler who loses it.
   for (const field of ["weightOz", "lengthIn"]) {
