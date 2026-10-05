@@ -109,7 +109,8 @@ export function rankEvents(input) {
 
   // Finished derbies (not cancelled, not tests): places, joining, and anglers beaten.
   for (const d of derbyMap.values()) {
-    if (d.testing || derbyStatus(d, now) !== "ended") continue;
+    // Derbies that ended before the league start (pre-season) keep their results but earn no points.
+    if (d.testing || derbyStatus(d, now) !== "ended" || d.end < (input.leagueStart || 0)) continue;
     const ent = (entrants && entrants.get(d.id)) || new Map();
     const v = scoringAt(line, d.end);
     const rows = standings(d, catches, ent);

@@ -40,7 +40,8 @@ export const STATUS_LABEL = { upcoming: "Upcoming", active: "Live now", closing:
 export function entryProblem(c, d) {
   if (c.dq) return `Disqualified${c.dqReason ? ": " + c.dqReason : ""}`;
   if (c.fishCount != null) return "Stringers can't be entered in a derby";
-  if (c.past) return "Past catches can't be entered in a derby";
+  // The saved flag (logged too late): catches from before a later league start keep their derby results.
+  if (c.pastStored ?? c.past) return "Past catches can't be entered in a derby";
   if (c.caughtAt < d.start || c.caughtAt > d.end) return "Caught outside the derby time";
   if (d.species && d.species.length && !d.species.includes(c.species)) return "Species doesn't count in this derby";
   const needs = (SCORING[d.scoring] || {}).needs;

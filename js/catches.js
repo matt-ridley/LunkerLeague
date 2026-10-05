@@ -8,7 +8,7 @@ import { SPECIES, normalizeSpecies } from "./species.js";
 import { reactionBar, commentsSection, reactionSummary } from "./social.js";
 import { derbyStatus, entryProblem, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
-import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer, pastCatch, DEFAULT_GRACE_DAYS } from "./stats.js";
+import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer, pastCatch, loggedLate, leagueStartOf, DEFAULT_GRACE_DAYS } from "./stats.js";
 import { leagueEvents } from "./events.js";
 import { rankInput } from "./leaders.js";
 
@@ -303,9 +303,12 @@ export function renderLog(main, editId, derbyArg) {
   const timeHint = el("div");
   // A past catch (caught before the league, or logged more than the grace days late) is said up front.
   const league = store.league || {};
-  const pastOpts = { leagueStart: league.createdAt || 0, graceDays: league.graceDays ?? DEFAULT_GRACE_DAYS };
+  const pastOpts = { leagueStart: leagueStartOf(league), graceDays: league.graceDays ?? DEFAULT_GRACE_DAYS };
   const createdAt = editing ? editing.createdAt : Date.now();
-  const willBePast = () => !!(editing && editing.past) || pastCatch({ caughtAt: new Date(when.value).getTime(), createdAt }, pastOpts);
+  const caught = () => ({ caughtAt: new Date(when.value).getTime(), createdAt });
+  const willBePast = () => !!(editing && editing.pastStored) || pastCatch(caught(), pastOpts);
+  // Only "logged too late" is saved (and locked); "before the league start" follows the start date.
+  const savePast = () => !!(editing && editing.pastStored) || loggedLate(caught(), pastOpts.graceDays);
   const pastNote = el("p", { class: "msg past-note" });
   const drawPastNote = () => {
     pastNote.textContent = willBePast()
@@ -497,7 +500,7 @@ export function renderLog(main, editId, derbyArg) {
       hasSpot: !!st.spot, locShared: !!st.spot && st.share, spotName: st.spot && st.share ? spotName.value.trim().slice(0, 60) : "",
     };
     if (stringer) Object.assign(data, { fishCount: count, limit: st.limit });
-    if (willBePast()) data.past = true;
+    if (savePast()) data.past = true;
     else if (editing && editing.fishCount != null) Object.assign(data, { fishCount: null, limit: null }); // was a stringer
     const d = stringer ? null : chosenDerby();
     if (d) {

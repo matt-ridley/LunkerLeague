@@ -4,6 +4,7 @@
    queued writes are sent when the phone is back online. Times are stored as epoch milliseconds from the phone clock. */
 import { FIREBASE_CONFIG, FIREBASE_SDK } from "./config.js";
 import { outboxPut, outboxRemove, outboxAll } from "./outbox.js";
+import { leagueStartOf } from "./stats.js";
 
 /* Add ?emulator to a localhost address to use the local Firebase emulator (npm run emulators) instead of the real project. */
 export const USE_EMULATOR = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).has("emulator");
@@ -97,8 +98,10 @@ function startListeners() {
       seen("league", snap);
       // A missing doc read from the phone's cache doesn't prove there is no league yet; wait for the server.
       if (!snap.exists() && snap.metadata.fromCache) { if (store.league === undefined) emit(); return; }
+      const before = leagueStartOf(store.league);
       store.league = snap.exists() ? { id: snap.id, ...snap.data() } : null;
       store.leagueFromCache = snap.metadata.fromCache;
+      if (leagueStartOf(store.league) !== before && store.catches.size) store.catches = withPast(store.catches.values());
       refreshMemberListeners();
       emit();
     }, syncError),
@@ -211,13 +214,9 @@ function refreshMemberListeners() {
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "catches"), OPTS, snap => {
     seen("catches", snap);
     const pending = new Set();
-    // Catches saved before past catches existed (0.20.0) are marked here if caught before the league started.
-    const start = (store.league && store.league.createdAt) || 0;
-    store.catches = new Map(snap.docs.map(d => {
+    store.catches = withPast(snap.docs.map(d => {
       if (d.metadata.hasPendingWrites) pending.add(d.id);
-      const c = { id: d.id, ...d.data() };
-      if (!c.past && c.caughtAt < start) c.past = true;
-      return [d.id, c];
+      return { id: d.id, ...d.data() };
     }));
     store.pending = pending;
     store.catchesLoaded = true;
@@ -249,6 +248,17 @@ function refreshMemberListeners() {
       emit();
     }, syncError));
   }
+}
+
+/* Past catches: `pastStored` is the flag saved on the catch (logged too late; locked). `past` also covers catches
+   from before the league start, worked out here so an admin moving the start date re-sorts every catch. A new Map,
+   so everything worked out from the catches (rankings, crowns, badges) is worked out again. */
+function withPast(catches) {
+  const start = leagueStartOf(store.league);
+  return new Map([...catches].map(c => {
+    const pastStored = c.pastStored ?? c.past === true;
+    return [c.id, { ...c, pastStored, past: pastStored || c.caughtAt < start }];
+  }));
 }
 
 function stopListeners() {
@@ -360,6 +370,7 @@ export function updateMe(fields) {
 
 /* ---------- Admin ---------- */
 export const setLeagueName = name => write(cloud.api.updateDoc(ref("config", "league"), { name: cleanName(name) || "Lunker League" }));
+export const setLeagueStart = ms => write(cloud.api.updateDoc(ref("config", "league"), { startAt: Math.round(ms) }));
 export const setGraceDays = days => write(cloud.api.updateDoc(ref("config", "league"), { graceDays: Math.max(0, Math.min(60, Math.round(days))) }));
 export const setInviteCode = code => write(cloud.api.setDoc(ref("config", "invite"), { code: cleanCode(code) }));
 export const setSuspended = (id, suspended) => write(cloud.api.updateDoc(ref("members", id), { suspended }));

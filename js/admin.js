@@ -1,6 +1,7 @@
 /* League admin: name, invite code, members and (owner only) admins. */
 import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, copyText, confirmButton, fill } from "./ui.js";
-import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode, photoStorage, setGraceDays } from "./cloud.js";
+import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode, photoStorage, setGraceDays, setLeagueStart } from "./cloud.js";
+import { leagueStartOf } from "./stats.js";
 import { estimateStorage, docsBytes, fmtBytes, FREE_BYTES } from "./storage.js";
 import { parseEmails, inviteEmail, mailtoLink } from "./invite.js";
 
@@ -29,9 +30,12 @@ export function renderAdmin(main) {
     el("div", { class: "row spread" }, el("strong", { text: L.name }),
       el("button", { class: "btn small", type: "button", text: "Rename", onclick: renameSheet })),
     el("div", { class: "row spread" },
+      el("span", {}, el("strong", { text: "League start: " }), fmtDay(leagueStartOf(L))),
+      el("button", { class: "btn small", type: "button", text: "Change", onclick: startSheet })),
+    el("div", { class: "row spread" },
       el("span", {}, el("strong", { text: "Late logging: " }), `${L.graceDays ?? 7} days`),
       el("button", { class: "btn small", type: "button", text: "Change", onclick: graceSheet })),
-    el("p", { class: "hint", text: `Catches logged more than ${L.graceDays ?? 7} days after they were caught, or caught before the league started (${fmtDay(L.createdAt || 0)}), are 📜 past catches: they count for PBs and the all-time records, not points, badges or crowns. Changing this only affects catches logged from now on.` }));
+    el("p", { class: "hint", text: `Catches caught before the league start, or logged more than ${L.graceDays ?? 7} days after they were caught, are 📜 past catches: they count for PBs and the all-time records, not points, badges or crowns. Moving the start re-sorts every catch straight away. Changing the late-logging days only affects catches logged from now on.` }));
 
   const members = [...store.members.values()].sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
   const list = el("section", { class: "card stack" },
@@ -141,6 +145,46 @@ function codeSheet(current) {
       setInviteCode(input.value); closeSheet(); toast("Invite code changed.");
     });
     box.append(form);
+  });
+}
+
+/* Moving the league start: catches (and derbies) before it stop counting for points, badges and crowns; moving it
+   earlier brings them back (unless they were logged too late). Shows how many catches change before saving. */
+function startSheet() {
+  const pad = n => String(n).padStart(2, "0");
+  const toDate = ms => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  const current = leagueStartOf(store.league);
+  openSheet(box => {
+    const input = el("input", { type: "date", value: toDate(current), max: toDate(Date.now()), "data-focus": "" });
+    const preview = el("p", { class: "msg" });
+    const chosen = () => { const [y, m, d] = input.value.split("-").map(Number); return y ? new Date(y, m - 1, d).getTime() : NaN; };
+    const draw = () => {
+      const t = chosen();
+      if (!isFinite(t)) { preview.textContent = ""; return; }
+      const all = [...store.catches.values()].filter(c => !c.pastStored && !c.dq);
+      const toPast = all.filter(c => c.caughtAt >= current && c.caughtAt < t).length;
+      const toLeague = all.filter(c => c.caughtAt < current && c.caughtAt >= t).length;
+      preview.className = "msg " + (toPast ? "err" : "ok");
+      preview.textContent = toPast ? `${toPast === 1 ? "1 catch will become a 📜 past catch" : `${toPast} catches will become 📜 past catches`} and stop earning points, badges and crowns.`
+        : toLeague ? `${toLeague === 1 ? "1 past catch will become a league catch" : `${toLeague} past catches will become league catches`} and start earning points, badges and crowns.`
+        : "No catches change.";
+    };
+    input.addEventListener("input", draw); input.addEventListener("change", draw);
+    const form = el("form", { class: "stack" },
+      el("h2", { text: "League start" }),
+      field("The league counts from", input, "Catches and derbies before this day count for PBs and the all-time records only."),
+      preview,
+      el("div", { class: "row" },
+        el("button", { class: "btn", type: "button", text: "Cancel", onclick: closeSheet }),
+        el("button", { class: "btn primary", type: "submit", text: "Save" })));
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      const t = chosen();
+      if (!isFinite(t) || t > Date.now()) return input.focus();
+      setLeagueStart(t); closeSheet(); toast(`The league now counts from ${fmtDay(t)}.`);
+    });
+    box.append(form);
+    draw();
   });
 }
 

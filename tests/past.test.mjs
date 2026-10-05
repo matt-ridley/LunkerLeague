@@ -1,7 +1,7 @@
 // Unit tests for past catches (logbook): PBs and all-time boards yes; points, badges, crowns and record news no.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pastCatch, personalBests, speciesBoard } from "../js/stats.js";
+import { pastCatch, loggedLate, leagueStartOf, personalBests, speciesBoard } from "../js/stats.js";
 import { rankings } from "../js/rank.js";
 import { crownStandings } from "../js/crowns.js";
 import { badgeTimeline } from "../js/badges.js";
@@ -61,4 +61,24 @@ test("record news and the bell: a past fish never 'takes' a record; throwbacks g
 test("a past catch can't be a derby entry", () => {
   const d = { ...DEFAULTS, start: START, end: START + DAY };
   assert.equal(entryProblem({ uid: "amy", species: "Pike", caughtAt: START + H, weightOz: 90, past: true }, d), "Past catches can't be entered in a derby");
+});
+
+test("the league start can be set; catches before it are past, and only late logging is saved on the catch", () => {
+  assert.equal(leagueStartOf({ createdAt: 100 }), 100);
+  assert.equal(leagueStartOf({ createdAt: 100, startAt: 50 }), 50);
+  const c = { caughtAt: START + DAY, createdAt: START + DAY + H };
+  assert.equal(pastCatch(c, { leagueStart: START + 2 * DAY }), true);   // the start moved later: now past
+  assert.equal(loggedLate(c), false);                                   // but nothing to save on the catch
+});
+
+test("derbies that ended before the league start keep results but earn no points, crowns or badges", () => {
+  const d = { ...DEFAULTS, id: "d1", name: "Spring", start: START - 10 * DAY, end: START - 9 * DAY, syncGraceHours: 0 };
+  const ent = new Map([["d1", new Map([["amy", {}]])]]);
+  const catches = [fish("amy", "Pike", 90, START - 10 * DAY + H, { derbyId: "d1", past: true })];
+  const input = { catches, derbies: [d], entrants: ent, versions: [], members: ["amy"], now: NOW };
+  assert.equal(rankings({ ...input, leagueStart: START })[0].byKind.derby, 0);
+  assert.ok(rankings({ ...input, leagueStart: 0 })[0].byKind.derby > 0);
+  assert.ok(!crownStandings({ ...input, leagueStart: START }).find(s => s.crown.id === "derbyKing").holder);
+  assert.ok(!badgeTimeline({ ...input, leagueStart: START }).some(b => b.badge.id === "champ"));
+  assert.equal(entryProblem({ ...catches[0], pastStored: false }, d), ""); // its derby result still stands
 });

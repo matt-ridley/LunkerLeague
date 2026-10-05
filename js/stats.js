@@ -8,8 +8,13 @@ const counts = c => !c.dq;
    It counts for personal bests and the all-time record boards, but never for points, badges or crowns. Saved on
    the catch as `past: true` when it's created, and the security rules never let it change back. */
 export const DEFAULT_GRACE_DAYS = 7;
-export function pastCatch({ caughtAt, createdAt }, { leagueStart = 0, graceDays = DEFAULT_GRACE_DAYS } = {}) {
-  return caughtAt < leagueStart || caughtAt < createdAt - graceDays * 24 * 3600 * 1000;
+/* The league start: set by an admin (startAt), or when the league was set up. */
+export const leagueStartOf = league => (league && (league.startAt ?? league.createdAt)) || 0;
+/* Logged too late: saved on the catch as `past: true` and locked by the security rules. */
+export const loggedLate = ({ caughtAt, createdAt }, graceDays = DEFAULT_GRACE_DAYS) => caughtAt < createdAt - graceDays * 24 * 3600 * 1000;
+/* Past for either reason. "Before the start" is worked out live, so moving the start date re-sorts catches. */
+export function pastCatch(c, { leagueStart = 0, graceDays = DEFAULT_GRACE_DAYS } = {}) {
+  return c.caughtAt < leagueStart || loggedLate(c, graceDays);
 }
 export const isPast = c => c.past === true;
 
