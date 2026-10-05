@@ -70,6 +70,8 @@ export function leagueEvents(data) {
 const catchName = c => (c ? (c.fishCount > 1 ? `stringer of ${c.species}` : c.species) : "catch");
 
 /* The bell for one angler: [{ id, at, icon, text, href }], newest first (at most `limit`).
+   An id names one piece of news for good (clearing it on the bell is remembered by id), so it holds whatever
+   makes the news new: a changed reaction or trip answer, a fresh batch of catches, a crown changing hands again.
    `seen` is when they last opened the bell; new catches by others since then are summed up in one line. */
 export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
   const { catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), chat = [], derbyChat = new Map(),
@@ -105,7 +107,7 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     const c = catchMap.get(cid);
     if (!c || c.uid !== me) continue;
     for (const [u, r] of byUser) if (u !== me && r.at) {
-      add({ id: `re:${cid}:${u}`, at: r.at, icon: r.emojis[0] || "👍", href: `#/c/${cid}`, text: `${name(u)} reacted ${r.emojis.join("")} to your ${catchName(c)}` });
+      add({ id: `re:${cid}:${u}:${r.emojis.join("")}`, at: r.at, icon: r.emojis[0] || "👍", href: `#/c/${cid}`, text: `${name(u)} reacted ${r.emojis.join("")} to your ${catchName(c)}` });
     }
   }
 
@@ -120,7 +122,7 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
 
   // Crowns you took (claimed or stole) and crowns stolen from you.
   for (const s of crowns) for (const h of s.history) {
-    if (h.uid === me) add({ id: `crown:${s.crown.id}:${h.at}`, at: h.at, icon: s.crown.icon, href: "#/leaders",
+    if (h.uid === me) add({ id: `crown:${s.crown.id}:${h.from || "claim"}:${h.from ? h.at : ""}`, at: h.at, icon: s.crown.icon, href: "#/leaders",
       text: h.from ? `You stole the ${s.crown.name} crown from ${name(h.from)}` : `You claimed the ${s.crown.name} crown` });
     else if (h.from === me && h.uid) add({ id: `crownlost:${s.crown.id}:${h.at}`, at: h.at, icon: "😤", href: "#/leaders",
       text: `${name(h.uid)} stole your ${s.crown.name} crown` });
@@ -146,7 +148,7 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
   for (const t of trips.values()) {
     if (t.uid !== me) add({ id: `trip:${t.id}`, at: t.createdAt || 0, icon: "🚤", href: `#/t/${t.id}`, text: `${name(t.uid)} is heading out: ${t.title}. Are you in?` });
     else for (const [u, r] of rsvps.get(t.id) || new Map()) if (u !== me) {
-      add({ id: `rsvp:${t.id}:${u}`, at: r.at || 0, icon: RSVP_ICON[r.answer] || "🚤", href: `#/t/${t.id}`, text: `${name(u)} ${RSVP_TEXT[r.answer] || "answered"} for ${t.title}` });
+      add({ id: `rsvp:${t.id}:${u}:${r.answer}`, at: r.at || 0, icon: RSVP_ICON[r.answer] || "🚤", href: `#/t/${t.id}`, text: `${name(u)} ${RSVP_TEXT[r.answer] || "answered"} for ${t.title}` });
     }
   }
 
@@ -154,7 +156,8 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
   const fresh = catches.filter(c => c.uid !== me && (c.createdAt || 0) > seen);
   if (fresh.length) {
     const fish = fresh.reduce((n, c) => n + fishIn(c), 0);
-    add({ id: "catches", at: Math.max(...fresh.map(c => c.createdAt)), icon: "🎣", href: "#/feed",
+    const newest = Math.max(...fresh.map(c => c.createdAt));
+    add({ id: `catches:${newest}`, at: newest, icon: "🎣", href: "#/feed",
       text: fresh.length === 1 ? `${name(fresh[0].uid)} logged a ${catchName(fresh[0])}` : `${fresh.length} new catches (${fish} fish) since you last looked` });
   }
   return out.sort((a, b) => b.at - a.at).slice(0, limit);

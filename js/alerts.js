@@ -1,7 +1,7 @@
 /* The bell: what's new for you (mentions, comments and reactions on your catches, records taken from you, badges,
    your derbies, trips, new catches), worked out from the league's data. This phone remembers when you last
    opened it, like the Chat badge. There are no push notifications: you see these when you open the app. */
-import { el, fill, fmtAgo, icon } from "./ui.js";
+import { el, fill, fmtAgo, icon, toast } from "./ui.js";
 import { store, uid, memberName, watchDerbyChat } from "./cloud.js";
 import { rankInput } from "./leaders.js";
 import { alertsFor, unreadCount } from "./events.js";
@@ -19,6 +19,19 @@ function getSeen() {
   } catch { return Date.now() - WEEK; }
 }
 const setSeen = t => { try { localStorage.setItem(SEEN_KEY, String(t)); } catch {} };
+
+/* Clearing: × hides one alert, "Clear all" hides the ones on screen. Kept on this phone, like "seen".
+   Alerts are matched one by one by id, not by a cut-off time: a catch logged hours after it was caught brings
+   alerts dated earlier, and those must still show up; and a badge whose date moves stays cleared. */
+const DISMISSED_KEY = "lunker-alerts-dismissed";
+const alertKey = a => a.id;
+function getDismissed() {
+  try { return JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]"); } catch { return []; }
+}
+// Only the most recent matter: the bell lists at most 60 alerts.
+const setDismissed = keys => { try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(keys.slice(-400))); } catch {} };
+const dismiss = list => setDismissed([...getDismissed(), ...list.map(alertKey)]);
+const visible = list => { const gone = new Set(getDismissed()); return list.filter(a => !gone.has(alertKey(a))); };
 
 /* Mentions in a derby's chat only reach this phone when that chat is being listened to, so listen to the chats of
    derbies you're in while they're on. */
@@ -42,24 +55,33 @@ function cachedAlerts(seen) {
   return cache.list;
 }
 
-export const bellCount = () => unreadCount(cachedAlerts(getSeen()), getSeen());
+export const bellCount = () => unreadCount(visible(cachedAlerts(getSeen())), getSeen());
 
 /* What was "new" is fixed when the screen opens, so live redraws don't clear the highlights while you read. */
 let visitSeen = 0;
 export function renderAlerts(main) {
   const opening = !main.querySelector(".alerts-title");
   if (opening) visitSeen = getSeen();
-  const seen = visitSeen, list = cachedAlerts(seen);
+  const seen = visitSeen, all = cachedAlerts(seen), list = visible(all);
+  const redraw = () => renderAlerts(main);
+  const clearAll = () => {
+    const before = getDismissed();
+    dismiss(list);
+    redraw();
+    toast("Cleared.", { label: "Undo", run: () => { setDismissed(before); redraw(); } });
+  };
   fill(main,
-    el("h2", { class: "page-title alerts-title", text: "What's new" }),
+    el("div", { class: "row spread" }, el("h2", { class: "page-title alerts-title", text: "What's new" }),
+      list.length ? el("button", { class: "btn small", type: "button", text: "Clear all", onclick: clearAll }) : null),
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading…" })
-      : list.length ? el("ul", { class: "alert-list card" }, ...list.map(a => el("li", {},
+      : list.length ? el("ul", { class: "alert-list card" }, ...list.map(a => el("li", { class: "alert-item" },
           el("a", { class: "alert-row" + (a.at > seen ? " new" : ""), href: a.href },
             el("span", { class: "alert-icon", text: a.icon }),
             el("span", { class: "grow" }, el("span", { class: "alert-text", text: a.text }), el("span", { class: "muted small", text: fmtAgo(a.at) })),
-            a.at > seen ? el("span", { class: "dot", "aria-label": "New" }) : null))))
+            a.at > seen ? el("span", { class: "dot", "aria-label": "New" }) : null),
+          el("button", { class: "alert-dismiss", type: "button", "aria-label": `Clear: ${a.text}`, text: "×", onclick: () => { dismiss([a]); redraw(); } }))))
       : el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.bell }),
-          el("p", { text: "Nothing new. When someone mentions you, comments on your catch, takes your record or plans a trip, it shows up here." })),
+          el("p", { text: all.length ? "All clear. New alerts will show up here." : "Nothing new. When someone mentions you, comments on your catch, takes your record or plans a trip, it shows up here." })),
     el("p", { class: "hint", text: "There are no phone notifications: check here when you open the app." }));
   // Opening the bell marks everything as seen (still highlighted until you leave this screen). Later live redraws
   // only do so while the app is on screen, so alerts arriving while it sits in the background stay new.

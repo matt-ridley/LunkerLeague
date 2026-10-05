@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.18.0 (beta)
+**Current version:** 0.19.0 (beta)
 
 ## Features
 
@@ -24,7 +24,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Reactions and comments.** React to any catch with 🎣 🔥 🐟 😂 👏 🤥 (fish story!) or any emoji from the picker, and see who reacted. Comment on catches; the comment's author, the catch's angler or an admin can remove one. Catch cards show the top reactions and the comment count.
 - **League chat.** One group chat for the league, with day separators, an emoji picker and an unread badge on the Chat tab. Tap your own message to delete it (admins can delete any).
 - **@mentions.** Type `@` in chat or a comment to pick someone from the league. Their name is highlighted, and they get an alert.
-- **What's new (the bell).** The bell at the top shows what's new for you since you last looked: mentions, comments and reactions on your catches, records taken from you, badges you earned, your derbies going live and finishing (with your place), new derbies and trips, answers to your trips, and a count of new catches. There are no phone notifications; you see these when you open the app.
+- **What's new (the bell).** The bell at the top shows what's new for you since you last looked: mentions, comments and reactions on your catches, records taken from you, badges you earned, your derbies going live and finishing (with your place), new derbies and trips, answers to your trips, and a count of new catches. There are no phone notifications; you see these when you open the app. Tap **×** to clear one alert or **Clear all** to clear the list (with Undo); cleared alerts stay cleared on that phone.
 - **League news in the feed.** The feed also announces records changing hands, badges earned and derby results.
 - **Trips.** "Who's out Saturday?" Plan a trip on the **Events** tab (what, when, where, notes) and everyone answers **In**, **Maybe** or **Out**. The trip shows who's coming and who hasn't answered.
 - **Derbies.** Any member can set one up and is its organiser:
@@ -231,6 +231,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.19.0 | 2026-Oct-04 11:06:35 PM | What's new can be cleared: **×** on each alert, and **Clear all** with Undo. Cleared alerts stay cleared on that phone, and anything new still shows up, even alerts from a catch logged hours after it was caught. No new security rules. |
 | 0.18.0 | 2026-Oct-04 10:55:07 PM | **Leaders → Badges**: who has the most badges, and every badge with how many anglers have it (yours are ticked); tap a badge to see who earned it and when, first to earn it on top. The Rankings tab is now labelled Ranks so four tabs fit on a phone. No new security rules. |
 | 0.17.0 | 2026-Oct-04 10:44:55 PM | **50 new badges** (56 in all), each worth a point (admins can change it on the points page): catch totals, species, size, records, stringers and limits, time and season, derbies, social, crowns and spots. Tap the badges on a profile to see the whole collection, when each was earned, and how to earn the rest. Badges are dated when earned, so they show in the feed and the bell. Fixed the profile stats running off the edge on narrow screens. **New security rules: publish firestore.rules.** |
 | 0.16.0 | 2026-Oct-04 10:30:29 PM | **Storage meter** on the League admin page: about how much of the free 1 GB is used and how many more catches fit. **Smaller photos** for new catches (about 240 KB instead of up to 530 KB as stored, still sharp enough to read a scale), so the league holds about twice as many catches. Photos now save their size for the meter. **New security rules: publish firestore.rules.** |
