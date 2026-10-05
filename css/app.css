@@ -464,6 +464,17 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .trophy { display: grid; justify-items: center; gap: 2px; min-width: 76px; padding: 8px 6px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); text-align: center; }
 .trophy > span { font-size: 26px; line-height: 1; }
 .trophy small { font-size: 11.5px; font-weight: 800; line-height: 1.15; }
+
+/* Crowns */
+.crown-card { display: flex; gap: 14px; align-items: flex-start; width: 100%; padding: 14px 16px; text-align: left; font: inherit; color: inherit;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.crown-card.mine { border: 2px solid var(--gold); }
+.crown-card .grow { display: grid; gap: 3px; min-width: 0; }
+.crown-icon { font-size: 30px; line-height: 1; width: 40px; text-align: center; flex: none; }
+.crown-name { font: 800 19px/1.15 var(--f-display); }
+.crown-holder { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; font-size: 15px; }
+.crown-row { display: grid; gap: 6px; color: inherit; text-decoration: none; }
+.trophy.crown { border: 2px solid var(--gold); }
 .points-list, .how-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .points-list li { display: flex; gap: 10px; align-items: baseline; }
 .points-list b { color: var(--ok); min-width: 3em; text-align: right; }

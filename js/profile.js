@@ -7,6 +7,7 @@ import { getTheme, setTheme } from "./theme.js";
 import { pbWall } from "./catches.js";
 import { rankings, badgesFor } from "./rank.js";
 import { rankInput, howPointsSheet } from "./leaders.js";
+import { crownScore } from "./crowns.js";
 
 export function renderProfile(main, id) {
   const mine = !id || id === uid();
@@ -30,7 +31,13 @@ export function renderProfile(main, id) {
   const badgeRow = el("div", { class: "badge-row" }, ...(badges.length
     ? badges.map(b => el("span", { class: "trophy", title: b.name }, el("span", { text: b.icon }), el("small", { text: b.name })))
     : [el("span", { class: "muted small", text: "No badges yet. First Fish is one catch away!" })]));
-  const parts = [head, rankCard, badgeRow, ...pbWall(m.id)];
+  // Crowns held right now (they can be stolen, unlike badges).
+  const held = input.crowns.filter(s => s.holder === m.id);
+  const crownRow = held.length ? el("a", { class: "crown-row", href: "#/leaders", onclick: () => { try { sessionStorage.setItem("lunker-leaders-tab", "crowns"); } catch {} } },
+    el("span", { class: "eyebrow", text: `👑 ${held.length} crown${held.length === 1 ? "" : "s"}` }),
+    el("span", { class: "badge-row" }, ...held.map(s => el("span", { class: "trophy crown", title: `${s.crown.name}: ${crownScore(s.crown, s.score)}` },
+      el("span", { text: s.crown.icon }), el("small", { text: s.crown.name }))))) : null;
+  const parts = [head, rankCard, crownRow, badgeRow, ...pbWall(m.id)];
 
   if (mine) {
     parts.push(el("section", { class: "card stack" },

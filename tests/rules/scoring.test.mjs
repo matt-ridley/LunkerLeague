@@ -37,3 +37,9 @@ test("the limit bonus is optional (older versions don't have it) and must be sen
   await assertSucceeds(setDoc(doc(db, "scoring/l1"), version("admin2", { values: values({ limitPts: 10 }) })));
   await assertFails(setDoc(doc(db, "scoring/l2"), version("admin2", { values: values({ limitPts: -1 }) })));
 });
+
+test("the crown points are optional and must be sensible", async () => {
+  const db = as(env, "admin2");
+  await assertSucceeds(setDoc(doc(db, "scoring/c1"), version("admin2", { values: values({ crownPts: 3 }) })));
+  await assertFails(setDoc(doc(db, "scoring/c2"), version("admin2", { values: values({ crownPts: 5000 }) })));
+});

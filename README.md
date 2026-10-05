@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.12.0 (beta)
+**Current version:** 0.13.0 (beta)
 
 ## Features
 
@@ -56,9 +56,10 @@ A private fishing league for a group of friends. Log personal bests with a photo
     - rounding to $1, $5 or the cent
   - **Tracking:** the organiser ticks off who has paid. The Money tab shows the pot, projected payouts (and final ones when the derby finishes) with each person's breakdown, "paid out" ticks, and a summary to copy into the chat. The leaderboard shows what each angler stands to win.
 - **Angler rankings.** Who's the best angler, for bragging rights, on the Leaders tab, all-time or this season.
-  - **Points:** for catches (with a daily cap), limits, each new species, holding a top-3 spot on a species' weight board, and finishing derbies. Disqualified catches and test derbies don't count.
+  - **Points:** for catches (with a daily cap), limits, each new species, holding a top-3 spot on a species' weight board, each crown held, and finishing derbies. Disqualified catches and test derbies don't count.
   - **Titles:** from Bait Bucket up to Legend of the Lake.
   - **Badges:** First Fish, 10 Species, Derby Champ, Catch & Release Hero, Night Owl and Lucky Net.
+  - **Crowns:** 16 crowns, each held by whoever has the most of something right now: Derby King, Golden Net, Best Captain, Conservationist, Meat Eater, Stringer Filler (most limits), Species Hunter, Grinder, Record Holder, Early Bird, Night Stalker, Iron Angler, Explorer (shared spots only), Fish Story King, Hype Man and Skunk Master. You only steal one by passing the holder (a tie isn't enough). The feed announces steals, the bell tells you when you take or lose one, profiles show the crowns held, and each crown is worth points while you hold it (2 by default, set by admins). See them on Leaders → Crowns.
   - **Breakdown:** tap any angler to see where their points came from, or tap **How points work**.
   - **Admin control:** admins can change every value and the title thresholds, choosing **All history** (everything is rescored) or **From now on** (points already earned stay), with a live preview of the new standings before saving. Every change is kept as a version and can be loaded again.
 - **Works with no signal.** After the first sign-in, the app opens and shows the league's data with no connection. Changes made offline are kept on the phone and sent when it has signal again. The header shows **Live**, **Offline** or **Syncing**, and catches still waiting show **Waiting for signal**. If the league ever refuses a catch sent from the phone (for example because the account was paused at the time), the app keeps it, photo included, and offers to send it again.
@@ -69,23 +70,8 @@ The app is in beta: everything originally planned is in, and the league is tryin
 
 Ideas picked for future versions, grouped into milestones in a rough order. Sizes are rough: S is small, M is medium, L is large.
 
-### Milestone A: Holder badges (crowns that move)
-A crown sits with whoever currently has the most of something. When someone overtakes, it moves to them and the feed announces it was stolen. All of these come from data the app already has. (M)
-
-- **Derby King**: most derby wins
-- **Golden Net**: most fish netted for other anglers
-- **Best Captain**: most derby wins or placings from fish caught on your boat
-- **Conservationist**: most fish released
-- **Meat Eater**: most fish kept
-- **Species Hunter**: most different species
-- **Grinder**: most catches logged
-- **Record Holder**: most species records held right now
-- **Early Bird** and **Night Owl**: most fish at dawn, most at night
-- **Iron Angler**: most days fished
-- **Explorer**: most different spots
-- **Fish Story King**: most 🤥 reactions received
-- **Hype Man**: most reactions and comments given
-- **Skunk Master**: most derbies finished without a fish
+### Milestone A: Holder badges (crowns that move) (done in 0.13.0)
+✅ 16 crowns that move to whoever has the most of something, announced in the feed and the bell, and worth admin-set points while held. Built as planned, with these changes: the night crown is called **Night Stalker** (the Night Owl badge stays), **Explorer** counts spots shared with the league (private spots stay private), **Grinder** counts a stringer as one catch, and **Stringer Filler** (most limits) was added.
 
 ### Milestone B: Fair play and the bet
 - **Photo code word** (S): the derby shows a random word or number that must appear in each entry photo, the anti-cheating trick tournament apps use.
@@ -242,6 +228,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.13.0 | 2026-Oct-04 09:22:27 PM | Milestone A: **crowns**. 16 crowns that sit with whoever has the most of something right now (Derby King, Golden Net, Best Captain, Conservationist, Meat Eater, Stringer Filler, Species Hunter, Grinder, Record Holder, Early Bird, Night Stalker, Iron Angler, Explorer, Fish Story King, Hype Man, Skunk Master). Steals show in the feed and the bell; crowns show on profiles and on the new Leaders → Crowns tab; each crown held is worth points (2 by default, admins can change it). **New security rules: publish firestore.rules.** |
 | 0.12.0 | 2026-Oct-04 09:01:02 PM | Milestone C. **@mentions** in chat and comments. **The bell**: what's new for you since you last looked (mentions, comments and reactions on your catches, records taken from you, badges, your derbies, new derbies and trips, trip answers, new catches). **League news** in the feed: records changing hands, badges earned, derby results. **Trips** with In / Maybe / Out on the Derbies tab, now called **Events**. **New security rules: publish firestore.rules.** |
 | 0.11.0 | 2026-Oct-04 08:36:01 PM | Pick a catch's spot on a map: next to **My location (GPS)** there's now **Pick on map**, a full-screen map or satellite view where you tap where you caught it (drag the pin to adjust). A tagged spot can be moved on the map later by editing the catch. The map needs signal; GPS still works without. No new security rules. |
 | 0.10.0 | 2026-Oct-04 08:23:42 PM | Stringers and limits: log a whole stringer with one photo, the species, the number of fish, and whether it was your limit. A stringer earns the day's full catch points; a limit adds a bonus (5 by default, once a day) that admins can change on the points page. Rankings show a new Limits line. Stringer fish count toward catch totals and badges but are never PBs, records or derby entries. **New security rules: publish firestore.rules.** |

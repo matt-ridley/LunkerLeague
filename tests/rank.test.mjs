@@ -8,7 +8,8 @@ const H = 3600e3, DAY = 24 * H;
 const T0 = new Date(2026, 4, 1, 8).getTime(); // 2026-May-01 8 AM
 let n = 0;
 const fish = (uid, species, weightOz, t, extra = {}) => ({ id: "c" + ++n, uid, species, weightOz, lengthIn: null, caughtAt: t, ...extra });
-const total = (rows, uid) => (rows.find(r => r.uid === uid) || { points: 0 }).points;
+// Points without crowns (crowns have their own test below), so these tests stay about what they check.
+const total = (rows, uid) => { const r = rows.find(r => r.uid === uid); return r ? Math.round((r.points - r.byKind.crown) * 10) / 10 : 0; };
 
 test("catch points have a daily cap; first catch of each species scores once", () => {
   const catches = [1, 2, 3, 4, 5].map(i => fish("amy", "Perch", 5 + i, T0 + i * 60e3));   // 5 perch in one day
@@ -99,10 +100,24 @@ test("a disqualified stringer scores nothing; the limit bonus follows the scorin
   const versions = [{ id: "v1", mode: "retro", createdAt: T0 + 2 * DAY, values: { ...DEFAULT_SCORING, limitPts: 10 } }];
   const rows = rankings({ catches: [stringer("amy", "Yellow Perch", 50, true, T0)], derbies: [], entrants: new Map(), versions, members: ["amy"], now: T0 + 3 * DAY });
   assert.equal(rows[0].byKind.limit, 10);
-  assert.equal(rows[0].points, 3 + 10 + 3); // catches + limit + first species
+  assert.equal(total(rows, "amy"), 3 + 10 + 3); // catches + limit + first species
 });
 
 test("a stringer's fish all count toward badges", () => {
   const ids = badgesFor("amy", { catches: [stringer("amy", "Yellow Perch", 50, true, T0)], derbies: [], entrants: new Map(), now: T0 + DAY }).map(b => b.id);
   assert.ok(ids.includes("first"));
+});
+
+test("crowns held right now are worth points, and the points follow the crown", () => {
+  const catches = [fish("amy", "Walleye", 80, T0), fish("bo", "Walleye", 90, T0 + H), fish("bo", "Pike", 90, T0 + 2 * H)];
+  const rows = rankings({ catches, derbies: [], entrants: new Map(), versions: [], members: ["amy", "bo"], now: T0 + DAY });
+  const crownsOf = u => rows.find(r => r.uid === u).events.filter(e => e.kind === "crown").map(e => e.label);
+  // amy logged first, so she claimed the crowns everyone ties on; bo passed her on catches, species, records, kept fish.
+  assert.ok(crownsOf("bo").includes("⚙️ Grinder crown"));
+  assert.ok(crownsOf("bo").includes("👑 Record Holder crown"));
+  assert.ok(crownsOf("amy").includes("💪 Iron Angler crown")); // both fished 1 day; amy got there first
+  assert.equal(rows.find(r => r.uid === "bo").byKind.crown, 2 * crownsOf("bo").length);
+  const off = rankings({ catches, derbies: [], entrants: new Map(), members: ["amy", "bo"], now: T0 + DAY,
+    versions: [{ id: "v", mode: "retro", createdAt: T0, values: { ...DEFAULT_SCORING, crownPts: 0 } }] });
+  assert.equal(off.find(r => r.uid === "bo").byKind.crown, 0);
 });

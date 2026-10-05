@@ -6,6 +6,7 @@
 import { measured, fishIn } from "./stats.js";
 import { badgeTimeline } from "./rank.js";
 import { derbyStatus, closesAt, standings } from "./derby.js";
+import { crownSteals } from "./crowns.js";
 
 const PLACES = ["1st", "2nd", "3rd"];
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -42,8 +43,9 @@ function finishedDerbies({ catches, derbies, entrants, now }) {
 
 const asMap = x => (x instanceof Map ? x : new Map((x || []).map(d => [d.id, d])));
 
-/* Feed news: [{ id, at, icon, text, href, uids }], newest first. `uids` are the anglers it's about. */
-export function leagueEvents({ catches, derbies, entrants = new Map(), name, now = Date.now() }) {
+/* Feed news: [{ id, at, icon, text, href, uids }], newest first. `uids` are the anglers it's about.
+   `crowns` (from crownStandings) adds crowns changing hands. */
+export function leagueEvents({ catches, derbies, entrants = new Map(), crowns = [], name, now = Date.now() }) {
   const derbyMap = asMap(derbies), out = [];
   for (const s of recordSteals(catches)) {
     out.push({ id: `rec:${s.c.id}:${s.field}`, at: s.c.caughtAt, icon: "👑", href: `#/c/${s.c.id}`, uids: [s.c.uid, s.from.uid],
@@ -52,6 +54,10 @@ export function leagueEvents({ catches, derbies, entrants = new Map(), name, now
   for (const b of badgeTimeline({ catches, derbies: derbyMap, entrants, now })) {
     out.push({ id: `badge:${b.uid}:${b.badge.id}`, at: b.at, icon: b.badge.icon, href: `#/u/${b.uid}`, uids: [b.uid],
       text: `${name(b.uid)} earned the ${b.badge.name} badge` });
+  }
+  for (const s of crownSteals(crowns)) {
+    out.push({ id: `crown:${s.crown.id}:${s.at}`, at: s.at, icon: s.crown.icon, href: "#/leaders", uids: [s.uid, s.from],
+      text: `${name(s.uid)} stole the ${s.crown.name} crown from ${name(s.from)}` });
   }
   for (const { d, rows, at } of finishedDerbies({ catches, derbies: derbyMap, entrants, now })) {
     out.push({ id: `derby:${d.id}`, at, icon: "🏁", href: `#/d/${d.id}`, uids: rows.slice(0, 3).map(r => r.uid),
@@ -66,7 +72,7 @@ const catchName = c => (c ? (c.fishCount > 1 ? `stringer of ${c.species}` : c.sp
    `seen` is when they last opened the bell; new catches by others since then are summed up in one line. */
 export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
   const { catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), chat = [], derbyChat = new Map(),
-    trips = new Map(), rsvps = new Map(), name, now = Date.now() } = data;
+    trips = new Map(), rsvps = new Map(), crowns = [], name, now = Date.now() } = data;
   const catchMap = new Map(catches.map(c => [c.id, c]));
   const derbyMap = asMap(derbies), out = [];
   const add = a => { if (a.at <= now + 600000) out.push(a); };
@@ -109,6 +115,14 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
   }
   for (const b of badgeTimeline({ catches, derbies: derbyMap, entrants, now })) if (b.uid === me) {
     add({ id: `badge:${b.badge.id}`, at: b.at, icon: b.badge.icon, href: "#/me", text: `You earned the ${b.badge.name} badge` });
+  }
+
+  // Crowns you took (claimed or stole) and crowns stolen from you.
+  for (const s of crowns) for (const h of s.history) {
+    if (h.uid === me) add({ id: `crown:${s.crown.id}:${h.at}`, at: h.at, icon: s.crown.icon, href: "#/leaders",
+      text: h.from ? `You stole the ${s.crown.name} crown from ${name(h.from)}` : `You claimed the ${s.crown.name} crown` });
+    else if (h.from === me && h.uid) add({ id: `crownlost:${s.crown.id}:${h.at}`, at: h.at, icon: "😤", href: "#/leaders",
+      text: `${name(h.uid)} stole your ${s.crown.name} crown` });
   }
 
   // Derbies: new ones set up by others; the ones you joined going live and finishing.
