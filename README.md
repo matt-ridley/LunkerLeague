@@ -6,11 +6,12 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.15.0 (beta)
+**Current version:** 0.16.0 (beta)
 
 ## Features
 
 - **Accounts for friends only.** Friends create an account with their email and a password, then join with the league's invite code. Nobody else can see anything.
+- **Storage meter (admins).** The League admin page shows roughly how much of the free plan's 1 GB is used and how many more catches fit, and warns when it's getting full.
 - **League owner and admins.** Whoever sets up the league owns it. The owner can make other members admins. Admins can change the invite code, rename the league, and pause or remove members.
 - **Email invites (owner).** On the League admin page, the owner types a friend's email (or several) and the app writes the invite in the owner's own email app, ready to send: what Lunker League is, how to install it on iPhone and Android, how to sign up, and the invite code. There's also a button to copy the whole invite for a text.
 - **Profiles.** Each angler has a name, an optional home water and a photo taken with the camera or picked from the gallery.
@@ -174,7 +175,8 @@ npm run deploy:rules
 
 ## Where data is stored
 
-- Accounts, profiles and (from the next versions) catches, photos, derbies and chat are stored in the league's Firebase project. Only members can read them.
+- Accounts, profiles, catches, photos, derbies, trips and chat are stored in the league's Firebase project. Only members can read them.
+- Photos are stored in Firestore itself (Firebase's file storage needs the paid plan), so they use most of the free plan's 1 GB. A new catch takes about 270 KB, photo included, which leaves room for roughly 3,500 to 4,000 catches. Admins can see how much is used on the League admin page (**Storage**). If it gets full: delete old test catches, or move to Firebase's Blaze plan.
 - Nothing about members is stored in this repository, which is public so GitHub Pages can host it for free.
 - Picking a spot on the map loads map pictures from OpenStreetMap (street map) and Esri (satellite). They only see which area is being viewed, never the catch or who is looking.
 - Each phone keeps an offline copy. Changes made with no signal wait on the phone. Signing out before they're sent can lose them, so the app warns you.
@@ -229,6 +231,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.16.0 | 2026-Oct-04 10:30:29 PM | **Storage meter** on the League admin page: about how much of the free 1 GB is used and how many more catches fit. **Smaller photos** for new catches (about 240 KB instead of up to 530 KB as stored, still sharp enough to read a scale), so the league holds about twice as many catches. Photos now save their size for the meter. **New security rules: publish firestore.rules.** |
 | 0.15.0 | 2026-Oct-04 10:22:54 PM | Profile filters: tap **catches** for personal bests and recent catches, **species** for each species with how many were caught (every fish on a stringer counts), or **records** for the league records held. No new security rules. |
 | 0.14.0 | 2026-Oct-04 10:12:51 PM | Email invites for the league owner: enter a friend's email on the League admin page and the invite opens in your email app, written and ready to send (what the app is, install steps for iPhone and Android, sign-up steps, the invite code). Or copy the whole invite to text it. No new security rules. |
 | 0.13.0 | 2026-Oct-04 09:22:27 PM | Milestone A: **crowns**. 16 crowns that sit with whoever has the most of something right now (Derby King, Golden Net, Best Captain, Conservationist, Meat Eater, Stringer Filler, Species Hunter, Grinder, Record Holder, Early Bird, Night Stalker, Iron Angler, Explorer, Fish Story King, Hype Man, Skunk Master). Steals show in the feed and the bell; crowns show on profiles and on the new Leaders → Crowns tab; each crown held is worth points (2 by default, admins can change it). **New security rules: publish firestore.rules.** |

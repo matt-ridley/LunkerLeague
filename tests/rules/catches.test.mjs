@@ -109,3 +109,15 @@ test("a stringer has 2 to 500 fish, says whether it's a limit, and is never meas
   // A stringer can be turned back into a single fish by clearing its count.
   await assertSucceeds(updateDoc(doc(db, "catches/s1"), { fishCount: null, limit: null, weightOz: 40 }));
 });
+
+test("a photo can carry its size for the storage meter, but only its real size", async () => {
+  const db = as(env, "member");
+  const src = "data:image/jpeg;base64,BBBB";
+  await assertSucceeds(saveAll(db, "sz1", "member", { photo: src }));
+  const ok = writeBatch(db);
+  ok.set(doc(db, "catches", "sz2"), catchData("member")); ok.set(doc(db, "photos", "sz2"), { uid: "member", src, bytes: src.length });
+  await assertSucceeds(ok.commit());
+  const lie = writeBatch(db);
+  lie.set(doc(db, "catches", "sz3"), catchData("member")); lie.set(doc(db, "photos", "sz3"), { uid: "member", src, bytes: 1 });
+  await assertFails(lie.commit());
+});
