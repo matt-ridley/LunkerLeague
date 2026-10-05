@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.24.0 (beta)
+**Current version:** 0.25.0 (beta)
 
 ## Features
 
@@ -235,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.25.0 | 2026-Oct-05 07:32:17 PM | **Easier-to-read feed:** day headers (Today, Yesterday, then the date). Badges, records and crowns a catch earned now show on that catch's card (all its badges on one line) instead of as separate cards; other news, such as derby results, still gets its own card. Fewer chips on a card: "Released" and "Spot" moved to the quiet line with reactions and comments, and "Past catch" is dropped when the card already says "All-time record". |
 | 0.24.0 | 2026-Oct-05 07:24:49 PM | **Feed order fix:** the feed now lists catches by when they were posted, so a fish logged a day or two after it was caught shows up at the top instead of days down the feed. Its badges, records and crowns move up with it, in the feed and on the bell. A catch posted more than 12 hours after it was caught says when it was posted. |
 | 0.23.0 | 2026-Oct-05 12:04:57 AM | **Admins can set the league start** (League admin, League start), with a preview of how many catches change. Catches and derbies before the start count for PBs and the all-time records only: no points, badges or crowns; derby results still show. Moving the start later turns earlier catches into past catches; moving it earlier turns them back into league catches. Only "logged too late" is now saved on the catch (and locked); "before the start" follows the start date. **New security rules: publish firestore.rules.** |
 | 0.22.0 | 2026-Oct-04 11:52:43 PM | **Length records earn record points too**, the same as weight: 1st to 3rd on each species' length board as well as its weight board (each board counts on its own). The Records tab, species boards, How points work and the points page say so. Accepted measurements per species is in the roadmap backlog. No new security rules. |

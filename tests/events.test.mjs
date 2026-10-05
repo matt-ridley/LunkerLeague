@@ -110,3 +110,15 @@ test("a catch logged late dates its news, and the bell, by when it was posted", 
   const amy = alertsFor("amy", base({ catches }), { seen: T0 + 3 * DAY });
   assert.ok(amy.some(a => a.text === "BO took your Pike weight record" && a.at > T0 + 3 * DAY));
 });
+
+test("news a catch caused names that catch, so the feed can show it on the card", () => {
+  const catches = [fish("amy", "Pike", 80, T0), fish("bo", "Pike", 90, T0 + DAY, { createdAt: T0 + 2 * DAY })];
+  const ev = leagueEvents(base({ catches }));
+  const rec = ev.find(e => e.id.startsWith("rec:"));
+  assert.equal(rec.cid, catches[1].id);
+  assert.equal(rec.short, "Took the weight record from AMY");
+  const first = ev.find(e => e.id === "badge:bo:first");
+  assert.equal(first.cid, catches[1].id);
+  assert.equal(first.short, "Earned the First Fish badge");
+  assert.equal(ev.find(e => e.id === "badge:amy:first").cid, catches[0].id);
+});

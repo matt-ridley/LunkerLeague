@@ -22,7 +22,8 @@ const postedLate = c => !c.past && (c.createdAt || 0) - c.caughtAt > 12 * 3600 *
 const mapsUrl = s => `https://www.google.com/maps/search/?api=1&query=${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
 
 /* ---------- Cards ---------- */
-export function catchCard(c, all = allCatches()) {
+/* `news`: league news this catch caused (badges, records, crowns), shown on the card instead of as cards of their own. */
+export function catchCard(c, all = allCatches(), news = []) {
   const pb = isPersonalBest(c, all), rec = recordKinds(c, all);
   const m = store.members.get(c.uid) || { id: c.uid, displayName: memberName(c.uid) };
   return el("a", { class: "catch-card", href: `#/c/${c.id}` },
@@ -32,23 +33,39 @@ export function catchCard(c, all = allCatches()) {
       el("div", { class: "catch-size" + (sizeText(c) ? "" : " unmeasured"), text: sizeText(c) || "Not measured" }),
       el("div", { class: "catch-who" }, avatar(m, "xs"), el("span", { text: `${m.displayName} · ${c.past ? fmtDay(c.caughtAt) : fmtAgo(c.caughtAt)}` })),
       postedLate(c) ? el("div", { class: "catch-posted", text: `Posted ${fmtAgo(c.createdAt)}` }) : null,
+      // Chips for what matters (records, PBs, limits, derbies, problems); the rest goes in the quiet line below.
       el("div", { class: "badges" },
         rec.length ? el("span", { class: "badge record", text: c.past ? "📜 All-time record" : "👑 League record" }) : null,
         pb ? el("span", { class: "badge pb", text: "PB" }) : null,
-        c.past ? el("span", { class: "badge past", text: "📜 Past catch" }) : null,
+        c.past && !rec.length ? el("span", { class: "badge past", text: "📜 Past catch" }) : null,
         isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limit" }) : null,
         c.derbyId && store.derbies.get(c.derbyId) ? el("span", { class: "badge derby", text: `🏁 ${store.derbies.get(c.derbyId).name}` }) : null,
         c.dq ? el("span", { class: "badge dq", text: "Disqualified" }) : null,
-        c.released ? el("span", { class: "badge", text: "Released" }) : null,
-        c.hasSpot ? el("span", { class: "badge", text: c.locShared ? "📍 Spot" : "🔒 Secret spot" }) : null,
         store.pending.has(c.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null),
-      socialLine(c.id)));
+      cardNews(news),
+      metaLine(c)));
 }
 
-function socialLine(id) {
-  const r = reactionSummary(id), n = (store.comments.get(id) || []).length;
-  if (!r && !n) return null;
-  return el("div", { class: "social-line" }, r ? el("span", { text: r }) : null, n ? el("span", { text: `💬 ${n}` }) : null);
+/* News on a catch card: one line each for records and crowns, and all its badges together on one line. */
+function cardNews(news) {
+  if (!news.length) return null;
+  const badges = news.filter(e => e.badge), lines = news.filter(e => !e.badge).map(e => [e.icon, e.short]);
+  if (badges.length === 1) lines.push([badges[0].icon, badges[0].short]);
+  else if (badges.length) lines.push(["🏅", `Earned ${badges.length} badges: ${badges.map(e => `${e.badge.icon} ${e.badge.name}`).join(" · ")}`]);
+  return el("ul", { class: "catch-news" }, ...lines.map(([i, t]) =>
+    el("li", {}, el("span", { class: "catch-news-icon", text: i }), el("span", { text: t }))));
+}
+
+/* Reactions, comments, released and spot, in one quiet line. */
+function metaLine(c) {
+  const r = reactionSummary(c.id), n = (store.comments.get(c.id) || []).length;
+  const bits = [
+    r ? el("span", { text: r }) : null,
+    n ? el("span", { text: `💬 ${n}` }) : null,
+    c.released ? el("span", { class: "meta", text: "Released" }) : null,
+    c.hasSpot ? el("span", { class: "meta", text: c.locShared ? "📍 Spot" : "🔒 Secret spot" }) : null,
+  ].filter(Boolean);
+  return bits.length ? el("div", { class: "social-line" }, ...bits) : null;
 }
 
 /* ---------- Feed ---------- */
@@ -59,10 +76,17 @@ export function renderFeed(main) {
   const me = uid(), stats = anglerStats(all.filter(c => !c.past), me), pbs = personalBests(all, me).size;
   // Catches mixed with league news (records stolen, badges, derby results), newest first.
   const news = store.catchesLoaded ? leagueEvents({ ...rankInput(), name: memberName }) : [];
+  const shown = all.filter(c => feedFilter === "all" || c.uid === me);
+  // News a catch caused rides on that catch's card; the rest (derby results, crowns not tied to a catch…) gets its own.
+  const ids = new Set(shown.map(c => c.id)), onCard = new Map(), loose = [];
+  for (const e of news.filter(e => feedFilter === "all" || e.uids.includes(me))) {
+    if (e.cid && ids.has(e.cid)) onCard.set(e.cid, [...(onCard.get(e.cid) || []), e]);
+    else loose.push(e);
+  }
   const list = [
     // Ordered by when each catch was posted: a fish logged late, or a throwback, still shows up at the top.
-    ...all.filter(c => feedFilter === "all" || c.uid === me).map(c => ({ at: postedAt(c), c })),
-    ...news.filter(e => feedFilter === "all" || e.uids.includes(me)).map(e => ({ at: e.at, e })),
+    ...shown.map(c => ({ at: postedAt(c), c })),
+    ...loose.map(e => ({ at: e.at, e })),
   ].sort((a, b) => b.at - a.at);
   const hero = el("section", { class: "hero" },
     el("p", { class: "eyebrow", text: (store.league && store.league.name) || "Lunker League" }),
@@ -73,7 +97,14 @@ export function renderFeed(main) {
   const seg = el("div", { class: "seg" }, ...[["all", "Everyone"], ["mine", "Mine"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(feedFilter === k), text: label,
       onclick: () => { feedFilter = k; feedLimit = 30; renderFeed(main); } })));
-  const cards = list.slice(0, feedLimit).map(x => (x.c ? catchCard(x.c, all) : newsCard(x.e)));
+  // Grouped under a header for each day (by when it was posted).
+  const cards = [];
+  let day = null;
+  for (const x of list.slice(0, feedLimit)) {
+    const d = new Date(x.at).toDateString();
+    if (d !== day) { day = d; cards.push(el("h3", { class: "day-head", text: dayLabel(x.at) })); }
+    cards.push(x.c ? catchCard(x.c, all, onCard.get(x.c.id)) : newsCard(x.e));
+  }
   fill(main, hero, seg,
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading catches…" })
       : cards.length ? el("div", { class: "card-list" }, ...cards)
@@ -81,6 +112,13 @@ export function renderFeed(main) {
           el("p", { text: feedFilter === "mine" ? "You haven't logged a catch yet." : "No catches yet. Be the first to put a fish on the board!" })),
     list.length > feedLimit ? el("button", { class: "btn block", type: "button", text: "Show more",
       onclick: () => { feedLimit += 30; renderFeed(main); } }) : null);
+}
+const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function dayLabel(t) {
+  const d = new Date(t), today = new Date(), yest = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yest.toDateString()) return "Yesterday";
+  return `${WEEKDAY[d.getDay()]} ${fmtDay(t)}`;
 }
 const newsCard = e => el("a", { class: "news-card", href: e.href },
   el("span", { class: "news-icon", text: e.icon }), el("span", { class: "grow", text: e.text }), el("span", { class: "muted small", text: fmtAgo(e.at) }));
