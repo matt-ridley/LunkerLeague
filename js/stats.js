@@ -4,8 +4,12 @@
 
 const has = n => typeof n === "number" && n > 0;
 const counts = c => !c.dq;
-/* Weight and length are optional; a fish with neither can't be compared, so it's never a PB or a record. */
-export const measured = c => has(c.weightOz) || has(c.lengthIn);
+/* A stringer is one photo of many fish (fishCount of them); everything else is one fish. */
+export const isStringer = c => Number.isInteger(c.fishCount) && c.fishCount > 1;
+export const fishIn = c => (isStringer(c) ? c.fishCount : 1);
+/* Weight and length are optional; a fish with neither can't be compared, so it's never a PB or a record.
+   Nor is a stringer, which is never measured. */
+export const measured = c => !isStringer(c) && (has(c.weightOz) || has(c.lengthIn));
 
 /* Which catch is the better personal best: heavier wins, then longer, then whoever caught it first. */
 export function better(a, b) {
@@ -42,7 +46,7 @@ export function speciesBoard(catches, species, by = "weight") {
   const field = by === "length" ? "lengthIn" : "weightOz";
   const best = new Map();
   for (const c of catches) {
-    if (c.species !== species || !counts(c) || !has(c[field])) continue;
+    if (c.species !== species || !counts(c) || !measured(c) || !has(c[field])) continue;
     const cur = best.get(c.uid);
     if (!cur || c[field] > cur[field] || (c[field] === cur[field] && (c.caughtAt || 0) < (cur.caughtAt || 0))) best.set(c.uid, c);
   }
@@ -52,7 +56,7 @@ export function speciesBoard(catches, species, by = "weight") {
 /* Every species caught in the league, most-caught first, with its weight and length record holders. */
 export function speciesRecords(catches) {
   const n = new Map();
-  for (const c of catches) if (counts(c)) n.set(c.species, (n.get(c.species) || 0) + 1);
+  for (const c of catches) if (counts(c)) n.set(c.species, (n.get(c.species) || 0) + fishIn(c));
   return [...n.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([species, count]) => ({
@@ -72,5 +76,5 @@ export function recordKinds(c, catches) {
 
 export function anglerStats(catches, uid) {
   const mine = catches.filter(c => c.uid === uid && counts(c));
-  return { catches: mine.length, species: new Set(mine.map(c => c.species)).size };
+  return { catches: mine.reduce((n, c) => n + fishIn(c), 0), species: new Set(mine.map(c => c.species)).size };
 }

@@ -31,3 +31,9 @@ test("versions must be sensible, and can never be edited or deleted", async () =
   await assertFails(updateDoc(doc(db, "scoring/v1"), { note: "rewrite history" }));
   await assertFails(deleteDoc(doc(as(env, "owner"), "scoring/v1")));
 });
+
+test("the limit bonus is optional (older versions don't have it) and must be sensible", async () => {
+  const db = as(env, "admin2");
+  await assertSucceeds(setDoc(doc(db, "scoring/l1"), version("admin2", { values: values({ limitPts: 10 }) })));
+  await assertFails(setDoc(doc(db, "scoring/l2"), version("admin2", { values: values({ limitPts: -1 }) })));
+});

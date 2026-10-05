@@ -7,11 +7,12 @@ import { SPECIES, normalizeSpecies } from "./species.js";
 import { reactionBar, commentsSection, reactionSummary } from "./social.js";
 import { derbyStatus, entryProblem, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
-import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats } from "./stats.js";
+import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer } from "./stats.js";
 
 const allCatches = () => [...store.catches.values()];
 const byNewest = (a, b) => (b.caughtAt || 0) - (a.caughtAt || 0);
-const sizeText = c => [fmtWeight(c.weightOz), fmtLength(c.lengthIn)].filter(Boolean).join(" · ");
+const sizeText = c => isStringer(c) ? `Stringer of ${c.fishCount}`
+  : [fmtWeight(c.weightOz), fmtLength(c.lengthIn)].filter(Boolean).join(" · ");
 const mapsUrl = s => `https://www.google.com/maps/search/?api=1&query=${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
 
 /* ---------- Cards ---------- */
@@ -27,6 +28,7 @@ export function catchCard(c, all = allCatches()) {
       el("div", { class: "badges" },
         rec.length ? el("span", { class: "badge record", text: "👑 League record" }) : null,
         pb ? el("span", { class: "badge pb", text: "PB" }) : null,
+        isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limit" }) : null,
         c.derbyId && store.derbies.get(c.derbyId) ? el("span", { class: "badge derby", text: `🏁 ${store.derbies.get(c.derbyId).name}` }) : null,
         c.dq ? el("span", { class: "badge dq", text: "Disqualified" }) : null,
         c.released ? el("span", { class: "badge", text: "Released" }) : null,
@@ -103,6 +105,7 @@ export function renderCatch(main, id) {
         rec.includes("weight") ? el("span", { class: "badge record", text: "👑 Heaviest in the league" }) : null,
         rec.includes("length") ? el("span", { class: "badge record", text: "👑 Longest in the league" }) : null,
         pb ? el("span", { class: "badge pb", text: `${mine ? "Your" : "Their"} PB` }) : null,
+        isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limited out" }) : null,
         store.pending.has(c.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null)),
     derbyBox(c),
     el("a", { class: "member-row card", href: `#/u/${c.uid}` }, avatar(m),
@@ -110,9 +113,14 @@ export function renderCatch(main, id) {
     el("dl", { class: "facts card" },
       fact("Caught", fmtDate(c.caughtAt)),
       c.photoTakenAt ? fact("Photo taken", fmtDate(c.photoTakenAt)) : null,
-      fact("Weight", fmtWeight(c.weightOz) || "Not weighed"),
-      fact("Length", fmtLength(c.lengthIn) || "Not measured"),
-      fact("Released", c.released ? "Yes" : "No"),
+      ...(isStringer(c) ? [
+        fact("Fish", String(c.fishCount)),
+        fact("Limit", c.limit ? "Yes" : "No"),
+      ] : [
+        fact("Weight", fmtWeight(c.weightOz) || "Not weighed"),
+        fact("Length", fmtLength(c.lengthIn) || "Not measured"),
+        fact("Released", c.released ? "Yes" : "No"),
+      ]),
       c.notes ? fact("Notes", c.notes) : null,
       c.captain || c.netman ? fact("Boat crew", crewText(c)) : null,
       c.enteredBy ? fact("Entered by", `${memberName(c.enteredBy)} (organiser)`) : null,
@@ -201,6 +209,9 @@ export function renderLog(main, editId, derbyArg) {
     full: null, thumb: editing ? editing.thumb : null, takenAt: editing ? editing.photoTakenAt || null : null,
     spot: oldSpot ? { lat: oldSpot.lat, lng: oldSpot.lng, acc: oldSpot.acc } : null,
     share: editing ? !!editing.locShared : false,
+    // "one" fish, or a "stringer": one photo of many fish, with a yes/no on whether it was a limit.
+    mode: editing && isStringer(editing) ? "stringer" : "one",
+    limit: editing && isStringer(editing) ? !!editing.limit : null,
   };
 
   // Photo
@@ -211,7 +222,8 @@ export function renderLog(main, editId, derbyArg) {
     preview.setAttribute("aria-label", st.thumb ? "Retake the photo with the camera" : "Take a photo with the camera");
     fill(preview, st.thumb
     ? el("img", { src: st.thumb, alt: "Catch photo" })
-    : el("div", { class: "photo-empty" }, el("span", { html: icon.camera }), el("span", { text: "Tap to take a photo of your catch" })));
+    : el("div", { class: "photo-empty" }, el("span", { html: icon.camera }),
+        el("span", { text: st.mode === "stringer" ? "Tap to take a photo of your stringer" : "Tap to take a photo of your catch" })));
   };
   const takePhoto = async camera => {
     const file = await pickImage({ camera });
@@ -250,6 +262,38 @@ export function renderLog(main, editId, derbyArg) {
   const released = el("input", { type: "checkbox", checked: editing ? !!editing.released : false });
   const notes = el("textarea", { rows: 3, maxlength: 500, placeholder: "Lure, depth, weather, the one that got away…" });
   notes.value = editing ? editing.notes || "" : "";
+
+  // Stringer: how many fish, and was it a limit (no default; the angler has to say).
+  const fishCount = el("input", { type: "text", inputmode: "numeric", placeholder: "e.g. 50", "aria-label": "Number of fish",
+    value: editing && isStringer(editing) ? String(editing.fishCount) : "" });
+  const limitSeg = el("div", { class: "seg" });
+  const drawLimit = () => fill(limitSeg, ...[[true, "Yes, my limit"], [false, "No"]].map(([v, label]) =>
+    el("button", { type: "button", "aria-pressed": String(st.limit === v), text: label, onclick: () => { st.limit = v; drawLimit(); } })));
+  drawLimit();
+  const photoHint = el("p", { class: "hint" });
+  const singleBox = el("div", { class: "stack" },
+    el("div", { class: "field" }, el("span", { class: "field-label", text: "Weight" }),
+      el("div", { class: "unit-row" }, lb, el("span", { text: "lb" }), oz, el("span", { text: "oz" }))),
+    el("div", { class: "field" }, el("span", { class: "field-label", text: "Length" }),
+      el("div", { class: "unit-row" }, inches, frac, el("span", { text: "inches" }))),
+    el("p", { class: "hint", text: "Optional. Measure the ones that might be a PB or a derby entry; the rest still count toward your catches." }));
+  const releasedRow = el("label", { class: "check" }, released, el("span", { text: "Released" }));
+  const stringerBox = el("div", { class: "stack" },
+    field("How many fish?", fishCount),
+    el("div", { class: "field" }, el("span", { class: "field-label", text: "Is this your limit?" }), limitSeg),
+    el("p", { class: "hint", text: "A stringer earns the day's full catch points. A limit earns a bonus on top." }));
+  const modeSeg = el("div", { class: "seg" });
+  const derbySection = el("section", { class: "card stack" });
+  const drawMode = () => {
+    const str = st.mode === "stringer";
+    fill(modeSeg, ...[["one", "🐟 One fish"], ["stringer", "🪝 Stringer"]].map(([k, label]) =>
+      el("button", { type: "button", "aria-pressed": String(st.mode === k), text: label, onclick: () => { st.mode = k; drawMode(); } })));
+    singleBox.hidden = str; releasedRow.hidden = str; stringerBox.hidden = !str;
+    derbySection.hidden = str; // stringers can't be derby entries
+    photoHint.textContent = str ? "Take one picture of the whole stringer."
+      : "Show the fish on a scale or measuring board if you can. It settles arguments.";
+    drawPreview();
+  };
 
   // Spot
   const spotName = el("input", { type: "text", maxlength: 60, autocapitalize: "words", placeholder: "e.g. North bay, by the reeds",
@@ -331,29 +375,30 @@ export function renderLog(main, editId, derbyArg) {
   derbySel.addEventListener("change", drawDerby);
   drawDerby();
 
+  fill(derbySection, el("h3", { text: "🏁 Derby" }), openDerbies.length || (editing && editing.derbyId) ? derbySel : null, derbyInfo);
+  // A derby entry is always one fish, so there's no stringer choice when entering a derby.
+  const derbyOnly = !!derbyArg || !!(editing && editing.derbyId);
+  drawMode();
+
   const msg = el("p", { class: "msg", role: "status" });
   const form = el("form", { class: "stack", novalidate: true },
     el("h2", { class: "page-title", text: editing ? "Edit catch" : chosenDerby() && derbyArg ? `Enter: ${chosenDerby().name}` : "Log a catch" }),
+    derbyOnly ? null : modeSeg,
     el("section", { class: "card stack" }, preview,
       el("div", { class: "row" },
         el("button", { class: "btn", type: "button", html: icon.camera, onclick: () => takePhoto(true) }, "Camera"),
         el("button", { class: "btn", type: "button", html: icon.image, onclick: () => takePhoto(false) }, "Gallery")),
       photoMsg,
-      el("p", { class: "hint", text: "Show the fish on a scale or measuring board if you can. It settles arguments." }),
+      photoHint,
       el("p", { class: "hint", text: "Camera opens right here in the app. You can also take the photo with your phone's camera app and pick it with Gallery." })),
     el("section", { class: "card stack" },
       field("Species", species), datalist,
-      el("div", { class: "field" }, el("span", { class: "field-label", text: "Weight" }),
-        el("div", { class: "unit-row" }, lb, el("span", { text: "lb" }), oz, el("span", { text: "oz" }))),
-      el("div", { class: "field" }, el("span", { class: "field-label", text: "Length" }),
-        el("div", { class: "unit-row" }, inches, frac, el("span", { text: "inches" }))),
-      el("p", { class: "hint", text: "Optional. Measure the ones that might be a PB or a derby entry; the rest still count toward your catches." }),
+      singleBox, stringerBox,
       field("Caught", when), timeHint,
-      el("label", { class: "check" }, released, el("span", { text: "Released" })),
+      releasedRow,
       field("Notes (optional)", notes)),
     el("section", { class: "card stack" }, el("h3", { text: "Where" }), spotBox),
-    openDerbies.length || (editing && editing.derbyId) ? el("section", { class: "card stack" }, el("h3", { text: "🏁 Derby" }), derbySel, derbyInfo)
-      : el("section", { class: "card stack" }, el("h3", { text: "🏁 Derby" }), derbyInfo),
+    derbySection,
     msg,
     el("button", { class: "btn lime block big", type: "submit", text: editing ? "Save changes" : "Save catch" }),
     el("a", { class: "btn quiet block", href: editing ? `#/c/${editing.id}` : "#/feed", text: "Cancel" }));
@@ -365,20 +410,26 @@ export function renderLog(main, editId, derbyArg) {
     const weightOz = Math.round((num(lb.value) * 16 + num(oz.value)) * 10) / 10;
     const lengthIn = Math.round((num(inches.value) + num(frac.value)) * 4) / 4;
     const caughtAt = new Date(when.value).getTime();
-    if (!st.thumb) return fail("Add a photo of your catch.");
+    const stringer = st.mode === "stringer" && !derbyOnly;
+    const count = Number(fishCount.value.trim());
+    if (!st.thumb) return fail(stringer ? "Add a photo of your stringer." : "Add a photo of your catch.");
     if (!sp) return fail("Enter the species.");
-    if (num(oz.value) >= 16) return fail("Ounces should be under 16. Put whole pounds in the lb box.");
+    if (stringer && !(Number.isInteger(count) && count >= 2 && count <= 500)) return fail("Enter how many fish are on the stringer (2 to 500).");
+    if (stringer && st.limit === null) return fail("Tell us if this is your limit.");
+    if (!stringer && num(oz.value) >= 16) return fail("Ounces should be under 16. Put whole pounds in the lb box.");
     if (!isFinite(caughtAt)) return fail("Enter when you caught it.");
     if (caughtAt > Date.now() + 600000) return fail("The catch time is in the future.");
 
     const id = editing ? editing.id : newCatchId();
     const data = {
-      uid: uid(), species: sp, weightOz: weightOz > 0 ? weightOz : null, lengthIn: lengthIn > 0 ? lengthIn : null,
+      uid: uid(), species: sp, weightOz: !stringer && weightOz > 0 ? weightOz : null, lengthIn: !stringer && lengthIn > 0 ? lengthIn : null,
       caughtAt, createdAt: editing ? editing.createdAt : Date.now(), thumb: st.thumb, photoTakenAt: st.takenAt || null,
-      notes: notes.value.trim().slice(0, 500), released: released.checked,
+      notes: notes.value.trim().slice(0, 500), released: !stringer && released.checked,
       hasSpot: !!st.spot, locShared: !!st.spot && st.share, spotName: st.spot && st.share ? spotName.value.trim().slice(0, 60) : "",
     };
-    const d = chosenDerby();
+    if (stringer) Object.assign(data, { fishCount: count, limit: st.limit });
+    else if (editing && editing.fishCount != null) Object.assign(data, { fishCount: null, limit: null }); // was a stringer
+    const d = stringer ? null : chosenDerby();
     if (d) {
       Object.assign(data, { derbyId: d.id, captain: captain.value(), netman: netman.value() });
       // Entered for someone else: it's their catch, recorded as entered by the organiser.

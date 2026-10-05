@@ -59,7 +59,7 @@ function rankView(main) {
       isAdmin() ? el("a", { class: "btn", href: "#/scoring", text: "Change points" }) : null));
 }
 
-const KIND = { catch: "🎣 Catches", species: "🌈 New species", record: "👑 Records held", derby: "🏁 Derbies" };
+const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "👑 Records held", derby: "🏁 Derbies" };
 function breakdownSheet(r, place) {
   const m = who(r.uid);
   const badges = badgesFor(r.uid, rankInput());
@@ -84,6 +84,7 @@ export function howPointsSheet() {
     el("h2", { text: "How points work" }),
     el("ul", { class: "how-list" },
       el("li", { text: `🎣 ${v.catchPts} per catch (counting up to ${v.dailyCap} a day)` }),
+      el("li", { text: `🪝 A stringer earns the day's full catch points (${v.catchPts * v.dailyCap}). If it's your limit, ${v.limitPts} more (once a day)` }),
       el("li", { text: `🌈 ${v.speciesPts} for each species you catch for the first time` }),
       el("li", { text: `👑 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board (changes as records fall)` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),

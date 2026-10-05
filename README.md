@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.9.4 (beta)
+**Current version:** 0.10.0 (beta)
 
 ## Features
 
@@ -15,6 +15,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Profiles.** Each angler has a name, an optional home water and a photo taken with the camera or picked from the gallery.
 - **Day and Dusk screens.** Day is high contrast for bright sun. Dusk is darker and easier on the eyes at dawn and dusk. Auto follows the phone's setting.
 - **Catches with photo proof.** Log a catch with a photo from the camera or gallery, the species, and optionally the weight (lb and oz) and length (to the quarter inch), when it was caught, whether it was released, and notes. The time the photo was taken is read from the photo and shown with the catch.
+- **Stringers and limits.** On a perch or walleye day, log the whole stringer with one photo: the species, how many fish, and whether it was your limit (the app always asks). A stringer earns the day's full catch points, and a limit earns a bonus on top, once a day. Its fish count toward your catch total and badges, but a stringer is never a PB or a record and can't be entered in a derby.
 - **Private or shared spots.** Tag the GPS spot (works with no signal). Keep it private, so others only see "Secret spot", or share it with the league with an optional spot name and an Open in Maps link. Only you can read a private spot; the security rules stop anyone else, including admins.
 - **Personal bests.** Your best catch of each species is worked out automatically (heaviest, then longest), with a celebration when you beat it. Each profile has a PB wall, catch and species counts and recent catches.
 - **Leaders.** The league record for every species (heaviest and longest), and a leaderboard per species of everyone's personal best, by weight or by length.
@@ -51,7 +52,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
     - rounding to $1, $5 or the cent
   - **Tracking:** the organiser ticks off who has paid. The Money tab shows the pot, projected payouts (and final ones when the derby finishes) with each person's breakdown, "paid out" ticks, and a summary to copy into the chat. The leaderboard shows what each angler stands to win.
 - **Angler rankings.** Who's the best angler, for bragging rights, on the Leaders tab, all-time or this season.
-  - **Points:** for catches (with a daily cap), each new species, holding a top-3 spot on a species' weight board, and finishing derbies. Disqualified catches and test derbies don't count.
+  - **Points:** for catches (with a daily cap), limits, each new species, holding a top-3 spot on a species' weight board, and finishing derbies. Disqualified catches and test derbies don't count.
   - **Titles:** from Bait Bucket up to Legend of the Lake.
   - **Badges:** First Fish, 10 Species, Derby Champ, Catch & Release Hero, Night Owl and Lucky Net.
   - **Breakdown:** tap any angler to see where their points came from, or tap **How points work**.
@@ -236,6 +237,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.10.0 | 2026-Oct-04 08:23:42 PM | Stringers and limits: log a whole stringer with one photo, the species, the number of fish, and whether it was your limit. A stringer earns the day's full catch points; a limit adds a bonus (5 by default, once a day) that admins can change on the points page. Rankings show a new Limits line. Stringer fish count toward catch totals and badges but are never PBs, records or derby entries. **New security rules: publish firestore.rules.** |
 | 0.9.4 | 2026-Oct-04 12:39:51 PM | Setup steps: clearer instructions for restricting the app's key in Google Cloud, adding the Firebase sign-in site to the allowed websites. No app changes. |
 | 0.9.3 | 2026-Oct-04 12:27:51 PM | Added the roadmap of planned features (holder badges, fair play and bets, notifications, better derbies, logbook and stats, fun extras). No app changes. |
 | 0.9.2 | 2026-Oct-04 11:46:40 AM | Weight and length are now optional, so not every fish has to be measured (derbies scored by size still need them). Unmeasured catches count toward catch and species points but are never a PB or record. A photo is still required, and the security rules now refuse a new catch without one. **New security rules: publish firestore.rules.** |
