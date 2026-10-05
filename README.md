@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.14.0 (beta)
+**Current version:** 0.15.0 (beta)
 
 ## Features
 
@@ -18,7 +18,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Catches with photo proof.** Log a catch with a photo from the camera or gallery, the species, and optionally the weight (lb and oz) and length (to the quarter inch), when it was caught, whether it was released, and notes. The time the photo was taken is read from the photo and shown with the catch.
 - **Stringers and limits.** On a perch or walleye day, log the whole stringer with one photo: the species, how many fish, and whether it was your limit (the app always asks). A stringer earns the day's full catch points, and a limit earns a bonus on top, once a day. Its fish count toward your catch total and badges, but a stringer is never a PB or a record and can't be entered in a derby.
 - **Private or shared spots.** Tag the spot with the phone's GPS (works with no signal), or tap it on a map or satellite view (needs signal; handy for logging a catch later from home). Keep it private, so others only see "Secret spot", or share it with the league with an optional spot name and an Open in Maps link. Only you can read a private spot; the security rules stop anyone else, including admins.
-- **Personal bests.** Your best catch of each species is worked out automatically (heaviest, then longest), with a celebration when you beat it. Each profile has a PB wall, catch and species counts and recent catches.
+- **Personal bests.** Your best catch of each species is worked out automatically (heaviest, then longest), with a celebration when you beat it. Each profile has catch, species and record counts that work as filters: **catches** shows the PB wall and recent catches, **species** lists every species with how many were caught, and **records** shows the league records held.
 - **Leaders.** The league record for every species (heaviest and longest), and a leaderboard per species of everyone's personal best, by weight or by length.
 - **Reactions and comments.** React to any catch with 🎣 🔥 🐟 😂 👏 🤥 (fish story!) or any emoji from the picker, and see who reacted. Comment on catches; the comment's author, the catch's angler or an admin can remove one. Catch cards show the top reactions and the comment count.
 - **League chat.** One group chat for the league, with day separators, an emoji picker and an unread badge on the Chat tab. Tap your own message to delete it (admins can delete any).
@@ -229,6 +229,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.15.0 | 2026-Oct-04 10:22:54 PM | Profile filters: tap **catches** for personal bests and recent catches, **species** for each species with how many were caught (every fish on a stringer counts), or **records** for the league records held. No new security rules. |
 | 0.14.0 | 2026-Oct-04 10:12:51 PM | Email invites for the league owner: enter a friend's email on the League admin page and the invite opens in your email app, written and ready to send (what the app is, install steps for iPhone and Android, sign-up steps, the invite code). Or copy the whole invite to text it. No new security rules. |
 | 0.13.0 | 2026-Oct-04 09:22:27 PM | Milestone A: **crowns**. 16 crowns that sit with whoever has the most of something right now (Derby King, Golden Net, Best Captain, Conservationist, Meat Eater, Stringer Filler, Species Hunter, Grinder, Record Holder, Early Bird, Night Stalker, Iron Angler, Explorer, Fish Story King, Hype Man, Skunk Master). Steals show in the feed and the bell; crowns show on profiles and on the new Leaders → Crowns tab; each crown held is worth points (2 by default, admins can change it). **New security rules: publish firestore.rules.** |
 | 0.12.0 | 2026-Oct-04 09:01:02 PM | Milestone C. **@mentions** in chat and comments. **The bell**: what's new for you since you last looked (mentions, comments and reactions on your catches, records taken from you, badges, your derbies, new derbies and trips, trip answers, new catches). **League news** in the feed: records changing hands, badges earned, derby results. **Trips** with In / Maybe / Out on the Derbies tab, now called **Events**. **New security rules: publish firestore.rules.** |
