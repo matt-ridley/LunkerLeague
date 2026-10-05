@@ -1,5 +1,5 @@
 // Bump on every change: major for a big change in how the app works, minor for a new feature, patch for fixes.
-export const VERSION = "0.25.0";
+export const VERSION = "0.26.0";
 
 // Firebase project for the league. Leave null until the project exists; the app then shows setup steps.
 // This config is public by design; access is limited by the rules in firestore.rules.
