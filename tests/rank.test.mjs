@@ -8,8 +8,8 @@ const H = 3600e3, DAY = 24 * H;
 const T0 = new Date(2026, 4, 1, 8).getTime(); // 2026-May-01 8 AM
 let n = 0;
 const fish = (uid, species, weightOz, t, extra = {}) => ({ id: "c" + ++n, uid, species, weightOz, lengthIn: null, caughtAt: t, ...extra });
-// Points without crowns (crowns have their own test below), so these tests stay about what they check.
-const total = (rows, uid) => { const r = rows.find(r => r.uid === uid); return r ? Math.round((r.points - r.byKind.crown) * 10) / 10 : 0; };
+// Points without crowns and badges (they have their own tests), so these tests stay about what they check.
+const total = (rows, uid) => { const r = rows.find(r => r.uid === uid); return r ? Math.round((r.points - r.byKind.crown - r.byKind.badge) * 10) / 10 : 0; };
 
 test("catch points have a daily cap; first catch of each species scores once", () => {
   const catches = [1, 2, 3, 4, 5].map(i => fish("amy", "Perch", 5 + i, T0 + i * 60e3));   // 5 perch in one day
@@ -72,7 +72,10 @@ test("titles and badges", () => {
   assert.equal(titleFor(12, { ...DEFAULT_SCORING, titles: [0, 5, 10, 15, 20, 25, 30] }), "Dock Dangler");
   const night = new Date(2026, 4, 1, 22).getTime();
   const catches = [fish("amy", "Catfish", 100, night, { released: true })];
-  assert.deepEqual(badgesFor("amy", { catches, derbies: [], entrants: new Map() }).map(b => b.id), ["first", "owl"]);
+  // A 100 oz (6 lb 4 oz) released catfish at 10 PM, the angler's first catch.
+  assert.deepEqual(badgesFor("amy", { catches, derbies: [], entrants: new Map(), now: night + DAY }).map(b => b.id).sort(), ["first", "lb5", "owl", "recordSet"]);
+  // Still the record 30 days later: Untouchable too.
+  assert.ok(badgesFor("amy", { catches, derbies: [], entrants: new Map(), now: night + 31 * DAY }).some(b => b.id === "untouchable"));
 });
 
 const stringer = (uid, species, count, limit, t, extra = {}) => fish(uid, species, null, t, { fishCount: count, limit, ...extra });

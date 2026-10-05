@@ -45,13 +45,14 @@ const asMap = x => (x instanceof Map ? x : new Map((x || []).map(d => [d.id, d])
 
 /* Feed news: [{ id, at, icon, text, href, uids }], newest first. `uids` are the anglers it's about.
    `crowns` (from crownStandings) adds crowns changing hands. */
-export function leagueEvents({ catches, derbies, entrants = new Map(), crowns = [], name, now = Date.now() }) {
+export function leagueEvents(data) {
+  const { catches, derbies, entrants = new Map(), crowns = [], name, now = Date.now() } = data;
   const derbyMap = asMap(derbies), out = [];
   for (const s of recordSteals(catches)) {
     out.push({ id: `rec:${s.c.id}:${s.field}`, at: s.c.caughtAt, icon: "👑", href: `#/c/${s.c.id}`, uids: [s.c.uid, s.from.uid],
       text: `${name(s.c.uid)} took the ${s.species} ${s.field === "weightOz" ? "weight" : "length"} record from ${name(s.from.uid)}` });
   }
-  for (const b of badgeTimeline({ catches, derbies: derbyMap, entrants, now })) {
+  for (const b of data.badges || badgeTimeline({ ...data, derbies: derbyMap })) {
     out.push({ id: `badge:${b.uid}:${b.badge.id}`, at: b.at, icon: b.badge.icon, href: `#/u/${b.uid}`, uids: [b.uid],
       text: `${name(b.uid)} earned the ${b.badge.name} badge` });
   }
@@ -113,7 +114,7 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     add({ id: `rec:${s.c.id}:${s.field}`, at: s.c.caughtAt, icon: "😱", href: `#/c/${s.c.id}`,
       text: `${name(s.c.uid)} took your ${s.species} ${s.field === "weightOz" ? "weight" : "length"} record` });
   }
-  for (const b of badgeTimeline({ catches, derbies: derbyMap, entrants, now })) if (b.uid === me) {
+  for (const b of data.badges || badgeTimeline({ ...data, derbies: derbyMap })) if (b.uid === me) {
     add({ id: `badge:${b.badge.id}`, at: b.at, icon: b.badge.icon, href: "#/me", text: `You earned the ${b.badge.name} badge` });
   }
 

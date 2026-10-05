@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.16.0 (beta)
+**Current version:** 0.17.0 (beta)
 
 ## Features
 
@@ -58,9 +58,9 @@ A private fishing league for a group of friends. Log personal bests with a photo
     - rounding to $1, $5 or the cent
   - **Tracking:** the organiser ticks off who has paid. The Money tab shows the pot, projected payouts (and final ones when the derby finishes) with each person's breakdown, "paid out" ticks, and a summary to copy into the chat. The leaderboard shows what each angler stands to win.
 - **Angler rankings.** Who's the best angler, for bragging rights, on the Leaders tab, all-time or this season.
-  - **Points:** for catches (with a daily cap), limits, each new species, holding a top-3 spot on a species' weight board, each crown held, and finishing derbies. Disqualified catches and test derbies don't count.
+  - **Points:** for catches (with a daily cap), limits, each new species, holding a top-3 spot on a species' weight board, each crown held, each badge earned, and finishing derbies. Disqualified catches and test derbies don't count.
   - **Titles:** from Bait Bucket up to Legend of the Lake.
-  - **Badges:** First Fish, 10 Species, Derby Champ, Catch & Release Hero, Night Owl and Lucky Net.
+  - **Badges:** 56 badges, kept for good and worth a point each (admins can change it): catch totals (Ten Fish to the 500 Club, Double-Digit Day), species (Five Species, Grand Slam, Trophy Case), size (Five Pounder to Twenty Pounder, Twenty-Incher, Yardstick, Tiny Terror, PB Machine), records (Record Setter, Record Breaker, Untouchable, Double Record), stringers and limits, time and season (Sunrise Strike, Hard Water, Four Seasons, Hot Streak…), derbies (First Derby, Podium, Hat Trick, In the Money, Skunked…), social (Trash Talker, Hype Squad, Tall Tale, Trip Planner…), crowns (Crown Thief, Royalty, Long Reign) and Wanderer, plus the originals (First Fish, 10 Species, Derby Champ, Catch & Release Hero, Night Owl, Lucky Net). Tap the badges on a profile to see all of them and how to earn the rest.
   - **Crowns:** 16 crowns, each held by whoever has the most of something right now: Derby King, Golden Net, Best Captain, Conservationist, Meat Eater, Stringer Filler (most limits), Species Hunter, Grinder, Record Holder, Early Bird, Night Stalker, Iron Angler, Explorer (shared spots only), Fish Story King, Hype Man and Skunk Master. You only steal one by passing the holder (a tie isn't enough). The feed announces steals, the bell tells you when you take or lose one, profiles show the crowns held, and each crown is worth points while you hold it (2 by default, set by admins). See them on Leaders → Crowns.
   - **Breakdown:** tap any angler to see where their points came from, or tap **How points work**.
   - **Admin control:** admins can change every value and the title thresholds, choosing **All history** (everything is rescored) or **From now on** (points already earned stay), with a live preview of the new standings before saving. Every change is kept as a version and can be loaded again.
@@ -231,6 +231,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.17.0 | 2026-Oct-04 10:44:55 PM | **50 new badges** (56 in all), each worth a point (admins can change it on the points page): catch totals, species, size, records, stringers and limits, time and season, derbies, social, crowns and spots. Tap the badges on a profile to see the whole collection, when each was earned, and how to earn the rest. Badges are dated when earned, so they show in the feed and the bell. Fixed the profile stats running off the edge on narrow screens. **New security rules: publish firestore.rules.** |
 | 0.16.0 | 2026-Oct-04 10:30:29 PM | **Storage meter** on the League admin page: about how much of the free 1 GB is used and how many more catches fit. **Smaller photos** for new catches (about 240 KB instead of up to 530 KB as stored, still sharp enough to read a scale), so the league holds about twice as many catches. Photos now save their size for the meter. **New security rules: publish firestore.rules.** |
 | 0.15.0 | 2026-Oct-04 10:22:54 PM | Profile filters: tap **catches** for personal bests and recent catches, **species** for each species with how many were caught (every fish on a stringer counts), or **records** for the league records held. No new security rules. |
 | 0.14.0 | 2026-Oct-04 10:12:51 PM | Email invites for the league owner: enter a friend's email on the League admin page and the invite opens in your email app, written and ready to send (what the app is, install steps for iPhone and Android, sign-up steps, the invite code). Or copy the whole invite to text it. No new security rules. |

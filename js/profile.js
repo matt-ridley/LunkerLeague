@@ -8,6 +8,24 @@ import { pbWall } from "./catches.js";
 import { rankings, badgesFor } from "./rank.js";
 import { rankInput, howPointsSheet } from "./leaders.js";
 import { crownScore } from "./crowns.js";
+import { BADGES } from "./badges.js";
+
+/* Every badge: the ones earned (with when), then the rest with how to get them. */
+function badgeSheet(m, input) {
+  const earned = new Map(input.badges.filter(b => b.uid === m.id).map(b => [b.badge.id, b.at]));
+  const row = b => el("li", { class: "badge-line" + (earned.has(b.id) ? " got" : "") },
+    el("span", { class: "badge-line-icon", text: b.icon }),
+    el("span", { class: "grow" }, el("b", { text: b.name }), el("span", { class: "muted small", text: b.desc })),
+    earned.has(b.id) ? el("span", { class: "muted small", text: fmtDay(earned.get(b.id)) }) : null);
+  const got = BADGES.filter(b => earned.has(b.id)).sort((a, b) => earned.get(b.id) - earned.get(a.id)), todo = BADGES.filter(b => !earned.has(b.id));
+  openSheet(box => box.append(el("div", { class: "stack" },
+    el("h2", { text: `🏅 ${m.displayName}'s badges` }),
+    el("p", { class: "muted", text: `${got.length} of ${BADGES.length}. Badges are kept for good, and each one is worth points.` }),
+    got.length ? el("ul", { class: "badge-list" }, ...got.map(row)) : null,
+    todo.length ? el("h3", { text: "Still to earn" }) : null,
+    todo.length ? el("ul", { class: "badge-list" }, ...todo.map(row)) : null,
+    el("button", { class: "btn quiet block", type: "button", text: "Close", onclick: closeSheet }))));
+}
 
 export function renderProfile(main, id) {
   const mine = !id || id === uid();
@@ -28,9 +46,12 @@ export function renderProfile(main, id) {
   const rankCard = me ? el("button", { type: "button", class: "rank-card", onclick: howPointsSheet },
     el("div", {}, el("div", { class: "eyebrow", text: "Angler rank" }), el("div", { class: "rank-card-title", text: me.title })),
     el("div", { class: "rank-card-pts" }, el("b", { text: String(me.points) }), el("span", { text: `pts · #${place + 1} of ${rows.length}` }))) : null;
-  const badgeRow = el("div", { class: "badge-row" }, ...(badges.length
-    ? badges.map(b => el("span", { class: "trophy", title: b.name }, el("span", { text: b.icon }), el("small", { text: b.name })))
-    : [el("span", { class: "muted small", text: "No badges yet. First Fish is one catch away!" })]));
+  const badgeRow = el("button", { type: "button", class: "badge-row badge-btn", "aria-label": `Badges: ${badges.length} of ${BADGES.length}. Show all`,
+    onclick: () => badgeSheet(m, input) },
+    el("span", { class: "eyebrow badge-count", text: `🏅 ${badges.length} of ${BADGES.length} badges · see all` }),
+    ...(badges.length
+      ? badges.map(b => el("span", { class: "trophy", title: b.name }, el("span", { text: b.icon }), el("small", { text: b.name })))
+      : [el("span", { class: "muted small", text: "No badges yet. First Fish is one catch away!" })]));
   // Crowns held right now (they can be stolen, unlike badges).
   const held = input.crowns.filter(s => s.holder === m.id);
   const crownRow = held.length ? el("a", { class: "crown-row", href: "#/leaders", onclick: () => { try { sessionStorage.setItem("lunker-leaders-tab", "crowns"); } catch {} } },

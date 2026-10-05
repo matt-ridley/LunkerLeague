@@ -5,6 +5,7 @@
 import { speciesBoard, isStringer, fishIn } from "./stats.js";
 import { derbyStatus, standings, closesAt } from "./derby.js";
 import { crownStandings } from "./crowns.js";
+import { badgeTimeline } from "./badges.js";
 
 export const DEFAULT_SCORING = {
   catchPts: 1,          // per catch logged…
@@ -13,6 +14,7 @@ export const DEFAULT_SCORING = {
   speciesPts: 3,        // per species caught for the first time
   recordPts: [5, 3, 1], // holding 1st / 2nd / 3rd on a species' weight board (current standing)
   crownPts: 2,          // per crown held right now (current standing)
+  badgePts: 1,          // per badge earned (kept for good)
   derbyPts: [25, 15, 10], // finishing 1st / 2nd / 3rd in a derby
   participationPts: 2,  // for every derby joined that finished
   beatPts: 0,           // per angler finished ahead of in a derby
@@ -95,6 +97,12 @@ export function rankEvents(input) {
     }
   }
 
+  // Badges: each one counts from when it was earned, with the values in effect then.
+  for (const b of input.badges || badgeTimeline({ ...input, derbies: derbyMap })) {
+    const v = scoringAt(line, b.at);
+    if (v.badgePts) events.push({ uid: b.uid, at: b.at, pts: v.badgePts, kind: "badge", label: `${b.badge.icon} ${b.badge.name} badge` });
+  }
+
   // Finished derbies (not cancelled, not tests): places, joining, and anglers beaten.
   for (const d of derbyMap.values()) {
     if (d.testing || derbyStatus(d, now) !== "ended") continue;
@@ -117,7 +125,7 @@ export function rankings(input, { since = -Infinity } = {}) {
   const events = rankEvents(input).filter(e => e.standing || e.at >= since);
   const cur = currentScoring(scoringTimeline(input.versions));
   const by = new Map();
-  const blank = u => ({ uid: u, points: 0, byKind: { catch: 0, limit: 0, species: 0, record: 0, crown: 0, derby: 0 }, events: [] });
+  const blank = u => ({ uid: u, points: 0, byKind: { catch: 0, limit: 0, species: 0, record: 0, crown: 0, badge: 0, derby: 0 }, events: [] });
   for (const u of input.members || []) by.set(u, blank(u));
   for (const e of events) {
     if (!by.has(e.uid)) by.set(e.uid, blank(e.uid));
@@ -135,66 +143,5 @@ export function titleFor(points, scoring = DEFAULT_SCORING) {
   return TITLES[Math.min(i, TITLES.length - 1)];
 }
 
-/* Fixed badges (no points), for bragging rights. */
-export const BADGES = [
-  { id: "first", icon: "🐟", name: "First Fish", test: s => s.catches >= 1 },
-  { id: "ten", icon: "🌈", name: "10 Species", test: s => s.species >= 10 },
-  { id: "champ", icon: "🏆", name: "Derby Champ", test: s => s.derbyWins >= 1 },
-  { id: "release", icon: "🔄", name: "Catch & Release Hero", test: s => s.released >= 10 },
-  { id: "owl", icon: "🦉", name: "Night Owl", test: s => s.night >= 1 },
-  { id: "net", icon: "🥅", name: "Lucky Net", test: s => s.luckyNet >= 1 },
-];
-/* When each angler earned each badge: [{ uid, badge, at }], oldest first. Replays the catches (by time caught) and
-   finished derbies (when their final entries closed) in order, so the end result matches badgesFor. */
-export function badgeTimeline({ catches, derbies, entrants, now = Date.now() }) {
-  const derbyMap = derbies instanceof Map ? derbies : new Map((derbies || []).map(d => [d.id, d]));
-  const steps = catches.filter(c => countsForRank(c, derbyMap)).map(c => ({ at: c.caughtAt, c }));
-  for (const d of derbyMap.values()) {
-    if (d.testing || derbyStatus(d, now) !== "ended") continue;
-    const top = standings(d, catches, (entrants && entrants.get(d.id)) || new Map())[0];
-    if (top) steps.push({ at: closesAt(d), top });
-  }
-  steps.sort((a, b) => a.at - b.at);
-  const stats = new Map(), out = [];
-  const of = u => {
-    if (!stats.has(u)) stats.set(u, { catches: 0, speciesSet: new Set(), species: 0, released: 0, night: 0, derbyWins: 0, luckyNet: 0, has: new Set() });
-    return stats.get(u);
-  };
-  const check = (u, at) => {
-    const s = of(u);
-    for (const b of BADGES) if (!s.has.has(b.id) && b.test(s)) { s.has.add(b.id); out.push({ uid: u, badge: b, at }); }
-  };
-  for (const { at, c, top } of steps) {
-    if (c) {
-      const s = of(c.uid), h = new Date(c.caughtAt).getHours();
-      s.catches += fishIn(c); s.speciesSet.add(c.species); s.species = s.speciesSet.size;
-      if (c.released) s.released++;
-      if (h >= 21 || h < 4) s.night++;
-      check(c.uid, at);
-    } else {
-      of(top.uid).derbyWins++; check(top.uid, at);
-      const nets = new Set(top.fish.filter(f => f.netman && f.netman.uid && f.netman.uid !== f.uid).map(f => f.netman.uid));
-      for (const n of nets) { of(n).luckyNet++; check(n, at); }
-    }
-  }
-  return out;
-}
-
-export function badgesFor(uid, { catches, derbies, entrants, now = Date.now() }) {
-  const derbyMap = derbies instanceof Map ? derbies : new Map((derbies || []).map(d => [d.id, d]));
-  const mine = catches.filter(c => c.uid === uid && countsForRank(c, derbyMap));
-  const s = {
-    catches: mine.reduce((n, c) => n + fishIn(c), 0), species: new Set(mine.map(c => c.species)).size,
-    released: mine.filter(c => c.released).length,
-    night: mine.filter(c => { const h = new Date(c.caughtAt).getHours(); return h >= 21 || h < 4; }).length,
-    derbyWins: 0, luckyNet: 0,
-  };
-  for (const d of derbyMap.values()) {
-    if (d.testing || derbyStatus(d, now) !== "ended") continue;
-    const top = standings(d, catches, (entrants && entrants.get(d.id)) || new Map())[0];
-    if (!top) continue;
-    if (top.uid === uid) s.derbyWins++;
-    if (top.fish.some(f => f.netman && f.netman.uid === uid && f.uid !== uid)) s.luckyNet++;
-  }
-  return BADGES.filter(b => b.test(s));
-}
+/* Badges live in badges.js; re-exported here for the screens and tests that already import them from rankings. */
+export { BADGES, badgeTimeline, badgesFor } from "./badges.js";
