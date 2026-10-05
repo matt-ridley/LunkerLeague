@@ -238,6 +238,7 @@ body.gated .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 .catch-size.big { font: 800 28px/1.1 var(--f-display); }
 .catch-who { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); min-width: 0; }
 .catch-who span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.catch-posted { font-size: 13px; color: var(--muted); }
 .avatar.xs { width: 24px; height: 24px; font-size: 10px; border-width: 1px; }
 .badges { display: flex; flex-wrap: wrap; gap: 6px; }
 .badges:empty { display: none; }

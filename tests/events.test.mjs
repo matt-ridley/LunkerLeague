@@ -98,3 +98,15 @@ test("alert ids stay the same when news only moves in time, and change when the 
   const r = emojis => alertsFor("amy", base({ catches: [later], reactions: new Map([[later.id, new Map([["bo", { emojis, at: T0 + 6 * H }]])]]) })).find(a => a.id.startsWith("re:")).id;
   assert.notEqual(r(["🔥"]), r(["🔥", "🤥"])); // a changed reaction is new
 });
+
+test("a catch logged late dates its news, and the bell, by when it was posted", () => {
+  // Bo logs a pike 2 days after catching it (within the grace days): his badges and the record show up now, not 2 days back.
+  const catches = [fish("amy", "Pike", 80, T0), fish("amy", "Perch", 5, T0 + 3 * DAY), fish("bo", "Pike", 90, T0 + DAY, { createdAt: T0 + 3 * DAY + H })];
+  const ev = leagueEvents(base({ catches }));
+  assert.equal(ev.find(e => e.id === `rec:${catches[2].id}:weightOz`).at, T0 + 3 * DAY + H);
+  assert.equal(ev.find(e => e.id === "badge:bo:first").at, T0 + 3 * DAY + H);
+  assert.equal(ev.find(e => e.id === "badge:amy:first").at, T0); // on time: unchanged
+  assert.equal(ev[0].uids[0], "bo"); // newest news is Bo's, above Amy's perch day
+  const amy = alertsFor("amy", base({ catches }), { seen: T0 + 3 * DAY });
+  assert.ok(amy.some(a => a.text === "BO took your Pike weight record" && a.at > T0 + 3 * DAY));
+});

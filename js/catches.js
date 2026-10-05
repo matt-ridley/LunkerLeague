@@ -9,13 +9,16 @@ import { reactionBar, commentsSection, reactionSummary } from "./social.js";
 import { derbyStatus, entryProblem, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
 import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer, pastCatch, loggedLate, leagueStartOf, DEFAULT_GRACE_DAYS } from "./stats.js";
-import { leagueEvents } from "./events.js";
+import { leagueEvents, postedAt } from "./events.js";
 import { rankInput } from "./leaders.js";
 
 const allCatches = () => [...store.catches.values()];
 const byNewest = (a, b) => (b.caughtAt || 0) - (a.caughtAt || 0);
 const sizeText = c => isStringer(c) ? `Stringer of ${c.fishCount}`
   : [fmtWeight(c.weightOz), fmtLength(c.lengthIn)].filter(Boolean).join(" · ");
+// Logged well after it was caught (within the grace days): the card says when it was posted too, since the feed
+// orders by that.
+const postedLate = c => !c.past && (c.createdAt || 0) - c.caughtAt > 12 * 3600 * 1000;
 const mapsUrl = s => `https://www.google.com/maps/search/?api=1&query=${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
 
 /* ---------- Cards ---------- */
@@ -28,6 +31,7 @@ export function catchCard(c, all = allCatches()) {
       el("div", { class: "catch-species", text: c.species }),
       el("div", { class: "catch-size" + (sizeText(c) ? "" : " unmeasured"), text: sizeText(c) || "Not measured" }),
       el("div", { class: "catch-who" }, avatar(m, "xs"), el("span", { text: `${m.displayName} · ${c.past ? fmtDay(c.caughtAt) : fmtAgo(c.caughtAt)}` })),
+      postedLate(c) ? el("div", { class: "catch-posted", text: `Posted ${fmtAgo(c.createdAt)}` }) : null,
       el("div", { class: "badges" },
         rec.length ? el("span", { class: "badge record", text: c.past ? "📜 All-time record" : "👑 League record" }) : null,
         pb ? el("span", { class: "badge pb", text: "PB" }) : null,
@@ -56,8 +60,8 @@ export function renderFeed(main) {
   // Catches mixed with league news (records stolen, badges, derby results), newest first.
   const news = store.catchesLoaded ? leagueEvents({ ...rankInput(), name: memberName }) : [];
   const list = [
-    // A past catch shows when it was added (a throwback), not years down the feed.
-    ...all.filter(c => feedFilter === "all" || c.uid === me).map(c => ({ at: (c.past ? c.createdAt : c.caughtAt) || 0, c })),
+    // Ordered by when each catch was posted: a fish logged late, or a throwback, still shows up at the top.
+    ...all.filter(c => feedFilter === "all" || c.uid === me).map(c => ({ at: postedAt(c), c })),
     ...news.filter(e => feedFilter === "all" || e.uids.includes(me)).map(e => ({ at: e.at, e })),
   ].sort((a, b) => b.at - a.at);
   const hero = el("section", { class: "hero" },
