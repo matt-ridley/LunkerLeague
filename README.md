@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.10.0 (beta)
+**Current version:** 0.11.0 (beta)
 
 ## Features
 
@@ -16,7 +16,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Day and Dusk screens.** Day is high contrast for bright sun. Dusk is darker and easier on the eyes at dawn and dusk. Auto follows the phone's setting.
 - **Catches with photo proof.** Log a catch with a photo from the camera or gallery, the species, and optionally the weight (lb and oz) and length (to the quarter inch), when it was caught, whether it was released, and notes. The time the photo was taken is read from the photo and shown with the catch.
 - **Stringers and limits.** On a perch or walleye day, log the whole stringer with one photo: the species, how many fish, and whether it was your limit (the app always asks). A stringer earns the day's full catch points, and a limit earns a bonus on top, once a day. Its fish count toward your catch total and badges, but a stringer is never a PB or a record and can't be entered in a derby.
-- **Private or shared spots.** Tag the GPS spot (works with no signal). Keep it private, so others only see "Secret spot", or share it with the league with an optional spot name and an Open in Maps link. Only you can read a private spot; the security rules stop anyone else, including admins.
+- **Private or shared spots.** Tag the spot with the phone's GPS (works with no signal), or tap it on a map or satellite view (needs signal; handy for logging a catch later from home). Keep it private, so others only see "Secret spot", or share it with the league with an optional spot name and an Open in Maps link. Only you can read a private spot; the security rules stop anyone else, including admins.
 - **Personal bests.** Your best catch of each species is worked out automatically (heaviest, then longest), with a celebration when you beat it. Each profile has a PB wall, catch and species counts and recent catches.
 - **Leaders.** The league record for every species (heaviest and longest), and a leaderboard per species of everyone's personal best, by weight or by length.
 - **Reactions and comments.** React to any catch with 🎣 🔥 🐟 😂 👏 🤥 (fish story!) or any emoji from the picker, and see who reacted. Comment on catches; the comment's author, the catch's angler or an admin can remove one. Catch cards show the top reactions and the comment count.
@@ -185,6 +185,7 @@ npm run deploy:rules
 
 - Accounts, profiles and (from the next versions) catches, photos, derbies and chat are stored in the league's Firebase project. Only members can read them.
 - Nothing about members is stored in this repository, which is public so GitHub Pages can host it for free.
+- Picking a spot on the map loads map pictures from OpenStreetMap (street map) and Esri (satellite). They only see which area is being viewed, never the catch or who is looking.
 - Each phone keeps an offline copy. Changes made with no signal wait on the phone. Signing out before they're sent can lose them, so the app warns you.
 
 ## Running locally
@@ -237,6 +238,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.11.0 | 2026-Oct-04 08:36:01 PM | Pick a catch's spot on a map: next to **My location (GPS)** there's now **Pick on map**, a full-screen map or satellite view where you tap where you caught it (drag the pin to adjust). A tagged spot can be moved on the map later by editing the catch. The map needs signal; GPS still works without. No new security rules. |
 | 0.10.0 | 2026-Oct-04 08:23:42 PM | Stringers and limits: log a whole stringer with one photo, the species, the number of fish, and whether it was your limit. A stringer earns the day's full catch points; a limit adds a bonus (5 by default, once a day) that admins can change on the points page. Rankings show a new Limits line. Stringer fish count toward catch totals and badges but are never PBs, records or derby entries. **New security rules: publish firestore.rules.** |
 | 0.9.4 | 2026-Oct-04 12:39:51 PM | Setup steps: clearer instructions for restricting the app's key in Google Cloud, adding the Firebase sign-in site to the allowed websites. No app changes. |
 | 0.9.3 | 2026-Oct-04 12:27:51 PM | Added the roadmap of planned features (holder badges, fair play and bets, notifications, better derbies, logbook and stats, fun extras). No app changes. |

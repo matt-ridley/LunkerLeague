@@ -1,7 +1,7 @@
 /* Service worker: lets the app open with no signal.
    - App files (this site): network first, so a new version shows up as soon as there is signal,
      falling back to the saved copy after a few seconds or when offline.
-   - Firebase SDK and fonts: saved copy first. Their URLs include a version, so they never change.
+   - Firebase SDK, fonts and the map library (Leaflet): saved copy first. Their URLs include a version, so they never change.
    League data itself is not handled here; Firestore keeps its own offline copy. */
 const SHELL = "lunker-shell-v1";
 const STATIC = "lunker-static-v1";
@@ -9,7 +9,7 @@ const SDK = "https://www.gstatic.com/firebasejs/12.19.0/";
 const APP_FILES = [
   "./", "index.html", "manifest.webmanifest", "css/app.css",
   "js/main.js", "js/config.js", "js/ui.js", "js/cloud.js", "js/gate.js", "js/profile.js", "js/admin.js",
-  "js/theme.js", "js/photos.js", "js/catches.js", "js/leaders.js", "js/stats.js", "js/species.js", "js/exif.js", "js/outbox.js", "js/camera.js", "js/social.js", "js/derby.js", "js/derbies.js", "js/payout.js", "js/rank.js", "js/scoring.js",
+  "js/theme.js", "js/photos.js", "js/catches.js", "js/leaders.js", "js/stats.js", "js/species.js", "js/exif.js", "js/outbox.js", "js/camera.js", "js/social.js", "js/derby.js", "js/derbies.js", "js/payout.js", "js/rank.js", "js/scoring.js", "js/mappick.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
 ];
 const SDK_FILES = ["app", "auth", "firestore"].map(m => `${SDK}firebase-${m}.js`);
@@ -32,7 +32,8 @@ self.addEventListener("activate", e => {
   })());
 });
 
-const isStatic = url => url.href.startsWith(SDK) || url.host === "fonts.googleapis.com" || url.host === "fonts.gstatic.com";
+const LEAFLET = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/";
+const isStatic = url => url.href.startsWith(SDK) || url.href.startsWith(LEAFLET) || url.host === "fonts.googleapis.com" || url.host === "fonts.gstatic.com";
 
 self.addEventListener("fetch", e => {
   const req = e.request;

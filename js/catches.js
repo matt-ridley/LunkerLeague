@@ -3,6 +3,7 @@ import { el, field, avatar, fmtDate, fmtAgo, fmtWeight, fmtLength, toast, confir
 import { store, uid, memberName, isAdmin, setDisqualified, newCatchId, saveCatch, deleteCatch, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
+import { pickOnMap } from "./mappick.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { reactionBar, commentsSection, reactionSummary } from "./social.js";
 import { derbyStatus, entryProblem, PROOF } from "./derby.js";
@@ -302,10 +303,14 @@ export function renderLog(main, editId, derbyArg) {
   const drawSpot = () => {
     fill(spotBox,
       st.spot
-        ? el("div", { class: "row spread" },
-            el("span", { class: "spot-ok", text: `📍 Spot tagged (±${Math.round(st.spot.acc)} m)` }),
-            el("button", { class: "btn small quiet", type: "button", text: "Remove", onclick: () => { st.spot = null; drawSpot(); } }))
-        : el("button", { class: "btn block", type: "button", text: "📍 Tag my spot (GPS)", onclick: tagSpot }),
+        ? el("div", { class: "stack-tight" },
+            el("div", { class: "row spread" },
+              el("span", { class: "spot-ok", text: st.spot.acc ? `📍 Spot tagged (±${Math.round(st.spot.acc)} m)` : "📍 Spot picked on the map" }),
+              el("button", { class: "btn small quiet", type: "button", text: "Remove", onclick: () => { st.spot = null; drawSpot(); } })),
+            el("button", { class: "btn small", type: "button", text: "🗺️ Move it on the map", onclick: mapSpot }))
+        : el("div", { class: "row" },
+            el("button", { class: "btn", type: "button", text: "📍 My location (GPS)", onclick: tagSpot }),
+            el("button", { class: "btn", type: "button", text: "🗺️ Pick on map", onclick: mapSpot })),
       gpsMsg,
       st.spot ? field("Spot name (optional)", spotName) : null,
       st.spot ? el("div", { class: "seg" }, ...[[false, "🔒 Private"], [true, "📍 Share with league"]].map(([v, label]) =>
@@ -326,6 +331,11 @@ export function renderLog(main, editId, derbyArg) {
       gpsMsg.textContent = err.code === 1 ? "Location is blocked. Allow location for this app in the phone's settings, then try again."
         : "Couldn't get a GPS fix. Try again with a clear view of the sky.";
     }, { enableHighAccuracy: true, timeout: 45000, maximumAge: 60000 });
+  };
+  // Picked on the map: no GPS accuracy, so acc is 0.
+  const mapSpot = async () => {
+    const p = await pickOnMap(st.spot);
+    if (p) { st.spot = { lat: p.lat, lng: p.lng, acc: 0 }; gpsMsg.textContent = ""; drawSpot(); }
   };
   drawSpot();
 
