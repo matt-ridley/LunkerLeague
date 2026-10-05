@@ -6,12 +6,13 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.13.0 (beta)
+**Current version:** 0.14.0 (beta)
 
 ## Features
 
 - **Accounts for friends only.** Friends create an account with their email and a password, then join with the league's invite code. Nobody else can see anything.
 - **League owner and admins.** Whoever sets up the league owns it. The owner can make other members admins. Admins can change the invite code, rename the league, and pause or remove members.
+- **Email invites (owner).** On the League admin page, the owner types a friend's email (or several) and the app writes the invite in the owner's own email app, ready to send: what Lunker League is, how to install it on iPhone and Android, how to sign up, and the invite code. There's also a button to copy the whole invite for a text.
 - **Profiles.** Each angler has a name, an optional home water and a photo taken with the camera or picked from the gallery.
 - **Day and Dusk screens.** Day is high contrast for bright sun. Dusk is darker and easier on the eyes at dawn and dusk. Auto follows the phone's setting.
 - **Catches with photo proof.** Log a catch with a photo from the camera or gallery, the species, and optionally the weight (lb and oz) and length (to the quarter inch), when it was caught, whether it was released, and notes. The time the photo was taken is read from the photo and shown with the catch.
@@ -228,6 +229,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.14.0 | 2026-Oct-04 10:12:51 PM | Email invites for the league owner: enter a friend's email on the League admin page and the invite opens in your email app, written and ready to send (what the app is, install steps for iPhone and Android, sign-up steps, the invite code). Or copy the whole invite to text it. No new security rules. |
 | 0.13.0 | 2026-Oct-04 09:22:27 PM | Milestone A: **crowns**. 16 crowns that sit with whoever has the most of something right now (Derby King, Golden Net, Best Captain, Conservationist, Meat Eater, Stringer Filler, Species Hunter, Grinder, Record Holder, Early Bird, Night Stalker, Iron Angler, Explorer, Fish Story King, Hype Man, Skunk Master). Steals show in the feed and the bell; crowns show on profiles and on the new Leaders → Crowns tab; each crown held is worth points (2 by default, admins can change it). **New security rules: publish firestore.rules.** |
 | 0.12.0 | 2026-Oct-04 09:01:02 PM | Milestone C. **@mentions** in chat and comments. **The bell**: what's new for you since you last looked (mentions, comments and reactions on your catches, records taken from you, badges, your derbies, new derbies and trips, trip answers, new catches). **League news** in the feed: records changing hands, badges earned, derby results. **Trips** with In / Maybe / Out on the Derbies tab, now called **Events**. **New security rules: publish firestore.rules.** |
 | 0.11.0 | 2026-Oct-04 08:36:01 PM | Pick a catch's spot on a map: next to **My location (GPS)** there's now **Pick on map**, a full-screen map or satellite view where you tap where you caught it (drag the pin to adjust). A tagged spot can be moved on the map later by editing the catch. The map needs signal; GPS still works without. No new security rules. |
