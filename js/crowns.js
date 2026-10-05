@@ -53,7 +53,8 @@ export function crownChanges({ catches, derbies, entrants = new Map(), comments 
   const derbyMap = asMap(derbies);
   const ch = new Map(CROWNS.map(c => [c.id, []]));
   const add = (id, at, uid, delta = 1) => { if (uid && delta) ch.get(id).push({ at, uid, delta }); };
-  const counts = c => !c.dq && !(c.derbyId && derbyMap.get(c.derbyId) && derbyMap.get(c.derbyId).testing);
+  // Past catches (logbook) never count for crowns, including Record Holder (league catches only).
+  const counts = c => !c.dq && !c.past && !(c.derbyId && derbyMap.get(c.derbyId) && derbyMap.get(c.derbyId).testing);
   const counted = catches.filter(counts).sort((a, b) => a.caughtAt - b.caughtAt);
   const byId = new Map(catches.map(c => [c.id, c]));
 

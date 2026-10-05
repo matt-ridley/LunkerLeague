@@ -202,3 +202,8 @@ test("a stringer can't be entered in a derby, even a most-fish one", async () =>
   await assertFails(putCatch(as(env, "member"), "s1", entry("member", str)));
   await assertSucceeds(putCatch(as(env, "member"), "s2", entry("member", { ...str, derbyId: null })));
 });
+
+test("a past catch can't be a derby entry", async () => {
+  await seedDerby();
+  await assertFails(putCatch(as(env, "member"), "pe1", entry("member", { past: true })));
+});

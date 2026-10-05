@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.19.0 (beta)
+**Current version:** 0.20.0 (beta)
 
 ## Features
 
@@ -17,6 +17,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Profiles.** Each angler has a name, an optional home water and a photo taken with the camera or picked from the gallery.
 - **Day and Dusk screens.** Day is high contrast for bright sun. Dusk is darker and easier on the eyes at dawn and dusk. Auto follows the phone's setting.
 - **Catches with photo proof.** Log a catch with a photo from the camera or gallery, the species, and optionally the weight (lb and oz) and length (to the quarter inch), when it was caught, whether it was released, and notes. The time the photo was taken is read from the photo and shown with the catch.
+- **Past catches (logbook).** Add your old PBs and notable catches from before the league. A catch caught before the league was set up, or logged more than 7 days after it was caught (admins can change the days), is a 📜 past catch: it counts for your personal bests and the all-time record boards, but never for points, badges or crowns, and it can't be a derby entry. The log form says so before you save, and it can't be changed back later. Past catches show in the feed as throwbacks when they're added, and record points go to the best league catch.
 - **Stringers and limits.** On a perch or walleye day, log the whole stringer with one photo: the species, how many fish, and whether it was your limit (the app always asks). A stringer earns the day's full catch points, and a limit earns a bonus on top, once a day. Its fish count toward your catch total and badges, but a stringer is never a PB or a record and can't be entered in a derby.
 - **Private or shared spots.** Tag the spot with the phone's GPS (works with no signal), or tap it on a map or satellite view (needs signal; handy for logging a catch later from home). Keep it private, so others only see "Secret spot", or share it with the league with an optional spot name and an Open in Maps link. Only you can read a private spot; the security rules stop anyone else, including admins.
 - **Personal bests.** Your best catch of each species is worked out automatically (heaviest, then longest), with a celebration when you beat it. Each profile has catch, species and record counts that work as filters: **catches** shows the PB wall and recent catches, **species** lists every species with how many were caught, and **records** shows the league records held.
@@ -231,6 +232,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.20.0 | 2026-Oct-04 11:26:15 PM | **Past catches (logbook)**: catches from before the league, or logged more than 7 days late (admins can change it under League admin, Late logging), count for PBs and the all-time record boards only: no points, badges or crowns, and no record-taken news. Record points, the Record Holder crown and record badges go to league catches. Past catches are marked 📜, show in the feed as throwbacks when added, and the bell gets a throwback line instead of counting them as new catches. Profile counts show league catches plus a past-catch note. The flag is set when the catch is saved and the security rules never let it be removed. **New security rules: publish firestore.rules.** |
 | 0.19.0 | 2026-Oct-04 11:06:35 PM | What's new can be cleared: **×** on each alert, and **Clear all** with Undo. Cleared alerts stay cleared on that phone, and anything new still shows up, even alerts from a catch logged hours after it was caught. No new security rules. |
 | 0.18.0 | 2026-Oct-04 10:55:07 PM | **Leaders → Badges**: who has the most badges, and every badge with how many anglers have it (yours are ticked); tap a badge to see who earned it and when, first to earn it on top. The Rankings tab is now labelled Ranks so four tabs fit on a phone. No new security rules. |
 | 0.17.0 | 2026-Oct-04 10:44:55 PM | **50 new badges** (56 in all), each worth a point (admins can change it on the points page): catch totals, species, size, records, stringers and limits, time and season, derbies, social, crowns and spots. Tap the badges on a profile to see the whole collection, when each was earned, and how to earn the rest. Badges are dated when earned, so they show in the feed and the bell. Fixed the profile stats running off the edge on narrow screens. **New security rules: publish firestore.rules.** |

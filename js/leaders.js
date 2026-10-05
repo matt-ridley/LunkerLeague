@@ -123,7 +123,8 @@ export function howPointsSheet() {
       el("li", { text: `👑 ${v.crownPts} for each crown you hold right now (they move when someone passes you)` }),
       el("li", { text: `🏅 ${v.badgePts} for each badge you earn (yours for good; ${BADGES.length} to collect)` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),
-      el("li", { text: "Disqualified catches and test derbies don't count." })),
+      el("li", { text: "Disqualified catches and test derbies don't count." }),
+      el("li", { text: `📜 Past catches (caught before the league started, or logged more than ${(store.league && store.league.graceDays) ?? 7} days late) count for personal bests and the all-time record boards only: no points, badges or crowns. Record points go to the best league catches.` })),
     el("h3", { text: "Titles" }),
     el("ul", { class: "how-list" }, ...TITLES.map((t, i) => el("li", { text: `${t}: ${v.titles[i]}+ pts` }))),
     last ? el("p", { class: "hint", text: `Points last changed ${fmtDate(last.createdAt)} by ${memberName(last.createdBy)}${last.note ? ` ("${last.note}")` : ""}.` }) : null,
@@ -219,7 +220,7 @@ function crownSheet(s) {
 function holder(label, c, size) {
   const m = who(c.uid);
   return el("div", { class: "record-row" }, el("span", { class: "record-label", text: `👑 ${label}` }), avatar(m, "xs"),
-    el("span", { class: "grow", text: m.displayName }), el("b", { text: size }));
+    el("span", { class: "grow", text: m.displayName + (c.past ? " 📜" : "") }), el("b", { text: size }));
 }
 
 function speciesPage(main, all, species, by) {
@@ -234,7 +235,7 @@ function speciesPage(main, all, species, by) {
       return el("li", {}, el("a", { class: "board-row" + (i < 3 ? ` top${i + 1}` : ""), href: `#/c/${c.id}` },
         el("span", { class: "rank", text: MEDALS[i] || String(i + 1) }),
         avatar(m),
-        el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), el("div", { class: "muted small", text: fmtDay(c.caughtAt) })),
+        el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), el("div", { class: "muted small", text: fmtDay(c.caughtAt) + (c.past ? " · 📜 past catch" : "") })),
         el("b", { class: "board-size", text: by === "length" ? fmtLength(c.lengthIn) : fmtWeight(c.weightOz) }),
         el("img", { class: "thumb sm", src: c.thumb, alt: "", loading: "lazy" })));
     })) : el("p", { class: "muted", text: `No ${species} has been ${by === "length" ? "measured" : "weighed"} yet.` }));

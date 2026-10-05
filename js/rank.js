@@ -43,9 +43,10 @@ export const currentScoring = line => line[line.length - 1].values;
 
 const dayKey = ms => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 
-/* Does this catch count for rankings? Not when disqualified, or entered in a test derby. */
+/* Does this catch count for rankings? Not when disqualified, entered in a test derby, or a past catch (logbook).
+   Records points use the board of league catches only, so a past fish can't hold record points. */
 function countsForRank(c, derbies) {
-  if (c.dq) return false;
+  if (c.dq || c.past) return false;
   const d = c.derbyId && derbies.get(c.derbyId);
   return !(d && d.testing);
 }
@@ -86,7 +87,7 @@ export function rankEvents(input) {
   // Species records: current standing on each weight board, scored with today's values.
   for (const sp of new Set(counted.map(c => c.species))) {
     speciesBoard(counted, sp, "weight").slice(0, 3).forEach((c, i) => {
-      if (cur.recordPts[i]) events.push({ uid: c.uid, at: now, pts: cur.recordPts[i], kind: "record", label: `${["1st", "2nd", "3rd"][i]} on the ${sp} board`, standing: true });
+      if (cur.recordPts[i]) events.push({ uid: c.uid, at: now, pts: cur.recordPts[i], kind: "record", label: `${["1st", "2nd", "3rd"][i]} on the ${sp} board (league catches)`, standing: true });
     });
   }
 
