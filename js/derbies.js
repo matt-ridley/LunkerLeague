@@ -5,6 +5,7 @@ import { store, uid, isAdmin, isOwner, memberName, endDerbyNow, deleteDerby, sav
 import { payouts, hasMoney, fmtMoney, ordinal, PAYOUT_PRESETS } from "./payout.js";
 import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEntries, standings } from "./derby.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
+import { tripsSection } from "./trips.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -37,7 +38,7 @@ function when(d, now = Date.now()) {
   return `Finished ${fmtDay(d.end)}`;
 }
 
-/* ---------- List ---------- */
+/* ---------- List (the Events tab: trips, then derbies) ---------- */
 export function renderDerbies(main) {
   const all = [...store.derbies.values()];
   const now = Date.now();
@@ -49,7 +50,9 @@ export function renderDerbies(main) {
   const section = (title, list) => list.length ? el("section", { class: "stack" }, el("h3", { text: title }),
     el("div", { class: "card-list" }, ...list.map(derbyCard))) : null;
   fill(main,
-    el("div", { class: "row spread" }, el("h2", { class: "page-title", text: "Derbies" }),
+    el("h2", { class: "page-title", text: "Events" }),
+    tripsSection(),
+    el("div", { class: "row spread" }, el("h3", { text: "🏁 Derbies" }),
       el("a", { class: "btn lime small", href: "#/dnew", html: icon.plus }, "New derby")),
     !all.length ? el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.flag }),
       el("p", { text: "No derbies yet. Set one up, pick the rules, and let the league battle it out." }),

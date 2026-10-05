@@ -1,6 +1,7 @@
 /* Social: emoji reactions and comments on catches, league chat, and an emoji picker. */
 import { el, avatar, fmtAgo, fmtDay, fmtDate, openSheet, closeSheet, confirmButton, fill, icon } from "./ui.js";
 import { store, uid, isAdmin, memberName, addComment, deleteComment, toggleReaction, sendChat, deleteChat, watchDerbyChat } from "./cloud.js";
+import { findMentions, mentionParts, mentionQuery } from "./mentions.js";
 
 export const QUICK_REACTIONS = ["🎣", "🔥", "🐟", "😂", "👏", "🤥"];
 const EMOJI = [
@@ -27,6 +28,41 @@ function insertAt(input, text) {
   const pos = s + text.length;
   try { input.setSelectionRange(pos, pos); } catch {}
   input.dispatchEvent(new Event("input"));
+}
+
+/* ---------- @mentions ---------- */
+const mentionable = () => [...store.members.values()].filter(m => !m.suspended && m.displayName);
+
+/* Suggestions that pop up while typing "@na…" in a text box; tapping one fills in "@Name ". */
+export function mentionPicker(input) {
+  const box = el("div", { class: "mention-pick", hidden: true, role: "listbox", "aria-label": "Mention someone" });
+  const draw = () => {
+    const q = mentionQuery(input.value, input.selectionStart ?? input.value.length);
+    const list = q ? mentionable().filter(m => m.id !== uid() && m.displayName.toLowerCase().includes(q.query.toLowerCase()))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)).slice(0, 6) : [];
+    box.hidden = !list.length;
+    box.replaceChildren(...list.map(m => el("button", { type: "button", class: "mention-opt", role: "option",
+      onmousedown: e => e.preventDefault(), // keep the keyboard up
+      onclick: () => {
+        const end = input.selectionStart ?? input.value.length;
+        const before = input.value.slice(0, q.start) + "@" + m.displayName + " ";
+        input.value = before + input.value.slice(end);
+        try { input.setSelectionRange(before.length, before.length); } catch {}
+        input.focus();
+        input.dispatchEvent(new Event("input"));
+      } }, avatar(m, "xs"), el("span", { text: m.displayName }))));
+  };
+  input.addEventListener("input", draw);
+  input.addEventListener("click", draw);
+  input.addEventListener("blur", () => setTimeout(() => { box.hidden = true; }, 150));
+  return box;
+}
+export const mentionsIn = text => findMentions(text, mentionable());
+
+/* Message text with its @mentions highlighted (yours stand out more). */
+export function richText(text, mentions) {
+  return mentionParts(text, mentions, [...store.members.values()]).map(p =>
+    p.uid ? el("span", { class: "mention" + (p.uid === uid() ? " me" : ""), text: p.text }) : p.text);
 }
 
 /* ---------- Reactions ---------- */
@@ -67,19 +103,20 @@ export function commentsSection(c) {
   input.value = drafts.get(c.id) || "";
   input.addEventListener("input", () => { drafts.set(c.id, input.value); autoGrow(input); });
   const { btn, panel } = emojiButton(input);
+  const picker = mentionPicker(input);
   const form = el("form", { class: "compose" }, btn, input,
     el("button", { type: "submit", class: "send-btn", "aria-label": "Post comment", html: SEND }));
   form.addEventListener("submit", e => {
     e.preventDefault();
     if (!input.value.trim()) return;
-    addComment(c.id, input.value);
+    addComment(c.id, input.value, mentionsIn(input.value));
     input.value = ""; drafts.delete(c.id); panel.hidden = true; autoGrow(input);
     input.blur(); // lets the page redraw with the new comment (redraws wait while you're typing)
   });
   return el("section", { class: "card stack comments" },
     el("h3", { text: list.length ? `Comments (${list.length})` : "Comments" }),
     list.length ? el("ul", { class: "comment-list" }, ...list.map(cm => commentItem(c, cm))) : el("p", { class: "muted", text: "No comments yet. Start the trash talk." }),
-    form, panel);
+    picker, form, panel);
 }
 
 function commentItem(c, cm) {
@@ -91,7 +128,7 @@ function commentItem(c, cm) {
       el("div", { class: "comment-head" }, el("b", { text: m.displayName }),
         el("span", { class: "muted small", text: store.pendingIds.has(cm.id) ? "⏳ waiting for signal" : fmtAgo(cm.at) }),
         canDelete ? el("button", { type: "button", class: "link-btn", text: "Delete", onclick: () => confirmDelete("comment", () => deleteComment(c.id, cm.id)) }) : null),
-      el("p", { class: "comment-text", text: cm.text })));
+      el("p", { class: "comment-text" }, ...richText(cm.text, cm.mentions))));
 }
 
 const drafts = new Map();
@@ -132,19 +169,20 @@ export function renderChat(main, derbyId) {
     chatInput.addEventListener("input", () => { drafts.set(draftKey, chatInput.value); autoGrow(chatInput); });
     chatInput.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !matchMedia("(pointer: coarse)").matches) { e.preventDefault(); form.requestSubmit(); } });
     const { btn, panel } = emojiButton(chatInput);
+    const picker = mentionPicker(chatInput);
     const form = el("form", { class: "compose chat-compose" }, btn, chatInput,
       el("button", { type: "submit", class: "send-btn", "aria-label": "Send", html: SEND }));
     form.addEventListener("submit", e => {
       e.preventDefault();
       if (!chatInput.value.trim()) return;
-      sendChat(chatInput.value, derbyId);
+      sendChat(chatInput.value, derbyId, mentionsIn(chatInput.value));
       chatInput.value = ""; drafts.delete(draftKey); autoGrow(chatInput); panel.hidden = true;
       chatInput.focus();
     });
     shell = el("div", { class: "chat" },
       derbyId ? el("a", { class: "eyebrow back-link", href: `#/d/${derbyId}`, text: "← Back to the derby" }) : null,
       el("h2", { class: "page-title", text: derbyId ? `${derby ? derby.name : "Derby"} chat` : "Chat" }),
-      list, el("div", { class: "chat-bottom" }, panel, form));
+      list, el("div", { class: "chat-bottom" }, panel, picker, form));
     fill(main, shell);
   }
   const list = shell.querySelector(".chat-list");
@@ -168,12 +206,13 @@ function chatMessages(messages, derbyId) {
     if (day !== lastDay) { out.push(el("div", { class: "chat-day", text: day })); lastUid = ""; }
     const mine = m.uid === uid(), cont = m.uid === lastUid && (m.at - lastAt) < 5 * 60000;
     const p = who(m.uid);
-    out.push(el("div", { class: "msg-row" + (mine ? " mine" : "") + (cont ? " cont" : "") },
+    const atMe = !mine && (m.mentions || []).includes(uid());
+    out.push(el("div", { class: "msg-row" + (mine ? " mine" : "") + (cont ? " cont" : "") + (atMe ? " at-me" : "") },
       !mine ? (cont ? el("span", { class: "avatar-gap" }) : avatar(p, "sm")) : null,
       el("button", { type: "button", class: "bubble", title: fmtDate(m.at || 0),
         onclick: () => (mine || isAdmin()) && confirmDelete("message", () => deleteChat(m.id, derbyId)) },
         !mine && !cont ? el("span", { class: "bubble-name", text: p.displayName }) : null,
-        el("span", { class: "bubble-text", text: m.text }),
+        el("span", { class: "bubble-text" }, ...richText(m.text, m.mentions)),
         el("span", { class: "bubble-time", text: store.pendingIds.has(m.id) ? "⏳" : time(m.at) }))));
     lastDay = day; lastUid = m.uid; lastAt = m.at || 0;
   }

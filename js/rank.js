@@ -3,7 +3,7 @@
    "apply to all history" (retro) or "from now on" (forward), and each event is scored with the version in effect
    at its time. Pure functions on plain data. */
 import { speciesBoard, isStringer, fishIn } from "./stats.js";
-import { derbyStatus, standings } from "./derby.js";
+import { derbyStatus, standings, closesAt } from "./derby.js";
 
 export const DEFAULT_SCORING = {
   catchPts: 1,          // per catch logged…
@@ -134,6 +134,42 @@ export const BADGES = [
   { id: "owl", icon: "🦉", name: "Night Owl", test: s => s.night >= 1 },
   { id: "net", icon: "🥅", name: "Lucky Net", test: s => s.luckyNet >= 1 },
 ];
+/* When each angler earned each badge: [{ uid, badge, at }], oldest first. Replays the catches (by time caught) and
+   finished derbies (when their final entries closed) in order, so the end result matches badgesFor. */
+export function badgeTimeline({ catches, derbies, entrants, now = Date.now() }) {
+  const derbyMap = derbies instanceof Map ? derbies : new Map((derbies || []).map(d => [d.id, d]));
+  const steps = catches.filter(c => countsForRank(c, derbyMap)).map(c => ({ at: c.caughtAt, c }));
+  for (const d of derbyMap.values()) {
+    if (d.testing || derbyStatus(d, now) !== "ended") continue;
+    const top = standings(d, catches, (entrants && entrants.get(d.id)) || new Map())[0];
+    if (top) steps.push({ at: closesAt(d), top });
+  }
+  steps.sort((a, b) => a.at - b.at);
+  const stats = new Map(), out = [];
+  const of = u => {
+    if (!stats.has(u)) stats.set(u, { catches: 0, speciesSet: new Set(), species: 0, released: 0, night: 0, derbyWins: 0, luckyNet: 0, has: new Set() });
+    return stats.get(u);
+  };
+  const check = (u, at) => {
+    const s = of(u);
+    for (const b of BADGES) if (!s.has.has(b.id) && b.test(s)) { s.has.add(b.id); out.push({ uid: u, badge: b, at }); }
+  };
+  for (const { at, c, top } of steps) {
+    if (c) {
+      const s = of(c.uid), h = new Date(c.caughtAt).getHours();
+      s.catches += fishIn(c); s.speciesSet.add(c.species); s.species = s.speciesSet.size;
+      if (c.released) s.released++;
+      if (h >= 21 || h < 4) s.night++;
+      check(c.uid, at);
+    } else {
+      of(top.uid).derbyWins++; check(top.uid, at);
+      const nets = new Set(top.fish.filter(f => f.netman && f.netman.uid && f.netman.uid !== f.uid).map(f => f.netman.uid));
+      for (const n of nets) { of(n).luckyNet++; check(n, at); }
+    }
+  }
+  return out;
+}
+
 export function badgesFor(uid, { catches, derbies, entrants, now = Date.now() }) {
   const derbyMap = derbies instanceof Map ? derbies : new Map((derbies || []).map(d => [d.id, d]));
   const mine = catches.filter(c => c.uid === uid && countsForRank(c, derbyMap));
