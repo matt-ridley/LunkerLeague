@@ -10,6 +10,7 @@ import { derbyStatus, entryProblem, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
 import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer, pastCatch, loggedLate, leagueStartOf, DEFAULT_GRACE_DAYS } from "./stats.js";
 import { leagueEvents, postedAt } from "./events.js";
+import { NO_FILTERS, SHOW, WHEN, SORT, filterFeed, activeCount, isFiltered } from "./feedfilter.js";
 import { rankInput } from "./leaders.js";
 
 const allCatches = () => [...store.catches.values()];
@@ -69,25 +70,19 @@ function metaLine(c) {
 }
 
 /* ---------- Feed ---------- */
-let feedFilter = "all", feedLimit = 30;
+// Everyone/Mine, search and filters last for the session (until the app is closed).
+const FEED_KEY = "lunker-feed-filters";
+let feedFilter = "all", feedLimit = 30, filters = { ...NO_FILTERS }, redrawFeed = () => {};
+try { const v = JSON.parse(sessionStorage.getItem(FEED_KEY) || "null"); if (v) { feedFilter = v.feedFilter || "all"; filters = { ...NO_FILTERS, ...v.filters }; } } catch {}
+const saveFilters = () => { try { sessionStorage.setItem(FEED_KEY, JSON.stringify({ feedFilter, filters })); } catch {} };
+const setFilters = changes => { filters = { ...filters, ...changes }; feedLimit = 30; saveFilters(); redrawFeed(); };
+
 export function renderFeed(main) {
   const all = allCatches();
   // Hero counts are league catches; past catches (logbook) only count toward PBs.
   const me = uid(), stats = anglerStats(all.filter(c => !c.past), me), pbs = personalBests(all, me).size;
   // Catches mixed with league news (records stolen, badges, derby results), newest first.
   const news = store.catchesLoaded ? leagueEvents({ ...rankInput(), name: memberName }) : [];
-  const shown = all.filter(c => feedFilter === "all" || c.uid === me);
-  // News a catch caused rides on that catch's card; the rest (derby results, crowns not tied to a catch…) gets its own.
-  const ids = new Set(shown.map(c => c.id)), onCard = new Map(), loose = [];
-  for (const e of news.filter(e => feedFilter === "all" || e.uids.includes(me))) {
-    if (e.cid && ids.has(e.cid)) onCard.set(e.cid, [...(onCard.get(e.cid) || []), e]);
-    else loose.push(e);
-  }
-  const list = [
-    // Ordered by when each catch was posted: a fish logged late, or a throwback, still shows up at the top.
-    ...shown.map(c => ({ at: postedAt(c), c })),
-    ...loose.map(e => ({ at: e.at, e })),
-  ].sort((a, b) => b.at - a.at);
   const hero = el("section", { class: "hero" },
     el("p", { class: "eyebrow", text: (store.league && store.league.name) || "Lunker League" }),
     el("h2", { text: `${store.me.displayName}, tight lines!` }),
@@ -96,22 +91,94 @@ export function renderFeed(main) {
     stats.catches ? null : el("a", { class: "btn lime block", href: "#/log", html: icon.plus }, "Log your first catch"));
   const seg = el("div", { class: "seg" }, ...[["all", "Everyone"], ["mine", "Mine"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(feedFilter === k), text: label,
-      onclick: () => { feedFilter = k; feedLimit = 30; renderFeed(main); } })));
-  // Grouped under a header for each day (by when it was posted).
-  const cards = [];
-  let day = null;
-  for (const x of list.slice(0, feedLimit)) {
-    const d = new Date(x.at).toDateString();
-    if (d !== day) { day = d; cards.push(el("h3", { class: "day-head", text: dayLabel(x.at) })); }
-    cards.push(x.c ? catchCard(x.c, all, onCard.get(x.c.id)) : newsCard(x.e));
-  }
-  fill(main, hero, seg,
-    !store.catchesLoaded ? el("p", { class: "loading", text: "Loading catches…" })
-      : cards.length ? el("div", { class: "card-list" }, ...cards)
-      : el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.fish }),
-          el("p", { text: feedFilter === "mine" ? "You haven't logged a catch yet." : "No catches yet. Be the first to put a fish on the board!" })),
-    list.length > feedLimit ? el("button", { class: "btn block", type: "button", text: "Show more",
-      onclick: () => { feedLimit += 30; renderFeed(main); } }) : null);
+      onclick: () => { feedFilter = k; feedLimit = 30; saveFilters(); renderFeed(main); } })));
+
+  // Typing redraws only the results, so the search box keeps focus. A live redraw of the whole page puts it back.
+  const typing = document.activeElement && document.activeElement.id === "feed-search";
+  const search = el("input", { id: "feed-search", type: "search", value: filters.q, placeholder: "Search species, angler, notes…",
+    "aria-label": "Search the feed", enterkeyhint: "search",
+    oninput: () => { filters.q = search.value; feedLimit = 30; saveFilters(); redrawFeed(); } });
+  const filterBtn = el("button", { class: "btn filter-btn", type: "button", onclick: () => filterSheet(all) });
+  const chips = el("div", { class: "filter-chips" });
+  const results = el("div", { class: "feed-results" });
+  const clearAll = () => { search.value = ""; setFilters({ ...NO_FILTERS }); };
+
+  redrawFeed = () => {
+    const n = activeCount(filters), filtered = isFiltered(filters);
+    filterBtn.textContent = n ? `Filters · ${n}` : "Filters";
+    filterBtn.setAttribute("aria-pressed", String(n > 0));
+    fill(chips, ...activeChips(), filtered ? el("button", { class: "chip removable clear", type: "button", text: "Clear all", onclick: clearAll }) : null);
+    const { catches, onCard, loose } = filterFeed({ catches: all, news, f: filters, me, mine: feedFilter === "mine", name: memberName,
+      derbyName: id => (store.derbies.get(id) || {}).name || "" });
+    // Newest: ordered by when each catch was posted, so a fish logged late, or a throwback, still shows up at the top.
+    const list = filters.sort !== "new" ? catches.map(c => ({ c }))
+      : [...catches.map(c => ({ at: postedAt(c), c })), ...loose.map(e => ({ at: e.at, e }))].sort((a, b) => b.at - a.at);
+    // Grouped under a header for each day (by when it was posted); a size sort is one ranked list.
+    const cards = [];
+    let day = null;
+    for (const x of list.slice(0, feedLimit)) {
+      if (filters.sort === "new") {
+        const d = new Date(x.at).toDateString();
+        if (d !== day) { day = d; cards.push(el("h3", { class: "day-head", text: dayLabel(x.at) })); }
+      }
+      cards.push(x.c ? catchCard(x.c, all, onCard.get(x.c.id)) : newsCard(x.e));
+    }
+    fill(results,
+      filtered && store.catchesLoaded ? el("p", { class: "muted small result-count", text: countText(catches.length, loose.length) }) : null,
+      !store.catchesLoaded ? el("p", { class: "loading", text: "Loading catches…" })
+        : cards.length ? el("div", { class: "card-list" }, ...cards)
+        : filtered ? el("div", { class: "card empty" }, el("p", { text: "Nothing matches." }),
+            el("button", { class: "btn block", type: "button", text: "Clear search and filters", onclick: clearAll }))
+        : el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.fish }),
+            el("p", { text: feedFilter === "mine" ? "You haven't logged a catch yet." : "No catches yet. Be the first to put a fish on the board!" })),
+      list.length > feedLimit ? el("button", { class: "btn block", type: "button", text: "Show more",
+        onclick: () => { feedLimit += 30; redrawFeed(); } }) : null);
+  };
+  redrawFeed();
+  fill(main, hero, seg, el("div", { class: "feed-tools" }, search, filterBtn), chips, results);
+  if (typing) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
+}
+
+const countText = (c, n) => [`${c} ${c === 1 ? "catch" : "catches"}`, n ? `${n} news` : null].filter(Boolean).join(" · ");
+const choiceLabel = (pairs, k) => (pairs.find(p => p[0] === k) || [k, k])[1];
+
+/* One removable chip per filter in use. */
+function activeChips() {
+  const chip = (text, reset) => el("button", { class: "chip removable", type: "button", "aria-label": `Remove filter: ${text}`, onclick: () => setFilters(reset) },
+    el("span", { text }), el("span", { "aria-hidden": "true", text: "✕" }));
+  return [
+    filters.angler && feedFilter !== "mine" ? chip(memberName(filters.angler), { angler: "" }) : null,
+    filters.species ? chip(filters.species, { species: "" }) : null,
+    filters.show !== "all" ? chip(choiceLabel(SHOW, filters.show), { show: "all" }) : null,
+    filters.when !== "any" ? chip(choiceLabel(WHEN, filters.when), { when: "any" }) : null,
+    filters.derby ? chip(`🏁 ${(store.derbies.get(filters.derby) || {}).name || "Derby"}`, { derby: "" }) : null,
+    filters.sort !== "new" ? chip(`Sort: ${choiceLabel(SORT, filters.sort)}`, { sort: "new" }) : null,
+  ];
+}
+
+/* The filter sheet: each choice applies straight away, so the feed behind it updates as you go. */
+function filterSheet(all) {
+  const select = (key, pairs) => {
+    const s = el("select", { onchange: () => setFilters({ [key]: s.value }) },
+      ...pairs.map(([v, t]) => el("option", { value: v, text: t })));
+    s.value = filters[key];
+    if (s.value !== filters[key]) s.value = pairs[0][0]; // e.g. a species no longer in the league
+    return s;
+  };
+  const anglers = [...store.members.values()].sort((a, b) => a.displayName.localeCompare(b.displayName)).map(m => [m.id, m.displayName]);
+  const species = [...new Set(all.map(c => c.species))].sort().map(s => [s, s]);
+  const derbies = [...store.derbies.values()].filter(d => !d.cancelled).sort((a, b) => (b.start || 0) - (a.start || 0)).map(d => [d.id, d.name]);
+  openSheet(box => box.append(el("div", { class: "stack" },
+    el("h2", { text: "Filter the feed" }),
+    feedFilter === "mine" ? null : field("Angler", select("angler", [["", "Everyone"], ...anglers])),
+    field("Species", select("species", [["", "All species"], ...species])),
+    field("Show", select("show", SHOW)),
+    field("When caught", select("when", WHEN)),
+    derbies.length ? field("Derby", select("derby", [["", "Any or none"], ...derbies])) : null,
+    field("Sort", select("sort", SORT), "Heaviest and Longest list measured fish only, biggest first."),
+    el("div", { class: "row" },
+      el("button", { class: "btn", type: "button", text: "Clear", onclick: () => { setFilters({ ...NO_FILTERS, q: filters.q }); closeSheet(); } }),
+      el("button", { class: "btn primary", type: "button", text: "Done", onclick: closeSheet })))));
 }
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 function dayLabel(t) {
