@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.21.0 (beta)
+**Current version:** 0.22.0 (beta)
 
 ## Features
 
@@ -235,7 +235,8 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
-| 0.21.0 | 2026-Oct-04 11:47:05 PM | **PB fix**: a fish measured one way (e.g. weighed) no longer beats a PB measured only the other way (e.g. a past musky with just a length), so a smaller new fish isn't called a PB; and no "First Muskie!" when one is already logged. **Records**: the Records tab shows the 👑 league record (league catches, with its points) and the 📜 all-time record when a past catch beats it, with a note on what's worth points; species boards switch between League and All-time, and show the points for 1st to 3rd by weight. Catch badges say 👑 League record or 📜 All-time record. **Length records now earn record points too**, the same as weight (1st to 3rd on each board); which measurements count per species is in the backlog. No new security rules. |
+| 0.22.0 | 2026-Oct-04 11:52:43 PM | **Length records earn record points too**, the same as weight: 1st to 3rd on each species' length board as well as its weight board (each board counts on its own). The Records tab, species boards, How points work and the points page say so. Accepted measurements per species is in the roadmap backlog. No new security rules. |
+| 0.21.0 | 2026-Oct-04 11:47:05 PM | **PB fix**: a fish measured one way (e.g. weighed) no longer beats a PB measured only the other way (e.g. a past musky with just a length), so a smaller new fish isn't called a PB; and no "First Muskie!" when one is already logged. **Records**: the Records tab shows the 👑 league record (league catches, with its points) and the 📜 all-time record when a past catch beats it, with a note on what's worth points; species boards switch between League and All-time, and show the points for 1st to 3rd by weight. Catch badges say 👑 League record or 📜 All-time record. No new security rules. |
 | 0.20.0 | 2026-Oct-04 11:26:15 PM | **Past catches (logbook)**: catches from before the league, or logged more than 7 days late (admins can change it under League admin, Late logging), count for PBs and the all-time record boards only: no points, badges or crowns, and no record-taken news. Record points, the Record Holder crown and record badges go to league catches. Past catches are marked 📜, show in the feed as throwbacks when added, and the bell gets a throwback line instead of counting them as new catches. Profile counts show league catches plus a past-catch note. The flag is set when the catch is saved and the security rules never let it be removed. **New security rules: publish firestore.rules.** |
 | 0.19.0 | 2026-Oct-04 11:06:35 PM | What's new can be cleared: **×** on each alert, and **Clear all** with Undo. Cleared alerts stay cleared on that phone, and anything new still shows up, even alerts from a catch logged hours after it was caught. No new security rules. |
 | 0.18.0 | 2026-Oct-04 10:55:07 PM | **Leaders → Badges**: who has the most badges, and every badge with how many anglers have it (yours are ticked); tap a badge to see who earned it and when, first to earn it on top. The Rankings tab is now labelled Ranks so four tabs fit on a phone. No new security rules. |
