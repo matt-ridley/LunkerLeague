@@ -3,6 +3,7 @@
    opened it, like the Chat badge. There are no push notifications: you see these when you open the app. */
 import { el, fill, fmtAgo, icon } from "./ui.js";
 import { store, uid, memberName, watchDerbyChat } from "./cloud.js";
+import { rankInput } from "./leaders.js";
 import { alertsFor, unreadCount } from "./events.js";
 import { derbyStatus } from "./derby.js";
 
@@ -30,18 +31,13 @@ function watchMyDerbyChats() {
 function myAlerts(seen) {
   if (!store.catchesLoaded) return [];
   watchMyDerbyChats();
-  const reactions = new Map([...store.reactions].map(([cid, byUser]) => [cid, new Map([...byUser].map(([u, emojis]) =>
-    [u, { emojis, at: ((store.reactionTimes.get(cid) || new Map()).get(u)) || 0 }]))]));
-  return alertsFor(uid(), {
-    catches: [...store.catches.values()], derbies: store.derbies, entrants: store.entrants, comments: store.comments, reactions,
-    chat: store.chat, derbyChat: store.derbyChat, trips: store.trips, rsvps: store.rsvps, name: memberName,
-  }, { seen });
+  return alertsFor(uid(), { ...rankInput(), chat: store.chat, derbyChat: store.derbyChat, trips: store.trips, rsvps: store.rsvps, name: memberName }, { seen });
 }
 
 /* Cached per redraw: the header asks for the count on every render. */
 let cache = { key: null, list: [] };
 function cachedAlerts(seen) {
-  const key = [store.catches, store.comments, store.reactions, store.chat, store.derbyChat.size, store.derbies, store.entrants, store.trips, store.rsvps, seen];
+  const key = [store.catches, store.comments, store.reactions, store.chat, store.derbyChat.size, store.derbies, store.entrants, store.trips, store.rsvps, store.spots, seen];
   if (!cache.key || key.some((k, i) => k !== cache.key[i])) cache = { key, list: myAlerts(seen) };
   return cache.list;
 }

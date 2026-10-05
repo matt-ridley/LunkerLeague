@@ -4,6 +4,7 @@
    at its time. Pure functions on plain data. */
 import { speciesBoard, isStringer, fishIn } from "./stats.js";
 import { derbyStatus, standings, closesAt } from "./derby.js";
+import { crownStandings } from "./crowns.js";
 
 export const DEFAULT_SCORING = {
   catchPts: 1,          // per catch logged…
@@ -11,6 +12,7 @@ export const DEFAULT_SCORING = {
   limitPts: 5,          // bonus for a stringer marked as a limit, once per angler per day
   speciesPts: 3,        // per species caught for the first time
   recordPts: [5, 3, 1], // holding 1st / 2nd / 3rd on a species' weight board (current standing)
+  crownPts: 2,          // per crown held right now (current standing)
   derbyPts: [25, 15, 10], // finishing 1st / 2nd / 3rd in a derby
   participationPts: 2,  // for every derby joined that finished
   beatPts: 0,           // per angler finished ahead of in a derby
@@ -47,7 +49,8 @@ function countsForRank(c, derbies) {
 }
 
 /* Every point-earning event: { uid, at, pts, kind, label }. */
-export function rankEvents({ catches, derbies, entrants, versions, now = Date.now() }) {
+export function rankEvents(input) {
+  const { catches, derbies, entrants, versions, now = Date.now() } = input;
   const line = scoringTimeline(versions), cur = currentScoring(line);
   const derbyMap = derbies instanceof Map ? derbies : new Map((derbies || []).map(d => [d.id, d]));
   const counted = catches.filter(c => countsForRank(c, derbyMap)).sort((a, b) => a.caughtAt - b.caughtAt);
@@ -85,6 +88,13 @@ export function rankEvents({ catches, derbies, entrants, versions, now = Date.no
     });
   }
 
+  // Crowns: whoever holds each one right now, scored with today's values.
+  if (cur.crownPts) {
+    for (const s of input.crowns || crownStandings({ ...input, derbies: derbyMap })) {
+      if (s.holder) events.push({ uid: s.holder, at: now, pts: cur.crownPts, kind: "crown", label: `${s.crown.icon} ${s.crown.name} crown`, standing: true });
+    }
+  }
+
   // Finished derbies (not cancelled, not tests): places, joining, and anglers beaten.
   for (const d of derbyMap.values()) {
     if (d.testing || derbyStatus(d, now) !== "ended") continue;
@@ -107,7 +117,7 @@ export function rankings(input, { since = -Infinity } = {}) {
   const events = rankEvents(input).filter(e => e.standing || e.at >= since);
   const cur = currentScoring(scoringTimeline(input.versions));
   const by = new Map();
-  const blank = u => ({ uid: u, points: 0, byKind: { catch: 0, limit: 0, species: 0, record: 0, derby: 0 }, events: [] });
+  const blank = u => ({ uid: u, points: 0, byKind: { catch: 0, limit: 0, species: 0, record: 0, crown: 0, derby: 0 }, events: [] });
   for (const u of input.members || []) by.set(u, blank(u));
   for (const e of events) {
     if (!by.has(e.uid)) by.set(e.uid, blank(e.uid));

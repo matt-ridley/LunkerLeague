@@ -4,26 +4,48 @@ import { el, avatar, fmtDay, fmtDate, fmtWeight, fmtLength, icon, fill, openShee
 import { store, memberName, uid, isAdmin } from "./cloud.js";
 import { speciesRecords, speciesBoard } from "./stats.js";
 import { rankings, badgesFor, scoringTimeline, currentScoring, TITLES } from "./rank.js";
+import { crownStandings, crownScore } from "./crowns.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
 
-/* Everything the ranking needs, from the live data. */
+/* Everything the ranking needs, from the live data. Reactions carry when they were last changed, and only spots
+   shared with the league count (private ones aren't on everyone's phone). */
 export function rankInput() {
-  return {
+  const reactions = new Map([...store.reactions].map(([cid, byUser]) => [cid, new Map([...byUser].map(([u, emojis]) =>
+    [u, { emojis, at: ((store.reactionTimes.get(cid) || new Map()).get(u)) || 0 }]))]));
+  const spots = new Map([...store.spots].filter(([, s]) => s.shared));
+  const input = {
     catches: [...store.catches.values()], derbies: store.derbies, entrants: store.entrants, versions: store.scoring,
     members: [...store.members.values()].filter(m => !m.suspended).map(m => m.id),
+    comments: store.comments, reactions, spots,
   };
+  input.crowns = crownsNow(input);
+  return input;
+}
+
+/* Crowns are replayed from all the data, so work them out once per change of data, not on every redraw. */
+let crownCache = { key: null, value: null };
+export function crownsNow(input) {
+  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots];
+  if (!crownCache.key || key.some((k, i) => k !== crownCache.key[i])) {
+    if (!input) return rankInput().crowns; // builds the input, which works the crowns out and caches them
+    crownCache = { key, value: crownStandings(input) };
+  }
+  return crownCache.value;
 }
 const seasonStart = () => new Date(new Date().getFullYear(), 0, 1).getTime();
 
 let leadersTab = "rank", season = "all";
 export function renderLeaders(main, speciesArg, byArg) {
+  // Tapping your crowns on a profile opens the Crowns tab.
+  try { const t = sessionStorage.getItem("lunker-leaders-tab"); if (t) { leadersTab = t; sessionStorage.removeItem("lunker-leaders-tab"); } } catch {}
   const all = [...store.catches.values()];
   if (speciesArg) return speciesPage(main, all, decodeURIComponent(speciesArg), byArg === "length" ? "length" : "weight");
-  const tabs = el("div", { class: "seg" }, ...[["rank", "🏆 Rankings"], ["records", "👑 Species records"]].map(([k, label]) =>
+  const tabs = el("div", { class: "seg" }, ...[["rank", "🏆 Rankings"], ["crowns", "👑 Crowns"], ["records", "🐟 Records"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(leadersTab === k), text: label, onclick: () => { leadersTab = k; renderLeaders(main); } })));
   if (leadersTab === "rank") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, rankView(main));
+  if (leadersTab === "crowns") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, crownsView());
   const records = speciesRecords(all);
   fill(main,
     el("h2", { class: "page-title", text: "Leaders" }), tabs,
@@ -59,7 +81,7 @@ function rankView(main) {
       isAdmin() ? el("a", { class: "btn", href: "#/scoring", text: "Change points" }) : null));
 }
 
-const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "👑 Records held", derby: "🏁 Derbies" };
+const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "🐟 Records held", crown: "👑 Crowns held", derby: "🏁 Derbies" };
 function breakdownSheet(r, place) {
   const m = who(r.uid);
   const badges = badgesFor(r.uid, rankInput());
@@ -86,13 +108,51 @@ export function howPointsSheet() {
       el("li", { text: `🎣 ${v.catchPts} per catch (counting up to ${v.dailyCap} a day)` }),
       el("li", { text: `🪝 A stringer earns the day's full catch points (${v.catchPts * v.dailyCap}). If it's your limit, ${v.limitPts} more (once a day)` }),
       el("li", { text: `🌈 ${v.speciesPts} for each species you catch for the first time` }),
-      el("li", { text: `👑 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board (changes as records fall)` }),
+      el("li", { text: `🐟 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board (changes as records fall)` }),
+      el("li", { text: `👑 ${v.crownPts} for each crown you hold right now (they move when someone passes you)` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),
       el("li", { text: "Disqualified catches and test derbies don't count." })),
     el("h3", { text: "Titles" }),
     el("ul", { class: "how-list" }, ...TITLES.map((t, i) => el("li", { text: `${t}: ${v.titles[i]}+ pts` }))),
     last ? el("p", { class: "hint", text: `Points last changed ${fmtDate(last.createdAt)} by ${memberName(last.createdBy)}${last.note ? ` ("${last.note}")` : ""}.` }) : null,
     el("button", { class: "btn block", type: "button", text: "Close", onclick: closeSheet }))));
+}
+
+/* ---------- Crowns ---------- */
+function crownsView() {
+  if (!store.catchesLoaded) return el("p", { class: "loading", text: "Loading…" });
+  const v = currentScoring(scoringTimeline(store.scoring));
+  return el("div", { class: "stack" },
+    el("p", { class: "muted", text: `Each crown sits with whoever has the most right now. Pass the holder to steal it.${v.crownPts ? ` Worth ${v.crownPts} points while you hold it.` : ""}` }),
+    el("div", { class: "card-list" }, ...crownsNow().map(s => {
+      const h = s.holder && who(s.holder), next = s.board[1];
+      return el("button", { type: "button", class: "crown-card" + (s.holder === uid() ? " mine" : ""), onclick: () => crownSheet(s) },
+        el("span", { class: "crown-icon", text: s.crown.icon }),
+        el("span", { class: "grow" },
+          el("b", { class: "crown-name", text: s.crown.name }),
+          el("span", { class: "muted small", text: s.crown.desc }),
+          h ? el("span", { class: "crown-holder" }, avatar(h, "xs"), el("b", { text: h.displayName }), el("span", { text: crownScore(s.crown, s.score) }))
+            : el("span", { class: "muted small", text: "Up for grabs" }),
+          next ? el("span", { class: "muted small", text: `Next: ${who(next.uid).displayName}, ${crownScore(s.crown, next.score)}` }) : null));
+    })));
+}
+
+function crownSheet(s) {
+  const recent = [...s.history].reverse().slice(0, 6);
+  openSheet(box => box.append(el("div", { class: "stack" },
+    el("h2", { text: `${s.crown.icon} ${s.crown.name}` }),
+    el("p", { class: "muted", text: s.crown.desc }),
+    s.board.length ? el("ol", { class: "board" }, ...s.board.slice(0, 10).map((b, i) => el("li", {},
+      el("a", { class: "board-row" + (b.uid === s.holder ? " top1" : ""), href: `#/u/${b.uid}`, onclick: closeSheet },
+        el("span", { class: "rank", text: b.uid === s.holder ? "👑" : String(i + 1) }), avatar(who(b.uid)),
+        el("div", { class: "grow" }, el("div", { class: "name", text: who(b.uid).displayName })),
+        el("b", { class: "board-size", text: crownScore(s.crown, b.score) })))))
+      : el("p", { class: "muted", text: "Nobody has this one yet." }),
+    recent.length ? el("section", { class: "stack" }, el("h3", { text: "Crown history" }),
+      el("ul", { class: "points-list" }, ...recent.map(h => el("li", {},
+        el("span", { class: "grow", text: h.uid ? (h.from ? `${who(h.uid).displayName} took it from ${who(h.from).displayName}` : `${who(h.uid).displayName} claimed it`) : "Nobody holds it" }),
+        el("span", { class: "muted small", text: fmtDay(h.at) }))))) : null,
+    el("button", { class: "btn quiet block", type: "button", text: "Close", onclick: closeSheet }))));
 }
 
 function holder(label, c, size) {
