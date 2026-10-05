@@ -52,10 +52,11 @@ export function renderLeaders(main, speciesArg, byArg) {
   try { const t = sessionStorage.getItem("lunker-leaders-tab"); if (t) { leadersTab = t; sessionStorage.removeItem("lunker-leaders-tab"); } } catch {}
   const all = [...store.catches.values()];
   if (speciesArg) return speciesPage(main, all, decodeURIComponent(speciesArg), byArg === "length" ? "length" : "weight");
-  const tabs = el("div", { class: "seg" }, ...[["rank", "🏆 Rankings"], ["crowns", "👑 Crowns"], ["records", "🐟 Records"]].map(([k, label]) =>
+  const tabs = el("div", { class: "seg tabs-4" }, ...[["rank", "🏆 Ranks"], ["crowns", "👑 Crowns"], ["badges", "🏅 Badges"], ["records", "🐟 Records"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(leadersTab === k), text: label, onclick: () => { leadersTab = k; renderLeaders(main); } })));
   if (leadersTab === "rank") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, rankView(main));
   if (leadersTab === "crowns") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, crownsView());
+  if (leadersTab === "badges") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, badgesView());
   const records = speciesRecords(all);
   fill(main,
     el("h2", { class: "page-title", text: "Leaders" }), tabs,
@@ -127,6 +128,55 @@ export function howPointsSheet() {
     el("ul", { class: "how-list" }, ...TITLES.map((t, i) => el("li", { text: `${t}: ${v.titles[i]}+ pts` }))),
     last ? el("p", { class: "hint", text: `Points last changed ${fmtDate(last.createdAt)} by ${memberName(last.createdBy)}${last.note ? ` ("${last.note}")` : ""}.` }) : null,
     el("button", { class: "btn block", type: "button", text: "Close", onclick: closeSheet }))));
+}
+
+/* ---------- Badges ---------- */
+/* Who has the most badges, then every badge with how many anglers have it (tap one for who and when). */
+function badgesView() {
+  if (!store.catchesLoaded) return el("p", { class: "loading", text: "Loading…" });
+  const earned = rankInput().badges;
+  const members = [...store.members.values()].filter(m => !m.suspended);
+  const count = new Map(members.map(m => [m.id, 0]));
+  for (const b of earned) if (count.has(b.uid)) count.set(b.uid, count.get(b.uid) + 1);
+  const rows = [...count].sort((a, b) => b[1] - a[1] || who(a[0]).displayName.localeCompare(who(b[0]).displayName));
+  const holders = new Map(BADGES.map(b => [b.id, []]));
+  for (const e of earned) if (count.has(e.uid)) holders.get(e.badge.id).push(e);
+  const v = currentScoring(scoringTimeline(store.scoring));
+  return el("div", { class: "stack" },
+    el("p", { class: "muted", text: `Badges are kept for good${v.badgePts ? ` and worth ${v.badgePts} point${v.badgePts === 1 ? "" : "s"} each` : ""}. ${BADGES.length} to collect.` }),
+    el("h3", { text: "Most badges" }),
+    el("ol", { class: "board" }, ...rows.map(([u, n], i) => el("li", {},
+      el("a", { class: "board-row" + (i < 3 && n > 0 ? ` top${i + 1}` : "") + (u === uid() ? " me" : ""), href: `#/u/${u}` },
+        el("span", { class: "rank", text: n > 0 && MEDALS[i] ? MEDALS[i] : String(i + 1) }), avatar(who(u)),
+        el("div", { class: "grow" }, el("div", { class: "name", text: who(u).displayName })),
+        el("b", { class: "board-size", text: `${n} of ${BADGES.length}` }))))),
+    el("h3", { text: "All badges" }),
+    el("div", { class: "card-list" }, ...BADGES.map(b => {
+      const list = holders.get(b.id), mine = list.some(e => e.uid === uid());
+      return el("button", { type: "button", class: "crown-card" + (mine ? " mine" : ""), onclick: () => badgeHoldersSheet(b, list) },
+        el("span", { class: "crown-icon", text: b.icon }),
+        el("span", { class: "grow" },
+          el("b", { class: "crown-name", text: b.name + (mine ? " ✓" : "") }),
+          el("span", { class: "muted small", text: b.desc }),
+          list.length ? el("span", { class: "crown-holder" }, ...list.slice(0, 6).map(e => avatar(who(e.uid), "xs")),
+            el("span", { class: "muted small", text: `${list.length} of ${members.length} angler${members.length === 1 ? "" : "s"}` }))
+            : el("span", { class: "muted small", text: "Nobody yet" })));
+    })));
+}
+
+function badgeHoldersSheet(b, list) {
+  const sorted = [...list].sort((x, y) => x.at - y.at);
+  openSheet(box => box.append(el("div", { class: "stack" },
+    el("h2", { text: `${b.icon} ${b.name}` }),
+    el("p", { class: "muted", text: b.desc }),
+    sorted.length ? el("ol", { class: "board" }, ...sorted.map((e, i) => el("li", {},
+      el("a", { class: "board-row" + (i === 0 ? " top1" : ""), href: `#/u/${e.uid}`, onclick: closeSheet },
+        el("span", { class: "rank", text: i === 0 ? "🥇" : String(i + 1) }), avatar(who(e.uid)),
+        el("div", { class: "grow" }, el("div", { class: "name", text: who(e.uid).displayName }),
+          i === 0 ? el("div", { class: "muted small", text: "First to earn it" }) : null),
+        el("span", { class: "muted small", text: fmtDay(e.at) })))))
+      : el("p", { class: "muted", text: "Nobody has earned this one yet. Be the first!" }),
+    el("button", { class: "btn quiet block", type: "button", text: "Close", onclick: closeSheet }))));
 }
 
 /* ---------- Crowns ---------- */
