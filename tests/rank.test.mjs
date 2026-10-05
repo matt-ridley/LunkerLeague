@@ -124,3 +124,10 @@ test("crowns held right now are worth points, and the points follow the crown", 
     versions: [{ id: "v", mode: "retro", createdAt: T0, values: { ...DEFAULT_SCORING, crownPts: 0 } }] });
   assert.equal(off.find(r => r.uid === "bo").byKind.crown, 0);
 });
+
+test("record points count on both the weight board and the length board", () => {
+  const catches = [fish("amy", "Muskie", 300, T0, { lengthIn: 40 }), fish("bo", "Muskie", null, T0 + H, { lengthIn: 48 })];
+  const rows = rankings({ catches, derbies: [], entrants: new Map(), versions: [], members: ["amy", "bo"], now: T0 + DAY });
+  assert.equal(rows.find(r => r.uid === "amy").byKind.record, 5 + 3); // 1st by weight, 2nd by length
+  assert.equal(rows.find(r => r.uid === "bo").byKind.record, 5);      // 1st by length
+});
