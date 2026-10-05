@@ -10,7 +10,7 @@ import { derbyStatus, entryProblem, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
 import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer, pastCatch, loggedLate, leagueStartOf, DEFAULT_GRACE_DAYS } from "./stats.js";
 import { leagueEvents, postedAt } from "./events.js";
-import { NO_FILTERS, SHOW, WHEN, SORT, filterFeed, activeCount, isFiltered } from "./feedfilter.js";
+import { NO_FILTERS, SHOW, WHEN, SORT, filterFeed, activeCount } from "./feedfilter.js";
 import { rankInput } from "./leaders.js";
 
 const allCatches = () => [...store.catches.values()];
@@ -70,12 +70,13 @@ function metaLine(c) {
 }
 
 /* ---------- Feed ---------- */
-// Everyone/Mine, search and filters last for the session (until the app is closed).
+// Filters last for the session (until the app is closed).
 const FEED_KEY = "lunker-feed-filters";
-let feedFilter = "all", feedLimit = 30, filters = { ...NO_FILTERS }, redrawFeed = () => {};
-try { const v = JSON.parse(sessionStorage.getItem(FEED_KEY) || "null"); if (v) { feedFilter = v.feedFilter || "all"; filters = { ...NO_FILTERS, ...v.filters }; } } catch {}
-const saveFilters = () => { try { sessionStorage.setItem(FEED_KEY, JSON.stringify({ feedFilter, filters })); } catch {} };
+let feedLimit = 30, filters = { ...NO_FILTERS }, redrawFeed = () => {};
+try { const v = JSON.parse(sessionStorage.getItem(FEED_KEY) || "null"); if (v && v.filters) filters = { ...NO_FILTERS, ...v.filters }; } catch {}
+const saveFilters = () => { try { sessionStorage.setItem(FEED_KEY, JSON.stringify({ filters })); } catch {} };
 const setFilters = changes => { filters = { ...filters, ...changes }; feedLimit = 30; saveFilters(); redrawFeed(); };
+const clearFilters = () => setFilters({ ...NO_FILTERS });
 
 export function renderFeed(main) {
   const all = allCatches();
@@ -89,27 +90,17 @@ export function renderFeed(main) {
     el("div", { class: "hero-stats" },
       stat(stats.catches, "catches"), stat(stats.species, "species"), stat(pbs, "PBs")),
     stats.catches ? null : el("a", { class: "btn lime block", href: "#/log", html: icon.plus }, "Log your first catch"));
-  const seg = el("div", { class: "seg" }, ...[["all", "Everyone"], ["mine", "Mine"]].map(([k, label]) =>
-    el("button", { type: "button", "aria-pressed": String(feedFilter === k), text: label,
-      onclick: () => { feedFilter = k; feedLimit = 30; saveFilters(); renderFeed(main); } })));
-
-  // Typing redraws only the results, so the search box keeps focus. A live redraw of the whole page puts it back.
-  const typing = document.activeElement && document.activeElement.id === "feed-search";
-  const search = el("input", { id: "feed-search", type: "search", value: filters.q, placeholder: "Search species, angler, notes…",
-    "aria-label": "Search the feed", enterkeyhint: "search",
-    oninput: () => { filters.q = search.value; feedLimit = 30; saveFilters(); redrawFeed(); } });
-  const filterBtn = el("button", { class: "btn filter-btn", type: "button", onclick: () => filterSheet(all) });
-  const chips = el("div", { class: "filter-chips" });
+  // One row: the Filters button, then a removable chip for each filter in use.
+  const tools = el("div", { class: "feed-tools" });
   const results = el("div", { class: "feed-results" });
-  const clearAll = () => { search.value = ""; setFilters({ ...NO_FILTERS }); };
 
   redrawFeed = () => {
-    const n = activeCount(filters), filtered = isFiltered(filters);
-    filterBtn.textContent = n ? `Filters · ${n}` : "Filters";
-    filterBtn.setAttribute("aria-pressed", String(n > 0));
-    fill(chips, ...activeChips(), filtered ? el("button", { class: "chip removable clear", type: "button", text: "Clear all", onclick: clearAll }) : null);
-    const { catches, onCard, loose } = filterFeed({ catches: all, news, f: filters, me, mine: feedFilter === "mine", name: memberName,
-      derbyName: id => (store.derbies.get(id) || {}).name || "" });
+    const n = activeCount(filters);
+    fill(tools,
+      el("button", { class: "btn filter-btn", type: "button", "aria-pressed": String(n > 0), text: n ? `Filters · ${n}` : "Filters", onclick: () => filterSheet(all) }),
+      ...activeChips(me),
+      n > 1 ? el("button", { class: "chip removable clear", type: "button", text: "Clear all", onclick: clearFilters }) : null);
+    const { catches, onCard, loose } = filterFeed({ catches: all, news, f: filters });
     // Newest: ordered by when each catch was posted, so a fish logged late, or a throwback, still shows up at the top.
     const list = filters.sort !== "new" ? catches.map(c => ({ c }))
       : [...catches.map(c => ({ at: postedAt(c), c })), ...loose.map(e => ({ at: e.at, e }))].sort((a, b) => b.at - a.at);
@@ -123,41 +114,43 @@ export function renderFeed(main) {
       }
       cards.push(x.c ? catchCard(x.c, all, onCard.get(x.c.id)) : newsCard(x.e));
     }
+    const mineOnly = filters.angler === me && activeCount(filters) === 1;
     fill(results,
-      filtered && store.catchesLoaded ? el("p", { class: "muted small result-count", text: countText(catches.length, loose.length) }) : null,
+      n && store.catchesLoaded ? el("p", { class: "muted small result-count", text: countText(catches.length, loose.length) }) : null,
       !store.catchesLoaded ? el("p", { class: "loading", text: "Loading catches…" })
         : cards.length ? el("div", { class: "card-list" }, ...cards)
-        : filtered ? el("div", { class: "card empty" }, el("p", { text: "Nothing matches." }),
-            el("button", { class: "btn block", type: "button", text: "Clear search and filters", onclick: clearAll }))
+        : n && !mineOnly ? el("div", { class: "card empty" }, el("p", { text: "Nothing matches." }),
+            el("button", { class: "btn block", type: "button", text: "Clear filters", onclick: clearFilters }))
         : el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.fish }),
-            el("p", { text: feedFilter === "mine" ? "You haven't logged a catch yet." : "No catches yet. Be the first to put a fish on the board!" })),
+            el("p", { text: mineOnly ? "You haven't logged a catch yet." : "No catches yet. Be the first to put a fish on the board!" })),
       list.length > feedLimit ? el("button", { class: "btn block", type: "button", text: "Show more",
         onclick: () => { feedLimit += 30; redrawFeed(); } }) : null);
   };
   redrawFeed();
-  fill(main, hero, seg, el("div", { class: "feed-tools" }, search, filterBtn), chips, results);
-  if (typing) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
+  fill(main, hero, tools, results);
 }
 
 const countText = (c, n) => [`${c} ${c === 1 ? "catch" : "catches"}`, n ? `${n} news` : null].filter(Boolean).join(" · ");
 const choiceLabel = (pairs, k) => (pairs.find(p => p[0] === k) || [k, k])[1];
 
 /* One removable chip per filter in use. */
-function activeChips() {
+function activeChips(me) {
   const chip = (text, reset) => el("button", { class: "chip removable", type: "button", "aria-label": `Remove filter: ${text}`, onclick: () => setFilters(reset) },
     el("span", { text }), el("span", { "aria-hidden": "true", text: "✕" }));
   return [
-    filters.angler && feedFilter !== "mine" ? chip(memberName(filters.angler), { angler: "" }) : null,
+    filters.angler ? chip(filters.angler === me ? "Me" : memberName(filters.angler), { angler: "" }) : null,
     filters.species ? chip(filters.species, { species: "" }) : null,
     filters.show !== "all" ? chip(choiceLabel(SHOW, filters.show), { show: "all" }) : null,
     filters.when !== "any" ? chip(choiceLabel(WHEN, filters.when), { when: "any" }) : null,
     filters.derby ? chip(`🏁 ${(store.derbies.get(filters.derby) || {}).name || "Derby"}`, { derby: "" }) : null,
+    filters.q.trim() ? chip(`“${filters.q.trim()}”`, { q: "" }) : null,
     filters.sort !== "new" ? chip(`Sort: ${choiceLabel(SORT, filters.sort)}`, { sort: "new" }) : null,
   ];
 }
 
 /* The filter sheet: each choice applies straight away, so the feed behind it updates as you go. */
 function filterSheet(all) {
+  const me = uid();
   const select = (key, pairs) => {
     const s = el("select", { onchange: () => setFilters({ [key]: s.value }) },
       ...pairs.map(([v, t]) => el("option", { value: v, text: t })));
@@ -165,19 +158,23 @@ function filterSheet(all) {
     if (s.value !== filters[key]) s.value = pairs[0][0]; // e.g. a species no longer in the league
     return s;
   };
-  const anglers = [...store.members.values()].sort((a, b) => a.displayName.localeCompare(b.displayName)).map(m => [m.id, m.displayName]);
+  const others = [...store.members.values()].filter(m => m.id !== me)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName)).map(m => [m.id, m.displayName]);
   const species = [...new Set(all.map(c => c.species))].sort().map(s => [s, s]);
   const derbies = [...store.derbies.values()].filter(d => !d.cancelled).sort((a, b) => (b.start || 0) - (a.start || 0)).map(d => [d.id, d.name]);
+  const words = el("input", { type: "text", value: filters.q, placeholder: "e.g. jig, dam", enterkeyhint: "done",
+    oninput: () => setFilters({ q: words.value }), onkeydown: e => { if (e.key === "Enter") closeSheet(); } });
   openSheet(box => box.append(el("div", { class: "stack" },
     el("h2", { text: "Filter the feed" }),
-    feedFilter === "mine" ? null : field("Angler", select("angler", [["", "Everyone"], ...anglers])),
+    field("Angler", select("angler", [["", "Everyone"], [me, "Me"], ...others])),
     field("Species", select("species", [["", "All species"], ...species])),
     field("Show", select("show", SHOW)),
     field("When caught", select("when", WHEN)),
     derbies.length ? field("Derby", select("derby", [["", "Any or none"], ...derbies])) : null,
     field("Sort", select("sort", SORT), "Heaviest and Longest list measured fish only, biggest first."),
+    field("Notes or spot contains", words),
     el("div", { class: "row" },
-      el("button", { class: "btn", type: "button", text: "Clear", onclick: () => { setFilters({ ...NO_FILTERS, q: filters.q }); closeSheet(); } }),
+      el("button", { class: "btn", type: "button", text: "Clear", onclick: () => { clearFilters(); closeSheet(); } }),
       el("button", { class: "btn primary", type: "button", text: "Done", onclick: closeSheet })))));
 }
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
