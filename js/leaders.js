@@ -58,14 +58,20 @@ export function renderLeaders(main, speciesArg, byArg) {
   if (leadersTab === "crowns") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, crownsView());
   if (leadersTab === "badges") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, badgesView());
   const records = speciesRecords(all);
+  const v = currentScoring(scoringTimeline(store.scoring)), started = fmtDay((store.league && store.league.createdAt) || 0);
   fill(main,
     el("h2", { class: "page-title", text: "Leaders" }), tabs,
-    el("p", { class: "muted", text: "League records for every species caught. Tap a species to see everyone's personal best." }),
+    el("div", { class: "card stack points-note" },
+      el("p", {}, el("b", { text: "👑 League records" }), ` are from league catches since ${started}. ${v.recordPts.some(Boolean) ? `Holding 1st, 2nd or 3rd on a species' weight board is worth ${v.recordPts.join(" / ")} points while you hold it. Beat it to take the points.` : "They aren't worth points right now."} Length records are for bragging.`),
+      el("p", {}, el("b", { text: "📜 All-time records" }), " include past catches from before the league. Give them props, but they're not worth points.")),
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading…" })
       : records.length ? el("div", { class: "card-list" }, ...records.map(r => el("a", { class: "record-card", href: `#/leaders/${encodeURIComponent(r.species)}` },
-          el("div", { class: "record-head" }, el("b", { text: r.species }), el("span", { class: "muted small", text: `${r.count} caught` })),
-          r.weight ? holder("Heaviest", r.weight, fmtWeight(r.weight.weightOz)) : null,
-          r.length ? holder("Longest", r.length, fmtLength(r.length.lengthIn)) : null)))
+          el("div", { class: "record-head" }, el("b", { text: r.species }), el("span", { class: "muted small", text: r.count ? `${r.count} caught in the league` : "Only past catches so far" })),
+          r.weight ? holder("👑", "Heaviest", r.weight, fmtWeight(r.weight.weightOz), v.recordPts[0]) : null,
+          r.length ? holder("👑", "Longest", r.length, fmtLength(r.length.lengthIn), 0) : null,
+          !r.weight && !r.length && r.count ? el("p", { class: "muted small", text: "No league record yet: weigh or measure one to set it." }) : null,
+          r.allTimeWeight ? holder("📜", "All-time heaviest", r.allTimeWeight, fmtWeight(r.allTimeWeight.weightOz), 0) : null,
+          r.allTimeLength ? holder("📜", "All-time longest", r.allTimeLength, fmtLength(r.allTimeLength.lengthIn), 0) : null)))
       : el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.trophy }),
           el("p", { text: "No records yet. Log a catch to set the first one." }),
           el("a", { class: "btn lime", href: "#/log", text: "Log a catch" })));
@@ -217,25 +223,38 @@ function crownSheet(s) {
     el("button", { class: "btn quiet block", type: "button", text: "Close", onclick: closeSheet }))));
 }
 
-function holder(label, c, size) {
+function holder(mark, label, c, size, pts) {
   const m = who(c.uid);
-  return el("div", { class: "record-row" }, el("span", { class: "record-label", text: `👑 ${label}` }), avatar(m, "xs"),
-    el("span", { class: "grow", text: m.displayName + (c.past ? " 📜" : "") }), el("b", { text: size }));
+  return el("div", { class: "record-row" + (c.past ? " past" : "") }, el("span", { class: "record-label", text: `${mark} ${label}` }), avatar(m, "xs"),
+    el("span", { class: "grow", text: m.displayName + (c.past ? ` (${new Date(c.caughtAt).getFullYear()})` : "") }),
+    pts ? el("span", { class: "pts-tag", text: `+${pts} pts` }) : null, el("b", { text: size }));
 }
 
+/* A species' board of personal bests: the league board (league catches, worth points by weight) or all-time
+   (past catches too, for props). */
+let boardScope = "league";
 function speciesPage(main, all, species, by) {
-  const board = speciesBoard(all, species, by);
+  const league = boardScope === "league";
+  const board = speciesBoard(league ? all.filter(c => !c.past) : all, species, by);
+  const v = currentScoring(scoringTimeline(store.scoring));
+  const pts = i => (league && by === "weight" ? v.recordPts[i] || 0 : 0);
   const seg = el("div", { class: "seg" }, ...[["weight", "By weight"], ["length", "By length"]].map(([k, label]) =>
     el("a", { class: "seg-link", href: `#/leaders/${encodeURIComponent(species)}/${k}`, "aria-pressed": String(by === k), text: label })));
+  const scope = el("div", { class: "seg" }, ...[["league", "👑 League"], ["all", "📜 All-time"]].map(([k, label]) =>
+    el("button", { type: "button", "aria-pressed": String(boardScope === k), text: label, onclick: () => { boardScope = k; speciesPage(main, all, species, by); } })));
+  const note = league
+    ? (by === "weight" && v.recordPts.some(Boolean) ? `League catches since ${fmtDay((store.league && store.league.createdAt) || 0)}. 1st, 2nd and 3rd by weight are worth ${v.recordPts.join(" / ")} points while held: beat them to take the points.` : "League catches only. The length board is for bragging (no points).")
+    : "Everyone's best ever, past catches (📜) included. For props: not worth points.";
   fill(main,
     el("h2", { class: "page-title", text: species }),
-    seg,
+    scope, seg, el("p", { class: "hint", text: note }),
     board.length ? el("ol", { class: "board" }, ...board.map((c, i) => {
       const m = who(c.uid);
       return el("li", {}, el("a", { class: "board-row" + (i < 3 ? ` top${i + 1}` : ""), href: `#/c/${c.id}` },
         el("span", { class: "rank", text: MEDALS[i] || String(i + 1) }),
         avatar(m),
         el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), el("div", { class: "muted small", text: fmtDay(c.caughtAt) + (c.past ? " · 📜 past catch" : "") })),
+        pts(i) ? el("span", { class: "pts-tag", text: `+${pts(i)}` }) : null,
         el("b", { class: "board-size", text: by === "length" ? fmtLength(c.lengthIn) : fmtWeight(c.weightOz) }),
         el("img", { class: "thumb sm", src: c.thumb, alt: "", loading: "lazy" })));
     })) : el("p", { class: "muted", text: `No ${species} has been ${by === "length" ? "measured" : "weighed"} yet.` }));

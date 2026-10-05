@@ -29,7 +29,7 @@ export function catchCard(c, all = allCatches()) {
       el("div", { class: "catch-size" + (sizeText(c) ? "" : " unmeasured"), text: sizeText(c) || "Not measured" }),
       el("div", { class: "catch-who" }, avatar(m, "xs"), el("span", { text: `${m.displayName} · ${c.past ? fmtDay(c.caughtAt) : fmtAgo(c.caughtAt)}` })),
       el("div", { class: "badges" },
-        rec.length ? el("span", { class: "badge record", text: "👑 League record" }) : null,
+        rec.length ? el("span", { class: "badge record", text: c.past ? "📜 All-time record" : "👑 League record" }) : null,
         pb ? el("span", { class: "badge pb", text: "PB" }) : null,
         c.past ? el("span", { class: "badge past", text: "📜 Past catch" }) : null,
         isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limit" }) : null,
@@ -115,8 +115,8 @@ export function renderCatch(main, id) {
       el("h2", { text: c.species }),
       sizeText(c) ? el("div", { class: "catch-size big", text: sizeText(c) }) : el("div", { class: "muted", text: "Not measured" }),
       el("div", { class: "badges" },
-        rec.includes("weight") ? el("span", { class: "badge record", text: "👑 Heaviest in the league" }) : null,
-        rec.includes("length") ? el("span", { class: "badge record", text: "👑 Longest in the league" }) : null,
+        rec.includes("weight") ? el("span", { class: "badge record", text: c.past ? "📜 All-time heaviest" : "👑 Heaviest in the league" }) : null,
+        rec.includes("length") ? el("span", { class: "badge record", text: c.past ? "📜 All-time longest" : "👑 Longest in the league" }) : null,
         pb ? el("span", { class: "badge pb", text: `${mine ? "Your" : "Their"} PB` }) : null,
         isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limited out" }) : null,
         store.pending.has(c.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null)),
@@ -222,7 +222,7 @@ function wallParts(memberId, choose) {
           el("span", { class: "grow", text: sp }), el("b", { text: `${n} caught` })))))
         : el("p", { class: "muted", text: "No catches yet." })));
   } else if (view === "records") {
-    parts.push(el("section", { class: "stack" }, el("h3", { text: "League records" }),
+    parts.push(el("section", { class: "stack" }, el("h3", { text: "Records" }),
       records.length ? el("div", { class: "card-list" }, ...records.map(c => catchCard(c, all)))
         : el("p", { class: "muted", text: "No league records held right now." })));
   } else {
@@ -520,7 +520,8 @@ export function renderLog(main, editId, derbyArg) {
     const mineNow = data.uid === uid();
     const check = mineNow ? checkNewPB({ id, ...data }, allCatches()) : { pb: false };
     saveCatch({ id, data, photo: st.full, spot, isNew: !editing });
-    if (check.pb && (!editing || check.previous)) celebrate = { id, previous: check.previous, at: Date.now() };
+    // Celebrate beating your PB, or your first ever of a species (not when an unmeasured one was logged before).
+    if (check.pb && (check.previous || (check.first && !editing))) celebrate = { id, previous: check.previous, at: Date.now() };
     toast(navigator.onLine ? "Catch saved." : "Saved on this phone. It will be shared when you have signal.");
     location.hash = `#/c/${id}`;
   });
