@@ -201,9 +201,11 @@ service cloud.firestore {
     // The full-size photo of a catch, in its own doc so lists only load thumbnails. Same id as the catch.
     match /photos/{id} {
       allow read: if isMember();
-      allow create, update: if isMember() && request.resource.data.keys().hasOnly(["uid", "src"])
+      allow create, update: if isMember() && request.resource.data.keys().hasOnly(["uid", "src", "bytes"])
         && request.resource.data.uid == me() && request.resource.data.src is string
         && request.resource.data.src.size() < 700000
+        // The photo's size, saved for the storage meter (older photos don't have it).
+        && (!("bytes" in request.resource.data) || request.resource.data.bytes == request.resource.data.src.size())
         && (getAfter(catchPath(id)).data.uid == me() || getAfter(catchPath(id)).data.get("enteredBy", null) == me());
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin() || testingOrganiserOf(get(catchPath(id)).data));
     }

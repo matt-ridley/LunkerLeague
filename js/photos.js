@@ -81,22 +81,25 @@ export async function squareAvatar(file, size = 256) {
   return url;
 }
 
-/* Fits the photo inside maxEdge and lowers the JPEG quality until it is under maxBytes. */
+/* Fits the photo inside maxEdge and lowers the JPEG quality until it is under maxBytes, measured as stored: the
+   data URL text is what Firestore keeps (about a third bigger than the JPEG itself). */
 function fit(img, maxEdge, quality, maxBytes) {
   const [w, h] = dims(img), k = Math.min(1, maxEdge / Math.max(w, h));
   const c = document.createElement("canvas");
   c.width = Math.round(w * k); c.height = Math.round(h * k);
   c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
   let q = quality, url = c.toDataURL("image/jpeg", q);
-  while (url.length * 0.75 > maxBytes && q > 0.35) { q -= 0.08; url = c.toDataURL("image/jpeg", q); }
+  while (url.length > maxBytes && q > 0.35) { q -= 0.08; url = c.toDataURL("image/jpeg", q); }
   release(null, c);
   return url;
 }
 
-/* A catch photo: a full version for proof (zoomable) and a small thumbnail for lists. */
+/* A catch photo: a full version for proof (zoomable) and a small thumbnail for lists. The full one is kept to about
+   240 KB as stored (it was up to ~530 KB before 0.16.0): still sharp enough to read a scale on a phone, and the free
+   plan's 1 GB holds about twice as many catches. */
 export async function catchPhoto(file) {
   const img = await decode(file, 1600);
-  const out = { full: fit(img, 1280, 0.72, 400 * 1024), thumb: fit(img, 360, 0.7, 30 * 1024) };
+  const out = { full: fit(img, 1200, 0.7, 240 * 1024), thumb: fit(img, 360, 0.7, 40 * 1024) };
   release(img);
   return out;
 }

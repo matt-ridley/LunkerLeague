@@ -382,7 +382,7 @@ export function saveCatch({ id, data, photo, spot, isNew }) {
   const b = writeBatch(cloud.db);
   const me = uid();
   b.set(doc(cloud.db, "catches", id), data, isNew ? {} : { merge: true });
-  if (photo) b.set(doc(cloud.db, "photos", id), { uid: me, src: photo });
+  if (photo) b.set(doc(cloud.db, "photos", id), { uid: me, src: photo, bytes: photo.length }); // size, for the storage meter
   if (spot) b.set(doc(cloud.db, "spots", id), { ...spot, uid: me });
   else if (spot === null) b.delete(doc(cloud.db, "spots", id));
   if (isNew) outboxPut({ id, uid: me, catchData: data, photo, spot: spot || null, savedAt: Date.now() });
@@ -443,6 +443,19 @@ export function discardRejected(entry) {
   store.rejected = store.rejected.filter(e => e.id !== entry.id);
   outboxRemove(entry.id);
   emit();
+}
+
+/* ---------- Storage meter (admins) ---------- */
+/* Photo totals from the server: { total, sized, sizedBytes }. Firestore adds up the saved sizes itself, so no photo
+   is downloaded (it costs about one read per 1,000 photos). Needs signal. */
+export async function photoStorage() {
+  const { collection, query, where, getAggregateFromServer, count, sum } = cloud.api;
+  const photos = collection(cloud.db, "photos");
+  const [all, sized] = await Promise.all([
+    getAggregateFromServer(photos, { n: count() }),
+    getAggregateFromServer(query(photos, where("bytes", ">", 0)), { n: count(), bytes: sum("bytes") }),
+  ]);
+  return { total: all.data().n, sized: sized.data().n, sizedBytes: sized.data().bytes || 0 };
 }
 
 /* ---------- Comments, reactions and chat ---------- */
