@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.21.0 (beta)
+**Current version:** 0.22.0 (beta)
 
 ## Features
 
@@ -21,7 +21,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Stringers and limits.** On a perch or walleye day, log the whole stringer with one photo: the species, how many fish, and whether it was your limit (the app always asks). A stringer earns the day's full catch points, and a limit earns a bonus on top, once a day. Its fish count toward your catch total and badges, but a stringer is never a PB or a record and can't be entered in a derby.
 - **Private or shared spots.** Tag the spot with the phone's GPS (works with no signal), or tap it on a map or satellite view (needs signal; handy for logging a catch later from home). Keep it private, so others only see "Secret spot", or share it with the league with an optional spot name and an Open in Maps link. Only you can read a private spot; the security rules stop anyone else, including admins.
 - **Personal bests.** Your best catch of each species is worked out automatically, past catches included (you only ever have one PB per species), with a celebration when you beat it. Heavier wins when both were weighed, longer when both were measured; a fish measured one way never beats a PB measured only the other way. Each profile has catch, species and record counts that work as filters: **catches** shows the PB wall and recent catches, **species** lists every species with how many were caught, and **records** shows the league records held.
-- **Leaders.** For every species: the **👑 league record** (heaviest and longest, from league catches, worth points by weight) and, when a past catch beats it, the **📜 all-time record** (props, no points), with a note explaining the points. Each species' leaderboard switches between **League** and **All-time**, by weight or by length.
+- **Leaders.** For every species: the **👑 league record** (heaviest and longest, from league catches, worth points by weight and by length) and, when a past catch beats it, the **📜 all-time record** (props, no points), with a note explaining the points. Each species' leaderboard switches between **League** and **All-time**, by weight or by length.
 - **Reactions and comments.** React to any catch with 🎣 🔥 🐟 😂 👏 🤥 (fish story!) or any emoji from the picker, and see who reacted. Comment on catches; the comment's author, the catch's angler or an admin can remove one. Catch cards show the top reactions and the comment count.
 - **League chat.** One group chat for the league, with day separators, an emoji picker and an unread badge on the Chat tab. Tap your own message to delete it (admins can delete any).
 - **@mentions.** Type `@` in chat or a comment to pick someone from the league. Their name is highlighted, and they get an alert.
@@ -59,7 +59,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
     - rounding to $1, $5 or the cent
   - **Tracking:** the organiser ticks off who has paid. The Money tab shows the pot, projected payouts (and final ones when the derby finishes) with each person's breakdown, "paid out" ticks, and a summary to copy into the chat. The leaderboard shows what each angler stands to win.
 - **Angler rankings.** Who's the best angler, for bragging rights, on the Leaders tab, all-time or this season.
-  - **Points:** for catches (with a daily cap), limits, each new species, holding a top-3 spot on a species' weight board, each crown held, each badge earned, and finishing derbies. Disqualified catches and test derbies don't count.
+  - **Points:** for catches (with a daily cap), limits, each new species, holding a top-3 spot on a species' weight or length board, each crown held, each badge earned, and finishing derbies. Disqualified catches and test derbies don't count.
   - **Titles:** from Bait Bucket up to Legend of the Lake.
   - **Badges:** 56 badges, kept for good and worth a point each (admins can change it): catch totals (Ten Fish to the 500 Club, Double-Digit Day), species (Five Species, Grand Slam, Trophy Case), size (Five Pounder to Twenty Pounder, Twenty-Incher, Yardstick, Tiny Terror, PB Machine), records (Record Setter, Record Breaker, Untouchable, Double Record), stringers and limits, time and season (Sunrise Strike, Hard Water, Four Seasons, Hot Streak…), derbies (First Derby, Podium, Hat Trick, In the Money, Skunked…), social (Trash Talker, Hype Squad, Tall Tale, Trip Planner…), crowns (Crown Thief, Royalty, Long Reign) and Wanderer, plus the originals (First Fish, 10 Species, Derby Champ, Catch & Release Hero, Night Owl, Lucky Net). Tap the badges on a profile to see all of them and how to earn the rest. The **Leaders → Badges** tab shows who has the most badges and every badge with how many anglers have it; tap one to see who earned it and when.
   - **Crowns:** 16 crowns, each held by whoever has the most of something right now: Derby King, Golden Net, Best Captain, Conservationist, Meat Eater, Stringer Filler (most limits), Species Hunter, Grinder, Record Holder, Early Bird, Night Stalker, Iron Angler, Explorer (shared spots only), Fish Story King, Hype Man and Skunk Master. You only steal one by passing the holder (a tie isn't enough). The feed announces steals, the bell tells you when you take or lose one, profiles show the crowns held, and each crown is worth points while you hold it (2 by default, set by admins). See them on Leaders → Crowns.
@@ -114,6 +114,9 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 - **Boat profiles** (M): boat name and photo, crew, and stats per boat.
 - **Personal goals** (S): for example "10 species this year", with progress bars.
 - **Profile flair** (S): a cover photo, favourite species and lucky lure.
+
+### Backlog
+- **Accepted measurements per species** (S–M): set whether a species counts by weight, by length, or both (some fish are only weighed, some only measured). Until then, record points count on both the weight and length boards of every species.
 
 ## Installing on a phone
 
@@ -232,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.22.0 | 2026-Oct-04 11:52:43 PM | **Length records earn record points too**, the same as weight: 1st to 3rd on each species' length board as well as its weight board (each board counts on its own). The Records tab, species boards, How points work and the points page say so. Accepted measurements per species is in the roadmap backlog. No new security rules. |
 | 0.21.0 | 2026-Oct-04 11:47:05 PM | **PB fix**: a fish measured one way (e.g. weighed) no longer beats a PB measured only the other way (e.g. a past musky with just a length), so a smaller new fish isn't called a PB; and no "First Muskie!" when one is already logged. **Records**: the Records tab shows the 👑 league record (league catches, with its points) and the 📜 all-time record when a past catch beats it, with a note on what's worth points; species boards switch between League and All-time, and show the points for 1st to 3rd by weight. Catch badges say 👑 League record or 📜 All-time record. No new security rules. |
 | 0.20.0 | 2026-Oct-04 11:26:15 PM | **Past catches (logbook)**: catches from before the league, or logged more than 7 days late (admins can change it under League admin, Late logging), count for PBs and the all-time record boards only: no points, badges or crowns, and no record-taken news. Record points, the Record Holder crown and record badges go to league catches. Past catches are marked 📜, show in the feed as throwbacks when added, and the bell gets a throwback line instead of counting them as new catches. Profile counts show league catches plus a past-catch note. The flag is set when the catch is saved and the security rules never let it be removed. **New security rules: publish firestore.rules.** |
 | 0.19.0 | 2026-Oct-04 11:06:35 PM | What's new can be cleared: **×** on each alert, and **Clear all** with Undo. Cleared alerts stay cleared on that phone, and anything new still shows up, even alerts from a catch logged hours after it was caught. No new security rules. |

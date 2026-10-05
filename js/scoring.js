@@ -81,7 +81,7 @@ export function renderScoring(main) {
       num(() => draft.limitPts, v => { draft.limitPts = v; }, "Bonus for a limit stringer", "Once per angler per day."),
       num(() => draft.speciesPts, v => { draft.speciesPts = v; }, "Points for a new species")),
     el("section", { class: "card stack" }, el("h3", { text: "🐟 Species records" }),
-      triple("recordPts", "Holding a spot on a species' weight board", "Goes to whoever holds it right now.")),
+      triple("recordPts", "Holding a spot on a species' weight or length board", "Each board counts on its own. Goes to whoever holds it right now.")),
     el("section", { class: "card stack" }, el("h3", { text: "👑 Crowns" }),
       num(() => draft.crownPts, v => { draft.crownPts = v; }, "Points per crown held", "Goes to whoever holds each crown right now. 0 to turn off.")),
     el("section", { class: "card stack" }, el("h3", { text: "🏅 Badges" }),

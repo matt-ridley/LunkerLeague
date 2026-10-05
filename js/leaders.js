@@ -62,13 +62,13 @@ export function renderLeaders(main, speciesArg, byArg) {
   fill(main,
     el("h2", { class: "page-title", text: "Leaders" }), tabs,
     el("div", { class: "card stack points-note" },
-      el("p", {}, el("b", { text: "👑 League records" }), ` are from league catches since ${started}. ${v.recordPts.some(Boolean) ? `Holding 1st, 2nd or 3rd on a species' weight board is worth ${v.recordPts.join(" / ")} points while you hold it. Beat it to take the points.` : "They aren't worth points right now."} Length records are for bragging.`),
+      el("p", {}, el("b", { text: "👑 League records" }), ` are from league catches since ${started}. ${v.recordPts.some(Boolean) ? `Holding 1st, 2nd or 3rd on a species' weight board or length board is worth ${v.recordPts.join(" / ")} points while you hold it (each board counts). Beat it to take the points.` : "They aren't worth points right now."}`),
       el("p", {}, el("b", { text: "📜 All-time records" }), " include past catches from before the league. Give them props, but they're not worth points.")),
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading…" })
       : records.length ? el("div", { class: "card-list" }, ...records.map(r => el("a", { class: "record-card", href: `#/leaders/${encodeURIComponent(r.species)}` },
           el("div", { class: "record-head" }, el("b", { text: r.species }), el("span", { class: "muted small", text: r.count ? `${r.count} caught in the league` : "Only past catches so far" })),
           r.weight ? holder("👑", "Heaviest", r.weight, fmtWeight(r.weight.weightOz), v.recordPts[0]) : null,
-          r.length ? holder("👑", "Longest", r.length, fmtLength(r.length.lengthIn), 0) : null,
+          r.length ? holder("👑", "Longest", r.length, fmtLength(r.length.lengthIn), v.recordPts[0]) : null,
           !r.weight && !r.length && r.count ? el("p", { class: "muted small", text: "No league record yet: weigh or measure one to set it." }) : null,
           r.allTimeWeight ? holder("📜", "All-time heaviest", r.allTimeWeight, fmtWeight(r.allTimeWeight.weightOz), 0) : null,
           r.allTimeLength ? holder("📜", "All-time longest", r.allTimeLength, fmtLength(r.allTimeLength.lengthIn), 0) : null)))
@@ -125,7 +125,7 @@ export function howPointsSheet() {
       el("li", { text: `🎣 ${v.catchPts} per catch (counting up to ${v.dailyCap} a day)` }),
       el("li", { text: `🪝 A stringer earns the day's full catch points (${v.catchPts * v.dailyCap}). If it's your limit, ${v.limitPts} more (once a day)` }),
       el("li", { text: `🌈 ${v.speciesPts} for each species you catch for the first time` }),
-      el("li", { text: `🐟 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board (changes as records fall)` }),
+      el("li", { text: `🐟 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board, and the same again on its length board (changes as records fall)` }),
       el("li", { text: `👑 ${v.crownPts} for each crown you hold right now (they move when someone passes you)` }),
       el("li", { text: `🏅 ${v.badgePts} for each badge you earn (yours for good; ${BADGES.length} to collect)` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),
@@ -237,13 +237,13 @@ function speciesPage(main, all, species, by) {
   const league = boardScope === "league";
   const board = speciesBoard(league ? all.filter(c => !c.past) : all, species, by);
   const v = currentScoring(scoringTimeline(store.scoring));
-  const pts = i => (league && by === "weight" ? v.recordPts[i] || 0 : 0);
+  const pts = i => (league ? v.recordPts[i] || 0 : 0);
   const seg = el("div", { class: "seg" }, ...[["weight", "By weight"], ["length", "By length"]].map(([k, label]) =>
     el("a", { class: "seg-link", href: `#/leaders/${encodeURIComponent(species)}/${k}`, "aria-pressed": String(by === k), text: label })));
   const scope = el("div", { class: "seg" }, ...[["league", "👑 League"], ["all", "📜 All-time"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(boardScope === k), text: label, onclick: () => { boardScope = k; speciesPage(main, all, species, by); } })));
   const note = league
-    ? (by === "weight" && v.recordPts.some(Boolean) ? `League catches since ${fmtDay((store.league && store.league.createdAt) || 0)}. 1st, 2nd and 3rd by weight are worth ${v.recordPts.join(" / ")} points while held: beat them to take the points.` : "League catches only. The length board is for bragging (no points).")
+    ? (v.recordPts.some(Boolean) ? `League catches since ${fmtDay((store.league && store.league.createdAt) || 0)}. 1st, 2nd and 3rd ${by === "length" ? "by length" : "by weight"} are worth ${v.recordPts.join(" / ")} points while held: beat them to take the points.` : "League catches only. Record points are turned off right now.")
     : "Everyone's best ever, past catches (📜) included. For props: not worth points.";
   fill(main,
     el("h2", { class: "page-title", text: species }),
