@@ -9,6 +9,7 @@ import { reactionBar, commentsSection, reactionSummary } from "./social.js";
 import { derbyStatus, entryProblem, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
 import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer } from "./stats.js";
+import { leagueEvents } from "./events.js";
 
 const allCatches = () => [...store.catches.values()];
 const byNewest = (a, b) => (b.caughtAt || 0) - (a.caughtAt || 0);
@@ -49,7 +50,12 @@ let feedFilter = "all", feedLimit = 30;
 export function renderFeed(main) {
   const all = allCatches();
   const me = uid(), stats = anglerStats(all, me), pbs = personalBests(all, me).size;
-  const list = all.filter(c => feedFilter === "all" || c.uid === me).sort(byNewest);
+  // Catches mixed with league news (records stolen, badges, derby results), newest first.
+  const news = store.catchesLoaded ? leagueEvents({ catches: all, derbies: store.derbies, entrants: store.entrants, name: memberName }) : [];
+  const list = [
+    ...all.filter(c => feedFilter === "all" || c.uid === me).map(c => ({ at: c.caughtAt || 0, c })),
+    ...news.filter(e => feedFilter === "all" || e.uids.includes(me)).map(e => ({ at: e.at, e })),
+  ].sort((a, b) => b.at - a.at);
   const hero = el("section", { class: "hero" },
     el("p", { class: "eyebrow", text: (store.league && store.league.name) || "Lunker League" }),
     el("h2", { text: `${store.me.displayName}, tight lines!` }),
@@ -59,7 +65,7 @@ export function renderFeed(main) {
   const seg = el("div", { class: "seg" }, ...[["all", "Everyone"], ["mine", "Mine"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(feedFilter === k), text: label,
       onclick: () => { feedFilter = k; feedLimit = 30; renderFeed(main); } })));
-  const cards = list.slice(0, feedLimit).map(c => catchCard(c, all));
+  const cards = list.slice(0, feedLimit).map(x => (x.c ? catchCard(x.c, all) : newsCard(x.e)));
   fill(main, hero, seg,
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading catches…" })
       : cards.length ? el("div", { class: "card-list" }, ...cards)
@@ -68,6 +74,8 @@ export function renderFeed(main) {
     list.length > feedLimit ? el("button", { class: "btn block", type: "button", text: "Show more",
       onclick: () => { feedLimit += 30; renderFeed(main); } }) : null);
 }
+const newsCard = e => el("a", { class: "news-card", href: e.href },
+  el("span", { class: "news-icon", text: e.icon }), el("span", { class: "grow", text: e.text }), el("span", { class: "muted small", text: fmtAgo(e.at) }));
 const stat = (n, label) => el("div", { class: "stat" }, el("b", { text: String(n) }), el("span", { text: label }));
 
 /* ---------- One catch ---------- */
@@ -356,7 +364,7 @@ export function renderLog(main, editId, derbyArg) {
   const chosenDerby = () => store.derbies.get(derbySel.value) || null;
   const drawDerby = () => {
     const d = chosenDerby();
-    if (!d) return fill(derbyInfo, openDerbies.length ? null : el("p", { class: "hint", text: "Join a derby on the Derbies tab to enter catches in it." }));
+    if (!d) return fill(derbyInfo, openDerbies.length ? null : el("p", { class: "hint", text: "Join a derby on the Events tab to enter catches in it." }));
     if (d.catchRelease) released.checked = true;
     const ent = store.entrants.get(d.id) || new Map();
     const canProxy = d.organiserUid === uid() && !(editing && editing.uid === uid() && !editing.enteredBy);

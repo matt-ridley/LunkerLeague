@@ -10,6 +10,8 @@ import { renderLeaders } from "./leaders.js";
 import { renderChat, chatUnread } from "./social.js";
 import { renderDerbies, renderDerby, renderDerbyForm } from "./derbies.js";
 import { renderScoring } from "./scoring.js";
+import { renderTrip, renderTripForm } from "./trips.js";
+import { renderAlerts, bellCount } from "./alerts.js";
 import { applyTheme } from "./theme.js";
 
 /* Each route renders into <main>. `live` routes re-render when league data changes; forms don't, so typing isn't lost. */
@@ -29,6 +31,10 @@ const ROUTES = {
   u: { tab: null, live: true, render: (main, id) => renderProfile(main, id) },
   admin: { tab: null, live: true, render: renderAdmin },
   scoring: { tab: "leaders", live: false, render: renderScoring },
+  t: { tab: "derbies", live: true, render: renderTrip },
+  tnew: { tab: "derbies", live: false, render: main => renderTripForm(main) },
+  tedit: { tab: "derbies", live: false, render: renderTripForm },
+  alerts: { tab: null, live: true, render: renderAlerts },
 };
 
 function parseRoute() {
@@ -78,7 +84,14 @@ function renderHeader(inApp) {
     el("div", { class: "brand" },
       el("div", { class: "brand-name", text: (store.league && store.league.name) || "Lunker League" })),
     el("span", { class: `sync ${s.kind}`, role: "status", text: s.label }),
+    bell(r.name === "alerts"),
     el("a", { class: "me-btn", href: "#/me", "aria-label": "Your profile" }, avatar({ ...store.me, id: uid() }, "sm")));
+}
+
+function bell(open) {
+  const n = open ? 0 : bellCount();
+  return el("a", { class: "icon-btn bell", href: "#/alerts", "aria-label": n ? `What's new, ${n} new` : "What's new", html: icon.bell },
+    n ? el("b", { class: "nav-badge", text: n > 9 ? "9+" : String(n) }) : null);
 }
 
 function renderNav(inApp, active) {
@@ -92,7 +105,7 @@ function renderNav(inApp, active) {
     item("feed", "Feed", icon.feed),
     item("leaders", "Leaders", icon.trophy),
     item("log", "Log", icon.plus, "log"),
-    item("derbies", "Derbies", icon.flag),
+    item("derbies", "Events", icon.flag),
     item("chat", "Chat", icon.chat, "", active === "chat" ? 0 : chatUnread()));
 }
 

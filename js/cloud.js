@@ -28,6 +28,7 @@ export const store = {
   rejected: [],           // outbox entries the server refused
   comments: new Map(),    // catch id -> [comment], oldest first
   reactions: new Map(),   // catch id -> Map(uid -> [emoji])
+  reactionTimes: new Map(), // catch id -> Map(uid -> when they last changed their reactions)
   chat: [],               // last 100 league chat messages, oldest first
   chatLoaded: false,
   pendingIds: new Set(),  // comment / chat ids still waiting to reach the server
@@ -36,6 +37,8 @@ export const store = {
   derbyChat: new Map(),   // derby id -> [message] (loaded when a derby's chat is opened)
   settlements: new Map(), // derby id -> Map(payee key -> { amount, settledAt, by }) (loaded when its Money tab is opened)
   scoring: [],            // ranking point versions, oldest first
+  trips: new Map(),       // id -> trip ("who's out Saturday?")
+  rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at })
 };
 
 const subs = new Set();
@@ -146,16 +149,17 @@ function refreshMemberListeners() {
   }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "reactions"), OPTS, snap => {
     seen("reactions", snap);
-    const by = new Map();
+    const by = new Map(), times = new Map();
     for (const d of snap.docs) {
       const catchId = d.ref.parent.parent && d.ref.parent.parent.id;
       if (!catchId) continue;
       const emojis = Array.isArray(d.data().emojis) ? d.data().emojis : [];
       if (!emojis.length) continue;
-      if (!by.has(catchId)) by.set(catchId, new Map());
+      if (!by.has(catchId)) { by.set(catchId, new Map()); times.set(catchId, new Map()); }
       by.get(catchId).set(d.id, emojis);
+      times.get(catchId).set(d.id, d.data().at || 0);
     }
-    store.reactions = by;
+    store.reactions = by; store.reactionTimes = times;
     emit();
   }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "scoring"), OPTS, snap => {
@@ -178,6 +182,23 @@ function refreshMemberListeners() {
       by.get(derbyId).set(d.id, d.data());
     }
     store.entrants = by;
+    emit();
+  }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "trips"), OPTS, snap => {
+    seen("trips", snap);
+    store.trips = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "rsvps"), OPTS, snap => {
+    seen("rsvps", snap);
+    const by = new Map();
+    for (const d of snap.docs) {
+      const tripId = d.ref.parent.parent && d.ref.parent.parent.id;
+      if (!tripId) continue;
+      if (!by.has(tripId)) by.set(tripId, new Map());
+      by.get(tripId).set(d.id, d.data());
+    }
+    store.rsvps = by;
     emit();
   }, syncError));
   cloud.memberUnsubs.push(onSnapshot(query(collection(cloud.db, "chat"), orderBy("at"), limitToLast(100)), OPTS, snap => {
@@ -239,8 +260,9 @@ function stopListeners() {
 
 function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
-  store.comments = new Map(); store.reactions = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
+  store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.scoring = [];
+  store.trips = new Map(); store.rsvps = new Map();
 }
 
 function syncError(e) {
@@ -426,11 +448,13 @@ export function discardRejected(entry) {
 /* ---------- Comments, reactions and chat ---------- */
 const cleanText = (t, max) => String(t || "").replace(/\s+$/g, "").replace(/^\s+/g, "").slice(0, max);
 
-export function addComment(catchId, text) {
+/* `mentions`: ids of members @mentioned in the text (only saved when there are some). */
+const withMentions = (data, mentions) => (mentions && mentions.length ? { ...data, mentions: mentions.slice(0, 20) } : data);
+export function addComment(catchId, text, mentions) {
   const t = cleanText(text, 500);
   if (!t) return;
   const { doc, collection, setDoc } = cloud.api;
-  write(setDoc(doc(collection(cloud.db, "catches", catchId, "comments")), { uid: uid(), text: t, at: Date.now() }));
+  write(setDoc(doc(collection(cloud.db, "catches", catchId, "comments")), withMentions({ uid: uid(), text: t, at: Date.now() }, mentions)));
 }
 export const deleteComment = (catchId, id) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "catches", catchId, "comments", id)));
 
@@ -444,11 +468,11 @@ export function toggleReaction(catchId, emoji) {
 
 /* League chat, or a derby's own chat when derbyId is given. */
 const chatPath = derbyId => derbyId ? ["derbies", derbyId, "chat"] : ["chat"];
-export function sendChat(text, derbyId) {
+export function sendChat(text, derbyId, mentions) {
   const t = cleanText(text, 1000);
   if (!t) return;
   const { doc, collection, setDoc } = cloud.api;
-  write(setDoc(doc(collection(cloud.db, ...chatPath(derbyId))), { uid: uid(), text: t, at: Date.now() }));
+  write(setDoc(doc(collection(cloud.db, ...chatPath(derbyId))), withMentions({ uid: uid(), text: t, at: Date.now() }, mentions)));
 }
 export const deleteChat = (id, derbyId) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, ...chatPath(derbyId), id)));
 
@@ -464,6 +488,24 @@ export function watchDerbyChat(derbyId) {
     syncPending();
     emit();
   }, syncError));
+}
+
+/* ---------- Trips ---------- */
+export function saveTrip(id, data) {
+  const { doc, collection, setDoc } = cloud.api;
+  const ref = id ? doc(cloud.db, "trips", id) : doc(collection(cloud.db, "trips"));
+  write(setDoc(ref, data));
+  return ref.id;
+}
+export const setRsvp = (tripId, answer) =>
+  write(cloud.api.setDoc(cloud.api.doc(cloud.db, "trips", tripId, "rsvps", uid()), { answer, at: Date.now() }));
+/* Deletes a trip and everyone's answers in one go. */
+export function deleteTrip(id) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db);
+  for (const who of (store.rsvps.get(id) || new Map()).keys()) b.delete(doc(cloud.db, "trips", id, "rsvps", who));
+  b.delete(doc(cloud.db, "trips", id));
+  write(b.commit());
 }
 
 /* ---------- Derbies ---------- */

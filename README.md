@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.11.0 (beta)
+**Current version:** 0.12.0 (beta)
 
 ## Features
 
@@ -21,6 +21,10 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Leaders.** The league record for every species (heaviest and longest), and a leaderboard per species of everyone's personal best, by weight or by length.
 - **Reactions and comments.** React to any catch with 🎣 🔥 🐟 😂 👏 🤥 (fish story!) or any emoji from the picker, and see who reacted. Comment on catches; the comment's author, the catch's angler or an admin can remove one. Catch cards show the top reactions and the comment count.
 - **League chat.** One group chat for the league, with day separators, an emoji picker and an unread badge on the Chat tab. Tap your own message to delete it (admins can delete any).
+- **@mentions.** Type `@` in chat or a comment to pick someone from the league. Their name is highlighted, and they get an alert.
+- **What's new (the bell).** The bell at the top shows what's new for you since you last looked: mentions, comments and reactions on your catches, records taken from you, badges you earned, your derbies going live and finishing (with your place), new derbies and trips, answers to your trips, and a count of new catches. There are no phone notifications; you see these when you open the app.
+- **League news in the feed.** The feed also announces records changing hands, badges earned and derby results.
+- **Trips.** "Who's out Saturday?" Plan a trip on the **Events** tab (what, when, where, notes) and everyone answers **In**, **Maybe** or **Out**. The trip shows who's coming and who hasn't answered.
 - **Derbies.** Any member can set one up and is its organiser:
   - **When:** start and end times, plus a late-entry window so catches made in no-signal spots can sync afterwards.
   - **Scoring:** heaviest fish, longest fish, heaviest bag of the best N fish, most fish, or most species.
@@ -63,7 +67,7 @@ The app is in beta: everything originally planned is in, and the league is tryin
 
 ## Roadmap
 
-Ideas picked for future versions, grouped into milestones in a rough order. Nothing here is built yet. Sizes are rough: S is small, M is medium, L is large.
+Ideas picked for future versions, grouped into milestones in a rough order. Sizes are rough: S is small, M is medium, L is large.
 
 ### Milestone A: Holder badges (crowns that move)
 A crown sits with whoever currently has the most of something. When someone overtakes, it moves to them and the feed announces it was stolen. All of these come from data the app already has. (M)
@@ -90,12 +94,12 @@ A crown sits with whoever currently has the most of something. When someone over
 - **Head-to-head challenges** (S–M): one-on-one weekend matchups, biggest fish wins.
 - **Fish of the Week vote** (S): the league votes, and the winner gets a badge.
 
-### Milestone C: Notifications and social
-- **Push notifications** (M): new catches, your PB or record beaten, derbies starting and ending, chat mentions. This uses Firebase Cloud Messaging, which is free. It works on Android, and on iPhone home-screen apps from iOS 16.4.
-- **@mentions** in chat and comments (S).
-- **Feed events** (S): records stolen, badges earned, derby results.
-- **Trip RSVP** (S–M): "Who's out Saturday?" with In / Out / Maybe.
-- **Several photos or a short video per catch** (M).
+### Milestone C: Notifications and social (done in 0.12.0, except as noted)
+- ✅ **In-app alerts (the bell)** instead of push notifications. Push would need the Firebase Blaze plan (a card on file) or a separate server, so the league stays on the free plan with alerts you see when you open the app.
+- ✅ **@mentions** in chat and comments.
+- ✅ **Feed events**: records stolen, badges earned, derby results.
+- ✅ **Trip RSVP**: "Who's out Saturday?" with In / Maybe / Out.
+- ⏸️ **Several photos or a short video per catch** (M): left for later. Several photos would work on the free plan; video needs Firebase Storage (Blaze plan).
 
 ### Milestone D: Better derbies
 - **Team or boat derbies** (M): a team leaderboard, using boat crews as teams.
@@ -238,6 +242,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.12.0 | 2026-Oct-04 09:01:02 PM | Milestone C. **@mentions** in chat and comments. **The bell**: what's new for you since you last looked (mentions, comments and reactions on your catches, records taken from you, badges, your derbies, new derbies and trips, trip answers, new catches). **League news** in the feed: records changing hands, badges earned, derby results. **Trips** with In / Maybe / Out on the Derbies tab, now called **Events**. **New security rules: publish firestore.rules.** |
 | 0.11.0 | 2026-Oct-04 08:36:01 PM | Pick a catch's spot on a map: next to **My location (GPS)** there's now **Pick on map**, a full-screen map or satellite view where you tap where you caught it (drag the pin to adjust). A tagged spot can be moved on the map later by editing the catch. The map needs signal; GPS still works without. No new security rules. |
 | 0.10.0 | 2026-Oct-04 08:23:42 PM | Stringers and limits: log a whole stringer with one photo, the species, the number of fish, and whether it was your limit. A stringer earns the day's full catch points; a limit adds a bonus (5 by default, once a day) that admins can change on the points page. Rankings show a new Limits line. Stringer fish count toward catch totals and badges but are never PBs, records or derby entries. **New security rules: publish firestore.rules.** |
 | 0.9.4 | 2026-Oct-04 12:39:51 PM | Setup steps: clearer instructions for restricting the app's key in Google Cloud, adding the Firebase sign-in site to the allowed websites. No app changes. |

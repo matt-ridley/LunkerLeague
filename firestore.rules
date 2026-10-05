@@ -162,7 +162,7 @@ service cloud.firestore {
       // Comments: anyone in the league, as themselves. The author, the catch's angler or an admin can remove one.
       match /comments/{cid} {
         allow create: if isMember() && exists(catchPath(id))
-          && request.resource.data.keys().hasOnly(["uid", "text", "at"])
+          && request.resource.data.keys().hasOnly(["uid", "text", "at", "mentions"]) && validMentions(request.resource.data)
           && request.resource.data.uid == me()
           && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 500
           && request.resource.data.at is number && request.resource.data.at <= request.time.toMillis() + 600000;
@@ -184,11 +184,14 @@ service cloud.firestore {
     match /{path=**}/comments/{cid} { allow read: if isMember(); }
     match /{path=**}/reactions/{rid} { allow read: if isMember(); }
 
+    // @mentions saved with a chat message or comment: the ids of the members it mentions.
+    function validMentions(d) { return !("mentions" in d) || (d.mentions is list && d.mentions.size() <= 20); }
+
     // League chat.
     match /chat/{mid} {
       allow read: if isMember();
       allow create: if isMember()
-        && request.resource.data.keys().hasOnly(["uid", "text", "at"])
+        && request.resource.data.keys().hasOnly(["uid", "text", "at", "mentions"]) && validMentions(request.resource.data)
         && request.resource.data.uid == me()
         && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 1000
         && request.resource.data.at is number && request.resource.data.at <= request.time.toMillis() + 600000;
@@ -298,7 +301,7 @@ service cloud.firestore {
       match /chat/{mid} {
         allow read: if isMember();
         allow create: if isMember()
-          && request.resource.data.keys().hasOnly(["uid", "text", "at"])
+          && request.resource.data.keys().hasOnly(["uid", "text", "at", "mentions"]) && validMentions(request.resource.data)
           && request.resource.data.uid == me()
           && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 1000
           && request.resource.data.at is number && request.resource.data.at <= request.time.toMillis() + 600000;
@@ -306,6 +309,34 @@ service cloud.firestore {
       }
     }
     match /{path=**}/entrants/{who} { allow read: if isMember(); }
+
+    // ---------- Trips ----------
+    // "Who's out Saturday?": anyone can plan one; its planner (or an admin) can change or delete it.
+    // Each member answers In / Maybe / Out in their own doc.
+    function tripPath(id) { return /databases/$(database)/documents/trips/$(id); }
+    function validTrip(t) {
+      return t.keys().hasOnly(["uid", "title", "at", "place", "notes", "createdAt"])
+        && t.uid is string
+        && t.title is string && t.title.size() > 0 && t.title.size() <= 60
+        && t.at is number && t.place is string && t.place.size() <= 60
+        && t.notes is string && t.notes.size() <= 500 && t.createdAt is number;
+    }
+    match /trips/{tid} {
+      allow read: if isMember();
+      allow create: if isMember() && validTrip(request.resource.data) && request.resource.data.uid == me();
+      allow update: if isMember() && (resource.data.uid == me() || isAdmin()) && validTrip(request.resource.data)
+        && request.resource.data.uid == resource.data.uid && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+      match /rsvps/{who} {
+        allow read: if isMember();
+        allow create, update: if isMember() && who == me() && exists(tripPath(tid))
+          && request.resource.data.keys().hasOnly(["answer", "at"])
+          && request.resource.data.answer in ["in", "maybe", "out"] && request.resource.data.at is number;
+        // Yourself, or the trip's planner or an admin clearing out a deleted trip.
+        allow delete: if isMember() && (who == me() || isAdmin() || !exists(tripPath(tid)) || get(tripPath(tid)).data.uid == me());
+      }
+    }
+    match /{path=**}/rsvps/{who} { allow read: if isMember(); }
 
     // ---------- Ranking points ----------
     // Each change to the scoring values is a new version; old versions are never edited or deleted, so the

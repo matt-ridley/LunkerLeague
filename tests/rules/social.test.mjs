@@ -71,3 +71,11 @@ test("chat messages can be deleted by their author or an admin, but not by other
   await assertSucceeds(deleteDoc(doc(as(env, "admin2"), "chat/m1")));
   await assertSucceeds(deleteDoc(doc(as(env, "member"), "chat/m2")));
 });
+
+test("comments and chat messages can carry @mentions, up to 20", async () => {
+  const db = as(env, "admin2");
+  await assertSucceeds(setDoc(doc(db, "catches/c1/comments/m1"), { ...comment("admin2", "@member nice"), mentions: ["member"] }));
+  await assertFails(setDoc(doc(db, "catches/c1/comments/m2"), { ...comment("admin2"), mentions: "member" }));
+  await assertSucceeds(setDoc(doc(db, "chat/m3"), { uid: "admin2", text: "@member in?", at: Date.now(), mentions: ["member"] }));
+  await assertFails(setDoc(doc(db, "chat/m4"), { uid: "admin2", text: "hi", at: Date.now(), mentions: Array.from({ length: 21 }, (_, i) => "u" + i) }));
+});
