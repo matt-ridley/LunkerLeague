@@ -121,3 +121,26 @@ test("a photo can carry its size for the storage meter, but only its real size",
   lie.set(doc(db, "catches", "sz3"), catchData("member")); lie.set(doc(db, "photos", "sz3"), { uid: "member", src, bytes: 1 });
   await assertFails(lie.commit());
 });
+
+test("past catches: the flag must be right when saved, and can never be taken off", async () => {
+  const db = as(env, "member");
+  const late = { caughtAt: Date.now() - 10 * 86400000, createdAt: Date.now() }; // logged 10 days late (grace is 7)
+  await assertFails(saveAll(db, "p1", "member", { extra: late }));                       // must say it's past
+  await assertSucceeds(saveAll(db, "p2", "member", { extra: { ...late, past: true } }));
+  await assertFails(saveAll(db, "p3", "member", { extra: { past: true } }));             // a fresh catch isn't past
+  await assertFails(updateDoc(doc(db, "catches/p2"), { past: false }));
+  await assertFails(updateDoc(doc(db, "catches/p2"), { past: false, caughtAt: Date.now() - 60000 })); // moving the date doesn't undo it
+  await assertSucceeds(updateDoc(doc(db, "catches/p2"), { notes: "my 2015 musky" }));
+  // Editing a league catch's date far back makes it past.
+  await saveAll(db, "p4", "member");
+  await assertFails(updateDoc(doc(db, "catches/p4"), { caughtAt: Date.now() - 30 * 86400000 }));
+  await assertSucceeds(updateDoc(doc(db, "catches/p4"), { caughtAt: Date.now() - 30 * 86400000, past: true }));
+});
+
+test("admins set how many days late a catch can be logged (0 to 60)", async () => {
+  await assertSucceeds(updateDoc(doc(as(env, "admin2"), "config/league"), { graceDays: 3 }));
+  await assertFails(updateDoc(doc(as(env, "admin2"), "config/league"), { graceDays: 90 }));
+  await assertFails(updateDoc(doc(as(env, "member"), "config/league"), { graceDays: 30 }));
+  // With 3 days, a catch logged 5 days late is past.
+  await assertFails(saveAll(as(env, "member"), "g1", "member", { extra: { caughtAt: Date.now() - 5 * 86400000 } }));
+});

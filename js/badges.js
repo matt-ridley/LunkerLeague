@@ -156,8 +156,10 @@ function leagueContext(input) {
   const { catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), spots = new Map(),
     trips = new Map(), rsvps = new Map(), crowns = [], now = Date.now() } = input;
   const derbyMap = asMap(derbies);
-  const counted = catches.filter(c => !c.dq && !(c.derbyId && derbyMap.get(c.derbyId) && derbyMap.get(c.derbyId).testing))
+  // Past catches (logbook) never earn badges; records here are of league catches only.
+  const valid = catches.filter(c => !c.dq && !(c.derbyId && derbyMap.get(c.derbyId) && derbyMap.get(c.derbyId).testing))
     .sort((a, b) => a.caughtAt - b.caughtAt);
+  const counted = valid.filter(c => !c.past);
   const byId = new Map(catches.map(c => [c.id, c]));
   const finished = [...derbyMap.values()].filter(d => !d.testing && derbyStatus(d, now) === "ended")
     .map(d => {
@@ -197,7 +199,7 @@ function leagueContext(input) {
     p.from = Math.max(p.from, contested);
     if (p.to != null && p.to <= p.from) p.gone = true;
   }
-  return { counted, finished, reactionList, commentList, records: recordPeriods(counted), crownPeriods: crownPeriods.filter(p => !p.gone && p.from !== Infinity), crownSteals,
+  return { counted, valid, finished, reactionList, commentList, records: recordPeriods(counted), crownPeriods: crownPeriods.filter(p => !p.gone && p.from !== Infinity), crownSteals,
     spotsList: newSpots(counted, spots), trips, rsvps, now, catches };
 }
 
@@ -221,12 +223,13 @@ function anglerContext(u, L) {
       if (payouts(d, rows, ent, entries).payees.some(p => p.payee.uid === u && p.amount > 0)) moneyAt.push(at);
     }
   }
-  // Personal bests beaten (not the first catch of a species).
+  // Personal bests beaten (not the first catch of a species). A past catch sets the bar to beat, but only a league
+  // catch beating it counts.
   const pbBeats = [], pb = new Map();
-  for (const c of mine) {
+  for (const c of L.valid.filter(c => c.uid === u)) {
     if (!measured(c)) continue;
     const cur = pb.get(c.species);
-    if (cur && better(cur, c) === c) pbBeats.push(c.caughtAt);
+    if (cur && better(cur, c) === c && !c.past) pbBeats.push(c.caughtAt);
     if (!cur || better(cur, c) === c) pb.set(c.species, c);
   }
   // Records: taken, stolen, held, and both records of one species at the same time.

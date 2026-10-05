@@ -1,5 +1,5 @@
 /* Catches: logging and editing, the feed, a catch's own page, and the personal-best wall. */
-import { el, field, avatar, fmtDate, fmtAgo, fmtWeight, fmtLength, toast, confirmButton, icon, openSheet, closeSheet, fill } from "./ui.js";
+import { el, field, avatar, fmtDate, fmtDay, fmtAgo, fmtWeight, fmtLength, toast, confirmButton, icon, openSheet, closeSheet, fill } from "./ui.js";
 import { store, uid, memberName, isAdmin, setDisqualified, newCatchId, saveCatch, deleteCatch, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
@@ -8,7 +8,7 @@ import { SPECIES, normalizeSpecies } from "./species.js";
 import { reactionBar, commentsSection, reactionSummary } from "./social.js";
 import { derbyStatus, entryProblem, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
-import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer } from "./stats.js";
+import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer, pastCatch, DEFAULT_GRACE_DAYS } from "./stats.js";
 import { leagueEvents } from "./events.js";
 import { rankInput } from "./leaders.js";
 
@@ -27,10 +27,11 @@ export function catchCard(c, all = allCatches()) {
     el("div", { class: "catch-info" },
       el("div", { class: "catch-species", text: c.species }),
       el("div", { class: "catch-size" + (sizeText(c) ? "" : " unmeasured"), text: sizeText(c) || "Not measured" }),
-      el("div", { class: "catch-who" }, avatar(m, "xs"), el("span", { text: `${m.displayName} · ${fmtAgo(c.caughtAt)}` })),
+      el("div", { class: "catch-who" }, avatar(m, "xs"), el("span", { text: `${m.displayName} · ${c.past ? fmtDay(c.caughtAt) : fmtAgo(c.caughtAt)}` })),
       el("div", { class: "badges" },
         rec.length ? el("span", { class: "badge record", text: "👑 League record" }) : null,
         pb ? el("span", { class: "badge pb", text: "PB" }) : null,
+        c.past ? el("span", { class: "badge past", text: "📜 Past catch" }) : null,
         isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limit" }) : null,
         c.derbyId && store.derbies.get(c.derbyId) ? el("span", { class: "badge derby", text: `🏁 ${store.derbies.get(c.derbyId).name}` }) : null,
         c.dq ? el("span", { class: "badge dq", text: "Disqualified" }) : null,
@@ -50,11 +51,13 @@ function socialLine(id) {
 let feedFilter = "all", feedLimit = 30;
 export function renderFeed(main) {
   const all = allCatches();
-  const me = uid(), stats = anglerStats(all, me), pbs = personalBests(all, me).size;
+  // Hero counts are league catches; past catches (logbook) only count toward PBs.
+  const me = uid(), stats = anglerStats(all.filter(c => !c.past), me), pbs = personalBests(all, me).size;
   // Catches mixed with league news (records stolen, badges, derby results), newest first.
   const news = store.catchesLoaded ? leagueEvents({ ...rankInput(), name: memberName }) : [];
   const list = [
-    ...all.filter(c => feedFilter === "all" || c.uid === me).map(c => ({ at: c.caughtAt || 0, c })),
+    // A past catch shows when it was added (a throwback), not years down the feed.
+    ...all.filter(c => feedFilter === "all" || c.uid === me).map(c => ({ at: (c.past ? c.createdAt : c.caughtAt) || 0, c })),
     ...news.filter(e => feedFilter === "all" || e.uids.includes(me)).map(e => ({ at: e.at, e })),
   ].sort((a, b) => b.at - a.at);
   const hero = el("section", { class: "hero" },
@@ -122,6 +125,7 @@ export function renderCatch(main, id) {
       el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), el("div", { class: "muted small", text: "View profile" }))),
     el("dl", { class: "facts card" },
       fact("Caught", fmtDate(c.caughtAt)),
+      c.past ? fact("Counts for", "📜 Past catch: personal bests and the all-time record boards. No points, badges or crowns.") : null,
       c.photoTakenAt ? fact("Photo taken", fmtDate(c.photoTakenAt)) : null,
       ...(isStringer(c) ? [
         fact("Fish", String(c.fishCount)),
@@ -199,16 +203,18 @@ export function pbWall(memberId) {
 function wallParts(memberId, choose) {
   const all = allCatches(), view = wall.view;
   const mine = all.filter(c => c.uid === memberId);
-  const st = anglerStats(all, memberId);
+  const st = anglerStats(all.filter(c => !c.past), memberId); // league catches; past ones are noted below
+  const pastN = mine.filter(c => c.past && !c.dq).length;
   const records = mine.filter(c => recordKinds(c, all).length).sort(byNewest);
   const filter = (key, n, label) => el("button", { type: "button", class: "stat", "aria-pressed": String(view === key),
     "aria-label": `Show ${label}`, onclick: () => choose(key) }, el("b", { text: String(n) }), el("span", { text: label }));
   const parts = [el("div", { class: "hero-stats plain filters" },
-    filter("catches", st.catches, "catches"), filter("species", st.species, "species"), filter("records", records.length, "records"))];
+    filter("catches", st.catches, "catches"), filter("species", st.species, "species"), filter("records", records.length, "records")),
+    pastN ? el("p", { class: "hint", text: `Plus ${pastN} past catch${pastN === 1 ? "" : "es"} (📜 logbook): they count for PBs and the all-time records only.` }) : null];
 
   if (view === "species") {
     const counts = new Map();
-    for (const c of mine) if (!c.dq) counts.set(c.species, (counts.get(c.species) || 0) + (isStringer(c) ? c.fishCount : 1));
+    for (const c of mine) if (!c.dq && !c.past) counts.set(c.species, (counts.get(c.species) || 0) + (isStringer(c) ? c.fishCount : 1));
     const list = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     parts.push(el("section", { class: "stack" }, el("h3", { text: "Species" }),
       list.length ? el("ul", { class: "species-list card" }, ...list.map(([sp, n]) => el("li", {},
@@ -295,6 +301,20 @@ export function renderLog(main, editId, derbyArg) {
   frac.value = L ? String(Math.round((L % 1) * 4) / 4) : "0";
   const when = el("input", { type: "datetime-local", value: toLocalInput(editing ? editing.caughtAt : Date.now()), max: toLocalInput(Date.now() + 600000) });
   const timeHint = el("div");
+  // A past catch (caught before the league, or logged more than the grace days late) is said up front.
+  const league = store.league || {};
+  const pastOpts = { leagueStart: league.createdAt || 0, graceDays: league.graceDays ?? DEFAULT_GRACE_DAYS };
+  const createdAt = editing ? editing.createdAt : Date.now();
+  const willBePast = () => !!(editing && editing.past) || pastCatch({ caughtAt: new Date(when.value).getTime(), createdAt }, pastOpts);
+  const pastNote = el("p", { class: "msg past-note" });
+  const drawPastNote = () => {
+    pastNote.textContent = willBePast()
+      ? `📜 Past catch: it counts for your PBs and the all-time records, not for points, badges or crowns (caught before the league started, or more than ${pastOpts.graceDays} days ago).`
+      : "";
+  };
+  when.addEventListener("input", drawPastNote);
+  when.addEventListener("change", drawPastNote);
+  drawPastNote();
   const drawTimeHint = () => fill(timeHint, st.takenAt
     ? el("button", { class: "btn small quiet", type: "button", text: `Use photo time: ${fmtDate(st.takenAt)}`, onclick: () => { when.value = toLocalInput(st.takenAt); } })
     : "");
@@ -443,7 +463,7 @@ export function renderLog(main, editId, derbyArg) {
     el("section", { class: "card stack" },
       field("Species", species), datalist,
       singleBox, stringerBox,
-      field("Caught", when), timeHint,
+      field("Caught", when), timeHint, pastNote,
       releasedRow,
       field("Notes (optional)", notes)),
     el("section", { class: "card stack" }, el("h3", { text: "Where" }), spotBox),
@@ -477,6 +497,7 @@ export function renderLog(main, editId, derbyArg) {
       hasSpot: !!st.spot, locShared: !!st.spot && st.share, spotName: st.spot && st.share ? spotName.value.trim().slice(0, 60) : "",
     };
     if (stringer) Object.assign(data, { fishCount: count, limit: st.limit });
+    if (willBePast()) data.past = true;
     else if (editing && editing.fishCount != null) Object.assign(data, { fishCount: null, limit: null }); // was a stringer
     const d = stringer ? null : chosenDerby();
     if (d) {

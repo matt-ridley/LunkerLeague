@@ -4,6 +4,15 @@
 
 const has = n => typeof n === "number" && n > 0;
 const counts = c => !c.dq;
+/* A past catch (logbook): caught before the league started, or logged more than `graceDays` after it was caught.
+   It counts for personal bests and the all-time record boards, but never for points, badges or crowns. Saved on
+   the catch as `past: true` when it's created, and the security rules never let it change back. */
+export const DEFAULT_GRACE_DAYS = 7;
+export function pastCatch({ caughtAt, createdAt }, { leagueStart = 0, graceDays = DEFAULT_GRACE_DAYS } = {}) {
+  return caughtAt < leagueStart || caughtAt < createdAt - graceDays * 24 * 3600 * 1000;
+}
+export const isPast = c => c.past === true;
+
 /* A stringer is one photo of many fish (fishCount of them); everything else is one fish. */
 export const isStringer = c => Number.isInteger(c.fishCount) && c.fishCount > 1;
 export const fishIn = c => (isStringer(c) ? c.fishCount : 1);

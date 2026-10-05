@@ -211,9 +211,13 @@ function refreshMemberListeners() {
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "catches"), OPTS, snap => {
     seen("catches", snap);
     const pending = new Set();
+    // Catches saved before past catches existed (0.20.0) are marked here if caught before the league started.
+    const start = (store.league && store.league.createdAt) || 0;
     store.catches = new Map(snap.docs.map(d => {
       if (d.metadata.hasPendingWrites) pending.add(d.id);
-      return [d.id, { id: d.id, ...d.data() }];
+      const c = { id: d.id, ...d.data() };
+      if (!c.past && c.caughtAt < start) c.past = true;
+      return [d.id, c];
     }));
     store.pending = pending;
     store.catchesLoaded = true;
@@ -356,6 +360,7 @@ export function updateMe(fields) {
 
 /* ---------- Admin ---------- */
 export const setLeagueName = name => write(cloud.api.updateDoc(ref("config", "league"), { name: cleanName(name) || "Lunker League" }));
+export const setGraceDays = days => write(cloud.api.updateDoc(ref("config", "league"), { graceDays: Math.max(0, Math.min(60, Math.round(days))) }));
 export const setInviteCode = code => write(cloud.api.setDoc(ref("config", "invite"), { code: cleanCode(code) }));
 export const setSuspended = (id, suspended) => write(cloud.api.updateDoc(ref("members", id), { suspended }));
 export const removeMember = id => write(cloud.api.deleteDoc(ref("members", id)));

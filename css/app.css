@@ -245,6 +245,8 @@ body.gated .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 .badge.pb { background: var(--lime); color: var(--lime-ink); }
 .badge.record { background: var(--gold); color: #1A1205; }
 .badge.limit { background: var(--primary); color: var(--primary-ink); }
+.badge.past { background: var(--surface-2); color: var(--muted); border: 1px dashed var(--line); }
+.past-note:empty { display: none; }
 .badge.wait { background: var(--tangerine-soft); color: var(--tangerine); }
 
 .photo-box { display: block; width: 100%; padding: 0; border: 0; border-radius: var(--radius); overflow: hidden; background: var(--surface-2); }

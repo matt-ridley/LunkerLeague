@@ -1,6 +1,6 @@
 /* League admin: name, invite code, members and (owner only) admins. */
 import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, copyText, confirmButton, fill } from "./ui.js";
-import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode, photoStorage } from "./cloud.js";
+import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode, photoStorage, setGraceDays } from "./cloud.js";
 import { estimateStorage, docsBytes, fmtBytes, FREE_BYTES } from "./storage.js";
 import { parseEmails, inviteEmail, mailtoLink } from "./invite.js";
 
@@ -27,7 +27,11 @@ export function renderAdmin(main) {
   const league = el("section", { class: "card stack" },
     el("h3", { text: "League" }),
     el("div", { class: "row spread" }, el("strong", { text: L.name }),
-      el("button", { class: "btn small", type: "button", text: "Rename", onclick: renameSheet })));
+      el("button", { class: "btn small", type: "button", text: "Rename", onclick: renameSheet })),
+    el("div", { class: "row spread" },
+      el("span", {}, el("strong", { text: "Late logging: " }), `${L.graceDays ?? 7} days`),
+      el("button", { class: "btn small", type: "button", text: "Change", onclick: graceSheet })),
+    el("p", { class: "hint", text: `Catches logged more than ${L.graceDays ?? 7} days after they were caught, or caught before the league started (${fmtDay(L.createdAt || 0)}), are 📜 past catches: they count for PBs and the all-time records, not points, badges or crowns. Changing this only affects catches logged from now on.` }));
 
   const members = [...store.members.values()].sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
   const list = el("section", { class: "card stack" },
@@ -135,6 +139,25 @@ function codeSheet(current) {
       e.preventDefault();
       if (cleanCode(input.value).length < 4) return input.focus();
       setInviteCode(input.value); closeSheet(); toast("Invite code changed.");
+    });
+    box.append(form);
+  });
+}
+
+function graceSheet() {
+  openSheet(box => {
+    const input = el("input", { type: "text", inputmode: "numeric", value: String(store.league.graceDays ?? 7), "data-focus": "" });
+    const form = el("form", { class: "stack" },
+      el("h2", { text: "Late logging" }),
+      field("Days a catch can be logged late", input, "0 to 60. A catch logged later than this after it was caught is a past catch."),
+      el("div", { class: "row" },
+        el("button", { class: "btn", type: "button", text: "Cancel", onclick: closeSheet }),
+        el("button", { class: "btn primary", type: "submit", text: "Save" })));
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      const n = parseInt(input.value, 10);
+      if (!(n >= 0 && n <= 60)) return input.focus();
+      setGraceDays(n); closeSheet(); toast(`Catches can now be logged up to ${n} days late.`);
     });
     box.append(form);
   });

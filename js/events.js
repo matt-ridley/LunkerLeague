@@ -16,7 +16,8 @@ const snippet = t => { const s = String(t || "").replace(/\s+/g, " ").trim(); re
    Only a different angler beating the holder counts; beating your own record isn't news. */
 export function recordSteals(catches) {
   const out = [];
-  const list = catches.filter(c => !c.dq && measured(c)).sort((a, b) => a.caughtAt - b.caughtAt);
+  // League catches only: a past fish (logbook) on top of the all-time board isn't a record "taken".
+  const list = catches.filter(c => !c.dq && !c.past && measured(c)).sort((a, b) => a.caughtAt - b.caughtAt);
   for (const field of ["weightOz", "lengthIn"]) {
     const best = new Map(); // species -> holding catch
     for (const c of list) {
@@ -152,8 +153,14 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     }
   }
 
-  // New catches by others since you last looked, as one line.
-  const fresh = catches.filter(c => c.uid !== me && (c.createdAt || 0) > seen);
+  // Past catches (throwbacks) added by others.
+  for (const c of catches) if (c.past && c.uid !== me && !c.dq) {
+    add({ id: `throwback:${c.id}`, at: c.createdAt || c.caughtAt, icon: "📜", href: `#/c/${c.id}`,
+      text: `${name(c.uid)} added a throwback: ${catchName(c)} from ${new Date(c.caughtAt).getFullYear()}` });
+  }
+
+  // New catches by others since you last looked, as one line (throwbacks have their own line above).
+  const fresh = catches.filter(c => c.uid !== me && !c.past && (c.createdAt || 0) > seen);
   if (fresh.length) {
     const fish = fresh.reduce((n, c) => n + fishIn(c), 0);
     const newest = Math.max(...fresh.map(c => c.createdAt));
