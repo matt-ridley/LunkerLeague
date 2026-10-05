@@ -83,7 +83,18 @@ test("the bell: mentions, comments and reactions on my catches, records taken fr
 
 test("new catches since the bell was last opened are summed up in one line", () => {
   const catches = [fish("bo", "Perch", 5, T0), fish("cy", "Perch", 5, T0 + H, { fishCount: 40, limit: true }), fish("amy", "Perch", 5, T0 + 2 * H)];
-  const a = alertsFor("amy", base({ catches }), { seen: T0 - 1 }).find(x => x.id === "catches");
+  const a = alertsFor("amy", base({ catches }), { seen: T0 - 1 }).find(x => x.id.startsWith("catches"));
   assert.equal(a.text, "2 new catches (41 fish) since you last looked");
-  assert.equal(alertsFor("amy", base({ catches }), { seen: T0 + 2 * H }).find(x => x.id === "catches"), undefined);
+  assert.equal(alertsFor("amy", base({ catches }), { seen: T0 + 2 * H }).find(x => x.id.startsWith("catches")), undefined);
+});
+
+test("alert ids stay the same when news only moves in time, and change when the news itself changes", () => {
+  const later = fish("amy", "Walleye", 80, T0 + 5 * H);
+  const before = alertsFor("amy", base({ catches: [later] })).find(a => a.text === "You earned the First Fish badge");
+  const earlier = fish("amy", "Pike", 50, T0); // logged afterwards, caught earlier
+  const after = alertsFor("amy", base({ catches: [later, earlier] })).find(a => a.text === "You earned the First Fish badge");
+  assert.notEqual(before.at, after.at);
+  assert.equal(before.id, after.id); // cleared once, stays cleared
+  const r = emojis => alertsFor("amy", base({ catches: [later], reactions: new Map([[later.id, new Map([["bo", { emojis, at: T0 + 6 * H }]])]]) })).find(a => a.id.startsWith("re:")).id;
+  assert.notEqual(r(["🔥"]), r(["🔥", "🤥"])); // a changed reaction is new
 });
