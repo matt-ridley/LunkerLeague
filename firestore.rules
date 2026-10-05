@@ -31,7 +31,10 @@ service cloud.firestore {
         && (!changed().hasAny(["admins"]) || (isOwner() && resource.data.ownerUid in request.resource.data.admins))
         // Days a catch can be logged late and still count (older ones are past catches).
         && (!("graceDays" in request.resource.data) || (request.resource.data.graceDays is int
-            && request.resource.data.graceDays >= 0 && request.resource.data.graceDays <= 60));
+            && request.resource.data.graceDays >= 0 && request.resource.data.graceDays <= 60))
+        // The league start (catches before it are past catches). Admins can move it, but not into the future.
+        && (!("startAt" in request.resource.data) || (request.resource.data.startAt is int
+            && request.resource.data.startAt <= request.time.toMillis() + 600000));
     }
 
     match /config/invite {
@@ -89,11 +92,15 @@ service cloud.firestore {
         && (d.get("fishCount", null) == null ? d.get("limit", null) == null : validStringer(d))
         && (d.get("derbyId", null) == null || derbyEntryOk(d));
     }
-    // A past catch (logbook): caught before the league started, or logged more than the grace days after it was
-    // caught (createdAt is when it was entered on the phone, even with no signal). It earns no points, badges or
-    // crowns, so the flag has to be right when the catch is saved, and can never be taken off.
-    function pastRule(d) {
-      return d.caughtAt < league().createdAt || d.caughtAt < d.createdAt - league().get("graceDays", 7) * 86400000;
+    // A past catch (logbook) earns no points, badges or crowns. Two reasons:
+    // - Logged more than the grace days after it was caught (createdAt is when it was entered on the phone, even
+    //   with no signal). Saved on the catch as past: true, required when it applies, and never taken off.
+    // - Caught before the league start. The app works this out from the start date (admins can move it), so it
+    //   isn't required on the catch; it's allowed though (older versions of the app saved it).
+    function leagueStart() { return league().get("startAt", league().createdAt); }
+    function loggedLate(d) { return d.caughtAt < d.createdAt - league().get("graceDays", 7) * 86400000; }
+    function pastOk(d, wasPast) {
+      return d.get("past", false) == (wasPast || loggedLate(d)) || (d.get("past", false) == true && d.caughtAt < leagueStart());
     }
     // A stringer: one photo of 2 to 500 fish, said to be a limit or not. Never measured, never released.
     function validStringer(d) {
@@ -143,7 +150,7 @@ service cloud.firestore {
       allow read: if isMember();
       // Weight and length are optional, but every catch needs its photo as proof (saved in the same batch).
       allow create: if isMember() && validCatch(request.resource.data) && writesFor(request.resource.data)
-        && request.resource.data.get("past", false) == pastRule(request.resource.data)
+        && pastOk(request.resource.data, false)
         && existsAfter(/databases/$(database)/documents/photos/$(id))
         && request.resource.data.get("dq", false) == false
         && !request.resource.data.keys().hasAny(["dqReason"]);
@@ -153,7 +160,7 @@ service cloud.firestore {
       allow update: if (isMember()
           && (resource.data.uid == me() || (resource.data.get("enteredBy", null) == me() && isOrganiserOf(resource.data)))
           && validCatch(request.resource.data)
-          && request.resource.data.get("past", false) == (resource.data.get("past", false) || pastRule(request.resource.data))
+          && pastOk(request.resource.data, resource.data.get("past", false))
           && request.resource.data.uid == resource.data.uid
           && request.resource.data.get("enteredBy", null) == resource.data.get("enteredBy", null)
           && request.resource.data.createdAt == resource.data.createdAt

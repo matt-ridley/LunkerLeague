@@ -144,3 +144,15 @@ test("admins set how many days late a catch can be logged (0 to 60)", async () =
   // With 3 days, a catch logged 5 days late is past.
   await assertFails(saveAll(as(env, "member"), "g1", "member", { extra: { caughtAt: Date.now() - 5 * 86400000 } }));
 });
+
+test("league start: admins move it (not into the future); catches before it needn't be flagged, but may be", async () => {
+  await assertSucceeds(updateDoc(doc(as(env, "admin2"), "config/league"), { startAt: Date.now() - 86400000 }));
+  await assertFails(updateDoc(doc(as(env, "admin2"), "config/league"), { startAt: Date.now() + 3 * 86400000 }));
+  await assertFails(updateDoc(doc(as(env, "member"), "config/league"), { startAt: 0 }));
+  await assertFails(updateDoc(doc(as(env, "admin2"), "config/league"), { startAt: "yesterday" }));
+  const db = as(env, "member");
+  const before = { caughtAt: Date.now() - 2 * 86400000, createdAt: Date.now() - 2 * 86400000 + 3600000 }; // before the start, logged on time
+  await assertSucceeds(saveAll(db, "s1", "member", { extra: before }));                  // this version of the app
+  await assertSucceeds(saveAll(db, "s2", "member", { extra: { ...before, past: true } })); // older versions flagged it
+  await assertFails(saveAll(db, "s3", "member", { extra: { past: true } }));              // a catch after the start isn't past
+});

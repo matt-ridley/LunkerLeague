@@ -2,7 +2,7 @@
    leaderboard of personal bests. */
 import { el, avatar, fmtDay, fmtDate, fmtWeight, fmtLength, icon, fill, openSheet, closeSheet } from "./ui.js";
 import { store, memberName, uid, isAdmin } from "./cloud.js";
-import { speciesRecords, speciesBoard } from "./stats.js";
+import { speciesRecords, speciesBoard, leagueStartOf } from "./stats.js";
 import { rankings, badgesFor, scoringTimeline, currentScoring, TITLES } from "./rank.js";
 import { crownStandings, crownScore } from "./crowns.js";
 import { badgeTimeline, BADGES } from "./badges.js";
@@ -19,7 +19,7 @@ export function rankInput() {
   const input = {
     catches: [...store.catches.values()], derbies: store.derbies, entrants: store.entrants, versions: store.scoring,
     members: [...store.members.values()].filter(m => !m.suspended).map(m => m.id),
-    comments: store.comments, reactions, spots, trips: store.trips, rsvps: store.rsvps,
+    comments: store.comments, reactions, spots, trips: store.trips, rsvps: store.rsvps, leagueStart: leagueStartOf(store.league),
   };
   input.crowns = crownsNow(input);
   input.badges = badgesNow(input);
@@ -29,7 +29,7 @@ export function rankInput() {
 /* Badges are replayed from all the data too (some depend on crowns), so cache them the same way. */
 let badgeCache = { key: null, value: null };
 function badgesNow(input) {
-  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps];
+  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps, leagueStartOf(store.league)];
   if (!badgeCache.key || key.some((k, i) => k !== badgeCache.key[i])) badgeCache = { key, value: badgeTimeline(input) };
   return badgeCache.value;
 }
@@ -37,7 +37,7 @@ function badgesNow(input) {
 /* Crowns are replayed from all the data, so work them out once per change of data, not on every redraw. */
 let crownCache = { key: null, value: null };
 export function crownsNow(input) {
-  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots];
+  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, leagueStartOf(store.league)];
   if (!crownCache.key || key.some((k, i) => k !== crownCache.key[i])) {
     if (!input) return rankInput().crowns; // builds the input, which works the crowns out and caches them
     crownCache = { key, value: crownStandings(input) };
@@ -58,7 +58,7 @@ export function renderLeaders(main, speciesArg, byArg) {
   if (leadersTab === "crowns") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, crownsView());
   if (leadersTab === "badges") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, badgesView());
   const records = speciesRecords(all);
-  const v = currentScoring(scoringTimeline(store.scoring)), started = fmtDay((store.league && store.league.createdAt) || 0);
+  const v = currentScoring(scoringTimeline(store.scoring)), started = fmtDay(leagueStartOf(store.league));
   fill(main,
     el("h2", { class: "page-title", text: "Leaders" }), tabs,
     el("div", { class: "card stack points-note" },
@@ -130,7 +130,7 @@ export function howPointsSheet() {
       el("li", { text: `🏅 ${v.badgePts} for each badge you earn (yours for good; ${BADGES.length} to collect)` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),
       el("li", { text: "Disqualified catches and test derbies don't count." }),
-      el("li", { text: `📜 Past catches (caught before the league started, or logged more than ${(store.league && store.league.graceDays) ?? 7} days late) count for personal bests and the all-time record boards only: no points, badges or crowns. Record points go to the best league catches.` })),
+      el("li", { text: `📜 Past catches (caught before the league start, ${fmtDay(leagueStartOf(store.league))}, or logged more than ${(store.league && store.league.graceDays) ?? 7} days late) count for personal bests and the all-time record boards only: no points, badges or crowns. Record points go to the best league catches.` })),
     el("h3", { text: "Titles" }),
     el("ul", { class: "how-list" }, ...TITLES.map((t, i) => el("li", { text: `${t}: ${v.titles[i]}+ pts` }))),
     last ? el("p", { class: "hint", text: `Points last changed ${fmtDate(last.createdAt)} by ${memberName(last.createdBy)}${last.note ? ` ("${last.note}")` : ""}.` }) : null,
@@ -243,7 +243,7 @@ function speciesPage(main, all, species, by) {
   const scope = el("div", { class: "seg" }, ...[["league", "👑 League"], ["all", "📜 All-time"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(boardScope === k), text: label, onclick: () => { boardScope = k; speciesPage(main, all, species, by); } })));
   const note = league
-    ? (v.recordPts.some(Boolean) ? `League catches since ${fmtDay((store.league && store.league.createdAt) || 0)}. 1st, 2nd and 3rd ${by === "length" ? "by length" : "by weight"} are worth ${v.recordPts.join(" / ")} points while held: beat them to take the points.` : "League catches only. Record points are turned off right now.")
+    ? (v.recordPts.some(Boolean) ? `League catches since ${fmtDay(leagueStartOf(store.league))}. 1st, 2nd and 3rd ${by === "length" ? "by length" : "by weight"} are worth ${v.recordPts.join(" / ")} points while held: beat them to take the points.` : "League catches only. Record points are turned off right now.")
     : "Everyone's best ever, past catches (📜) included. For props: not worth points.";
   fill(main,
     el("h2", { class: "page-title", text: species }),

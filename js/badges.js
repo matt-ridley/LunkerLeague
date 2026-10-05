@@ -154,14 +154,14 @@ function recordPeriods(counted) {
 /* Everything shared by all anglers, worked out once. */
 function leagueContext(input) {
   const { catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), spots = new Map(),
-    trips = new Map(), rsvps = new Map(), crowns = [], now = Date.now() } = input;
+    trips = new Map(), rsvps = new Map(), crowns = [], leagueStart = 0, now = Date.now() } = input;
   const derbyMap = asMap(derbies);
   // Past catches (logbook) never earn badges; records here are of league catches only.
   const valid = catches.filter(c => !c.dq && !(c.derbyId && derbyMap.get(c.derbyId) && derbyMap.get(c.derbyId).testing))
     .sort((a, b) => a.caughtAt - b.caughtAt);
   const counted = valid.filter(c => !c.past);
   const byId = new Map(catches.map(c => [c.id, c]));
-  const finished = [...derbyMap.values()].filter(d => !d.testing && derbyStatus(d, now) === "ended")
+  const finished = [...derbyMap.values()].filter(d => !d.testing && derbyStatus(d, now) === "ended" && d.end >= leagueStart) // pre-season derbies don't count
     .map(d => {
       const ent = entrants.get(d.id) || new Map();
       return { d, ent, at: closesAt(d), rows: standings(d, catches, ent) };

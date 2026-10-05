@@ -49,7 +49,7 @@ const dayKey = ms => { const d = new Date(ms); return `${d.getFullYear()}-${d.ge
 const asMap = x => (x instanceof Map ? x : new Map((x || []).map(d => [d.id, d])));
 
 /* Every score change, per crown: Map(crownId -> [{ at, uid, delta }]). */
-export function crownChanges({ catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), spots = new Map(), now = Date.now() }) {
+export function crownChanges({ catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), spots = new Map(), leagueStart = 0, now = Date.now() }) {
   const derbyMap = asMap(derbies);
   const ch = new Map(CROWNS.map(c => [c.id, []]));
   const add = (id, at, uid, delta = 1) => { if (uid && delta) ch.get(id).push({ at, uid, delta }); };
@@ -91,7 +91,7 @@ export function crownChanges({ catches, derbies, entrants = new Map(), comments 
 
   // Finished derbies (not tests): the winner, the captains of podium boats, and anglers who never got a fish.
   for (const d of derbyMap.values()) {
-    if (d.testing || derbyStatus(d, now) !== "ended") continue;
+    if (d.testing || derbyStatus(d, now) !== "ended" || d.end < leagueStart) continue; // pre-season derbies don't count
     const ent = entrants.get(d.id) || new Map(), rows = standings(d, catches, ent), at = closesAt(d);
     if (rows[0]) add("derbyKing", at, rows[0].uid);
     for (const r of rows.slice(0, 3)) {
