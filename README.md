@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.32.0 (beta)
+**Current version:** 0.33.0 (beta)
 
 ## Features
 
@@ -91,7 +91,7 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 - ⏸️ **Several photos or a short video per catch** (M): left for later. Several photos would work on the free plan; video needs Firebase Storage (Blaze plan).
 
 ### Milestone D: Better derbies
-- **Team or boat derbies** (M): a team leaderboard, using boat crews as teams.
+- ✅ **Team or boat derbies** (M): a team leaderboard, using boat crews as teams (done in 0.33.0).
 - ✅ **Several categories in one derby** (M): for example Big Bass, Big Walleye and Mystery Fish, each with its own leaderboard and payout (done in 0.32.0).
 - ✅ **Mystery weight prize** (S): closest to a secret weight, revealed at the end (done in 0.31.0).
 - **Season series or Angler of the Year** (M): a set of derbies with points across the season.
@@ -207,7 +207,7 @@ Check the security rules (`firestore.rules`) with the automated tests:
 npm run test:rules
 ```
 
-Try the app against the emulator: start it in one terminal, run the web server in another, then open http://localhost:8766/?emulator. Any made-up email such as `owner@example.test` works, and everything is wiped when the emulator stops. Use http://127.0.0.1:8766/?emulator in a second tab to be a second person.
+Try the app against the emulator: start it in one terminal, run the web server in another, then open http://localhost:8766/?emulator. Any made-up email such as `owner@example.test` works, and everything is wiped when the emulator stops. Use http://127.0.0.1:8766/?emulator in a second tab to be a second person. Adding a name, as in `?emulator=teams`, uses a separate test project (`demo-teams`), so two test setups can share one running emulator.
 
 ```bash
 npm run emulators
@@ -235,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.33.0 | 2026-Oct-05 09:25:17 PM | **Team derbies** (Milestone D): turn on "Team derby" and name the teams (2 to 12, for example each boat). Anglers pick a team when they join and can switch until the derby starts; someone without a team can pick one any time, and the organiser can move anyone on the Anglers tab. The Board has a 👥 Teams board: each team's score is its anglers' scores on the main board added up. **New security rules: publish firestore.rules.** |
 | 0.32.0 | 2026-Oct-05 09:03:03 PM | **Derby categories** (Milestone D): turn on "Several categories" to run up to 6 boards in one derby (for example Big Bass and Long Pike), each with its own species, scoring, share of the pot and place split. The derby page has a board for each, the Money tab shows each category's share, and payouts add up per angler. With categories, the mystery weight can have its own share of the pot, paid to the closest fish once revealed. The first category is the main one: it decides the derby's places for ranking points, badges, crowns and news. **New security rules: publish firestore.rules.** |
 | 0.31.0 | 2026-Oct-05 08:48:58 PM | **Mystery weight** (Milestone D): an organiser can turn on a mystery weight prize and set a secret weight (with an optional prize). It stays hidden from everyone except the organiser and admins until final entries close (the security rules enforce it), and it can't be changed once the derby starts. Then the derby's Board shows the weight and each angler's closest weighed fish, closest first. **New security rules: publish firestore.rules.** |
 | 0.30.0 | 2026-Oct-05 08:32:03 PM | **Copy a derby** (Milestone D): "Copy this derby" on any derby's page opens the new-derby form with the same rules, species, money and prizes, moved to the same weekday and time in the coming weeks. Change anything before creating it. |

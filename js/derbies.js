@@ -1,10 +1,10 @@
 /* Derbies: the list, a derby's page (leaderboard, rules, entries, anglers) and the create/edit form. */
 import { el, field, avatar, fill, fmtDate, fmtDay, fmtWeight, fmtLength, toast, icon, openSheet, closeSheet, confirmButton, copyText } from "./ui.js";
 import { store, uid, isAdmin, isOwner, memberName, endDerbyNow, deleteDerby, saveDerby, setDerbyCancelled, joinDerby, leaveDerby, setDisqualified,
-  setPaid, setSettled, watchSettlements, watchMystery, setMystery, subscribe } from "./cloud.js";
+  setPaid, setSettled, watchSettlements, watchMystery, setMystery, subscribe, setTeam } from "./cloud.js";
 import { derbyMoney, hasMoney, fmtMoney, ordinal, roundAmt, PAYOUT_PRESETS } from "./payout.js";
 import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEntries, standings, nextDates, mysteryBoard,
-  categoryBoards, categoriesOf, derbySpecies } from "./derby.js";
+  categoryBoards, categoriesOf, derbySpecies, teamBoard } from "./derby.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { tripsSection } from "./trips.js";
 
@@ -72,6 +72,7 @@ function derbyCard(d) {
       el("span", { text: categoriesOf(d) ? `🏁 ${categoriesOf(d).length} categories` : `🏁 ${(SCORING[d.scoring] || {}).label || ""}${d.scoring === "bag" ? ` (${d.bagSize})` : ""}` }),
       el("span", { text: `👥 ${ent.size}` }),
       d.mystery ? el("span", { text: "🎯 Mystery weight" }) : null,
+      teamsOf(d) ? el("span", { text: `👥 ${teamsOf(d).length} teams` }) : null,
       ent.has(uid()) ? el("span", { class: "badge pb", text: "You're in" }) : null),
     top ? el("div", { class: "derby-leader" }, el("span", { text: st === "ended" ? "🏆 Winner" : "👑 Leading" }), avatar(who(top.uid), "xs"),
       el("b", { text: who(top.uid).displayName }), el("span", { text: scoreText(d, top) })) : null);
@@ -104,9 +105,17 @@ export function renderDerby(main, id) {
     canEnter ? el("a", { class: "btn lime", href: `#/enter/${id}`, html: icon.plus }, "Enter a catch") : null,
     organiserHere && open && ent.size ? el("a", { class: "btn", href: `#/enter/${id}`, text: "Enter for an angler" }) : null,
     !joined && (st === "upcoming" || st === "active") ? el("button", { class: "btn primary", type: "button", text: "Join this derby",
-      onclick: () => { joinDerby(id); toast(`You're in ${d.name}. Tight lines!`); } }) : null,
+      onclick: () => teamsOf(d) ? teamSheet(d, team => { joinDerby(id, team); toast(`You're in ${d.name}. Tight lines!`); })
+        : (joinDerby(id), toast(`You're in ${d.name}. Tight lines!`)) }) : null,
     el("a", { class: "btn", href: `#/dchat/${id}`, html: icon.chat }, "Chat"));
 
+  // Team derbies: which team you're on, and switching (yourself until it starts; the organiser any time).
+  const myTeam = joined && teamsOf(d) ? teamName(d, (ent.get(uid()) || {}).team) : null;
+  const canSwitch = joined && teamsOf(d) && (st === "upcoming" || isOrganiser(d)) && st !== "ended";
+  const teamLine = joined && teamsOf(d) ? el("div", { class: "card row spread team-line" },
+    el("span", { text: myTeam ? `👥 Your team: ${myTeam}` : "👥 You haven't picked a team yet." }),
+    canSwitch || !myTeam ? el("button", { class: "btn small" + (myTeam ? "" : " primary"), type: "button", text: myTeam ? "Switch" : "Pick a team",
+      onclick: () => teamSheet(d, team => { setTeam(id, uid(), team); toast(`You're on ${teamName(d, team)}.`); }) }) : null) : null;
   if (d.mystery && (isOrganiser(d) || st === "ended")) watchMystery(id, { live: isOrganiser(d) });
   const money = hasMoney(d) ? derbyMoney(d, all, ent, { mysteryOz: (store.mystery.get(id) || {}).weightOz || null }) : null;
   if (derbyTab === "money" && !money) derbyTab = "board";
@@ -122,14 +131,17 @@ export function renderDerby(main, id) {
   else if (derbyTab === "money") body = moneyView(d, money, ent, st);
   else {
     // Several categories: one board at a time, picked with chips.
-    const at = Math.min(boardPick.get(id) || 0, boards.length - 1), b = boards[at];
-    const pick = boards.length > 1 ? el("div", { class: "chips board-pick" }, ...boards.map((x, i) =>
-      el("button", { type: "button", class: "chip removable", "aria-pressed": String(i === at), text: x.cat.name,
+    // Team derbies add a Teams board after the others.
+    const names = [...boards.map(x => (x.cat ? x.cat.name : "Anglers")), ...(teamsOf(d) ? ["👥 Teams"] : [])];
+    const at = Math.min(boardPick.get(id) || 0, names.length - 1), b = boards[Math.min(at, boards.length - 1)];
+    const onTeams = teamsOf(d) && at === names.length - 1;
+    const pick = names.length > 1 ? el("div", { class: "chips board-pick" }, ...names.map((nm, i) =>
+      el("button", { type: "button", class: "chip removable", "aria-pressed": String(i === at), text: nm,
         onclick: () => { boardPick.set(id, i); renderDerby(main, id); } }))) : null;
     const won = money ? (money.parts.length ? new Map((money.parts[at] || { places: [] }).places.map(p => [p.uid, roundAmt(p.net, d.roundTo || 0)])) : null) : null;
     body = el("div", { class: "stack" }, d.mystery ? mysteryCard(d, entries, st) : null, pick,
-      b.cat ? el("p", { class: "muted small", text: categoryText(b.cat) }) : null,
-      boardView(b.d, b.rows, st, money, won));
+      onTeams ? teamsView(d, boards[0].d, all, ent, st)
+        : [b.cat ? el("p", { class: "muted small", text: categoryText(b.cat) }) : null, boardView(b.d, b.rows, st, money, won)]);
   }
 
   const canDelete = isOwner() || (organiserHere && d.testing);
@@ -152,7 +164,7 @@ export function renderDerby(main, id) {
 
   // Anyone can start a new derby from this one's settings.
   const copy = el("a", { class: "btn quiet block", href: `#/dcopy/${id}`, text: "📋 Copy this derby" });
-  fill(main, head, actions, tabs, body, organiser, copy, leave);
+  fill(main, head, actions, teamLine, tabs, body, organiser, copy, leave);
 }
 
 function deleteSheet(d) {
@@ -240,6 +252,36 @@ function mysteryCard(d, entries, st) {
     final ? el("p", { class: "hint", text: secret.setAt <= d.start ? "The weight was set before the derby started." : `The weight was set ${fmtDate(secret.setAt)}, after the derby started.` }) : null);
 }
 
+/* ---------- Teams ---------- */
+const teamsOf = d => (d.teams && d.teams.length ? d.teams : null);
+const teamName = (d, id) => ((teamsOf(d) || []).find(t => t.id === id) || {}).name || null;
+/* A score added up across a team, in the main board's units. */
+function teamScoreText(main, score) {
+  if (main.scoring === "heaviest" || main.scoring === "bag") return fmtWeight(score) || "0 oz";
+  if (main.scoring === "longest") return fmtLength(score) || '0"';
+  return main.scoring === "most" ? `${score} fish` : `${score} species`;
+}
+function teamSheet(d, pick) {
+  openSheet(box => box.append(el("div", { class: "stack" },
+    el("h2", { text: "Pick your team" }),
+    el("p", { class: "hint", text: "Your fish count for your team: its score is everyone's scores added up. You can switch until the derby starts." }),
+    ...teamsOf(d).map(t => el("button", { class: "btn block", type: "button", text: `👥 ${t.name}`, onclick: () => { closeSheet(); pick(t.id); } })),
+    el("button", { class: "btn quiet block", type: "button", text: "Cancel", onclick: closeSheet }))));
+}
+function teamsView(d, main, all, ent, st) {
+  if (st === "upcoming") return el("div", { class: "card empty" }, el("p", { text: `The team board opens when the derby starts. ${when(d)}.` }));
+  const rows = teamBoard(d, all, ent);
+  const scoring = categoriesOf(d) ? `${categoriesOf(d)[0].name} scores` : "Scores";
+  return el("section", { class: "stack" },
+    el("p", { class: "muted small", text: `${scoring} added up across each team.` }),
+    el("ol", { class: "board" }, ...rows.map((t, i) => el("li", { class: "team-row" + (i < 3 && t.score ? ` top${i + 1}` : "") },
+      el("div", { class: "row spread" },
+        el("b", { text: `${t.score ? MEDALS[i] || i + 1 : "·"} ${t.team.name}` }),
+        el("b", { class: "board-size", text: teamScoreText(main, t.score) })),
+      t.members.length ? el("div", { class: "muted small", text: t.members.map(m =>
+        `${who(m.uid).displayName} ${m.row ? scoreText(main, m.row) : "–"}`).join(" · ") }) : el("div", { class: "muted small", text: "Nobody on this team yet." })))));
+}
+
 function podium(d, rows) {
   const spot = (r, place) => r ? el("div", { class: `podium-spot p${place}` },
     el("div", { class: "podium-medal", text: MEDALS[place - 1] }), avatar(who(r.uid), place === 1 ? "lg" : ""),
@@ -300,6 +342,7 @@ function rulesView(d) {
     rule("Spot", d.requireLocation ? "GPS spot required and shared with the league" : "Optional"),
     rule("Release", d.catchRelease ? "Catch and release only" : "Keep or release"),
     rule("Boat crew", d.requireCrew ? "Captain and net man must be named on every entry" : "Optional"),
+    teamsOf(d) ? rule("Teams", `${teamsOf(d).map(t => t.name).join(", ")}. A team's score is its anglers' scores added up${categoriesOf(d) ? ` (${categoriesOf(d)[0].name})` : ""}.`) : null,
     d.mystery && categoriesOf(d) && hasMoney(d) && d.mysteryPct ? rule("Mystery share", `${d.mysteryPct}% of the pot to the closest fish`) : null,
     d.mystery ? rule("Mystery weight", `A secret weight is set. Each angler's weighed fish closest to it wins${d.mysteryNote ? ` (${d.mysteryNote})` : ""}. It's revealed when final entries close.`) : null);
 }
@@ -310,9 +353,17 @@ function anglersView(d, ent, entries) {
   if (!list.length) return el("p", { class: "muted", text: "Nobody has joined yet." });
   return el("ul", { class: "member-list card" }, ...list.map(id => {
     const n = entries.filter(e => e.uid === id && !e.problem).length;
+    const team = teamsOf(d) ? (ent.get(id) || {}).team || "" : null;
+    let move = null;
+    if (org && teamsOf(d)) {
+      move = el("select", { class: "team-move", "aria-label": `Team for ${who(id).displayName}`, onchange: () => setTeam(d.id, id, move.value) },
+        el("option", { value: "", text: "No team" }), ...teamsOf(d).map(t => el("option", { value: t.id, text: t.name })));
+      move.value = teamName(d, team) ? team : "";
+    }
     return el("li", { class: "member-row" }, avatar(who(id)),
       el("div", { class: "grow" }, el("div", { class: "name", text: who(id).displayName }),
-        el("div", { class: "muted small", text: `${n} ${n === 1 ? "entry" : "entries"} counting` })),
+        el("div", { class: "muted small", text: [`${n} ${n === 1 ? "entry" : "entries"} counting`, team !== null && !org ? `👥 ${teamName(d, team) || "No team"}` : ""].filter(Boolean).join(" · ") }),
+        move),
       org && id !== uid() ? confirmButton("Remove", "Sure?", () => leaveDerby(d.id, id), "btn small quiet") : null);
   }));
 }
@@ -536,6 +587,22 @@ export function renderDerbyForm(main, id, copyId) {
     } }) : null,
     pot ? el("p", { class: "hint", text: "Shares (and the mystery weight's, if it has one) must add up to 100%." }) : null);
   };
+  // Teams: the organiser names them; anglers pick one when they join.
+  let teams = (d.teams || []).map(t => ({ ...t }));
+  const [teamOn, teamRow, teamHint] = check("Team derby", teams.length > 0,
+    "Name the teams (e.g. each boat). Anglers pick one when they join, and a team's score is its anglers' scores added up. You can move people on the Anglers tab.");
+  const teamList = el("div", { class: "stack" });
+  const drawTeams = () => fill(teamList, ...teams.map((t, i) => {
+    const nm = el("input", { type: "text", maxlength: 30, value: t.name, placeholder: `e.g. ${["Matt's boat", "Bully's boat", "Shore crew"][i % 3]}`, oninput: () => { t.name = nm.value; } });
+    return el("div", { class: "unit-row" }, nm, teams.length > 2 ? el("button", { class: "btn small quiet", type: "button", text: "✕", "aria-label": "Remove team",
+      onclick: () => { teams.splice(i, 1); drawTeams(); } }) : null);
+  }), teams.length < 12 ? el("button", { class: "btn block", type: "button", text: "+ Add a team", onclick: () => { teams.push({ id: "", name: "" }); drawTeams(); } }) : null);
+  const syncTeams = () => {
+    if (teamOn.checked && !teams.length) teams = [{ id: "", name: "" }, { id: "", name: "" }];
+    teamList.hidden = !teamOn.checked;
+    if (teamOn.checked) drawTeams();
+  };
+  teamOn.addEventListener("change", syncTeams); syncTeams();
   const singleBox = el("div", { class: "stack" });
   const syncMulti = () => {
     if (multi.checked && !cats.length) {
@@ -563,6 +630,7 @@ export function renderDerbyForm(main, id, copyId) {
         el("div", { class: "field" }, el("span", { class: "field-label", text: "Species" }), chips, spInput)),
       el("datalist", { id: "derby-species" }, ...SPECIES.map(s => el("option", { value: s }))),
       multiRow, multiHint, catList),
+    el("section", { class: "card stack" }, el("h3", { text: "👥 Teams" }), teamRow, teamHint, teamList),
     el("section", { class: "card stack" }, el("h3", { text: "Rules" }),
       el("div", { class: "field" }, el("span", { class: "field-label", text: "Minimum weight" }),
         el("div", { class: "unit-row" }, minLb, el("span", { text: "lb" }), minOz, el("span", { text: "oz" }))),
@@ -592,6 +660,11 @@ export function renderDerbyForm(main, id, copyId) {
     if (!isFinite(s) || !isFinite(en)) return fail("Set when it starts and ends.");
     if (en <= s) return fail("It has to end after it starts.");
     const pcts = (split.value === "custom" ? custom.value : split.value).split(/[,\s/]+/).map(num).filter(x => x > 0);
+    if (teamOn.checked) {
+      if (teams.length < 2) return fail("A team derby needs at least 2 teams.");
+      if (teams.some(t => !t.name.trim())) return fail("Give every team a name.");
+      if (new Set(teams.map(t => t.name.trim().toLowerCase())).size !== teams.length) return fail("Each team needs a different name.");
+    }
     const useCats = multi.checked, mysteryShare = useCats && myst.checked && hasPot() ? Math.max(0, num(mPct.value)) : 0;
     if (useCats) {
       if (cats.some(c => !c.name.trim())) return fail("Give every category a name.");
@@ -616,6 +689,10 @@ export function renderDerbyForm(main, id, copyId) {
       roundTo: +roundTo.value, sidePotFee: Math.max(0, num(side.value)),
       mystery: mysteryLocked ? true : myst.checked, mysteryNote: mNote.value.trim().slice(0, 100),
       categories: [], mysteryPct: mysteryShare,
+      // Teams keep their ids (anglers' picks point at them); new ones get the next free one.
+      teams: teamOn.checked ? (() => { const used = new Set(teams.map(t => t.id).filter(Boolean)); let n = 1;
+        return teams.map(t => { let tid = t.id; if (!tid) { while (used.has(`t${n}`)) n++; tid = `t${n}`; used.add(tid); }
+          return { id: tid, name: t.name.trim().slice(0, 30) }; }); })() : [],
     };
     if (useCats) {
       data.categories = cats.map((c, i) => ({ id: c.id || `c${i + 1}`, name: c.name.trim().slice(0, 30), species: c.species, scoring: c.scoring,
