@@ -34,6 +34,7 @@ export const store = {
   chatLoaded: false,
   pendingIds: new Set(),  // comment / chat ids still waiting to reach the server
   derbies: new Map(),     // id -> derby
+  derbiesFromServer: false, // true once the derby list has come from the server (not just the phone's cache)
   entrants: new Map(),    // derby id -> Map(uid -> { joinedAt })
   derbyChat: new Map(),   // derby id -> [message] (loaded when a derby's chat is opened)
   settlements: new Map(), // derby id -> Map(payee key -> { amount, settledAt, by }) (loaded when its Money tab is opened)
@@ -174,6 +175,7 @@ function refreshMemberListeners() {
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "derbies"), OPTS, snap => {
     seen("derbies", snap);
     store.derbies = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    if (!snap.metadata.fromCache) store.derbiesFromServer = true;
     emit();
   }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "entrants"), OPTS, snap => {
@@ -276,7 +278,7 @@ function stopListeners() {
 function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
-  store.derbies = new Map(); store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
+  store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
   store.trips = new Map(); store.rsvps = new Map();
 }
 

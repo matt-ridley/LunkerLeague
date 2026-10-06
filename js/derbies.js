@@ -395,11 +395,27 @@ const toLocalInput = ms => { const t = new Date(ms); return `${t.getFullYear()}-
 const num = s => { const n = parseFloat(String(s).replace(",", ".")); return isFinite(n) ? n : 0; };
 
 /* `copyId`: start a new derby from that one's settings, moved on to the same weekday and time in the future. */
+/* The form doesn't redraw with live data, so when it's opened before the derbies have loaded (a reload straight onto it),
+   show "Loading…" and draw it once the derby arrives or the server confirms it's gone. */
+let stopWaiting = () => {};
+function waitForDerby(main, derbyId, draw) {
+  stopWaiting();
+  const hash = location.hash;
+  fill(main, el("div", { class: "card empty" }, el("p", { text: "Loading…" })));
+  const off = subscribe(() => {
+    if (location.hash !== hash) return stopWaiting();
+    if (store.derbies.has(derbyId) || store.derbiesFromServer) { stopWaiting(); draw(); }
+  });
+  stopWaiting = () => { off(); stopWaiting = () => {}; };
+}
+
 export function renderDerbyForm(main, id, copyId) {
+  const wanted = id || copyId;
+  if (wanted && !store.derbies.has(wanted) && !store.derbiesFromServer) return waitForDerby(main, wanted, () => renderDerbyForm(main, id, copyId));
   const editing = id ? store.derbies.get(id) : null;
   if (id && (!editing || !isOrganiser(editing))) return fill(main, el("div", { class: "card" }, el("p", { text: "Only the organiser can edit this derby." })));
   const source = !editing && copyId ? store.derbies.get(copyId) : null;
-  if (copyId && !source) return fill(main, el("div", { class: "card empty" }, el("p", { text: store.derbies.size ? "That derby doesn't exist any more." : "Loading…" })));
+  if (copyId && !source) return fill(main, el("div", { class: "card empty" }, el("p", { text: "That derby doesn't exist any more." })));
   const d = { ...DEFAULTS, ...(editing || source || {}) };
   if (source) Object.assign(d, nextDates(source.start, source.end), { cancelled: false });
   else if (!editing) {
