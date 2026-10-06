@@ -613,11 +613,11 @@ export function renderDerbyForm(main, id, copyId) {
   // Teams: the organiser names them; anglers pick one when they join.
   let teams = (d.teams || []).map(t => ({ ...t }));
   const [teamOn, teamRow, teamHint] = check("Team derby", teams.length > 0,
-    "Name the teams (e.g. each boat). Anglers pick one when they join, and a team's score is its anglers' scores added up. You can move people on the Anglers tab.");
+    "Name the teams (e.g. each boat). Anglers pick one when they join, and you can move people on the Anglers tab. Choose how a team scores below.");
   const teamList = el("div", { class: "stack" });
   const drawTeams = () => fill(teamList, ...teams.map((t, i) => {
     const nm = el("input", { type: "text", maxlength: 30, value: t.name, placeholder: `e.g. ${["Matt's boat", "Bully's boat", "Shore crew"][i % 3]}`, oninput: () => { t.name = nm.value; } });
-    return el("div", { class: "unit-row" }, nm, teams.length > 2 ? el("button", { class: "btn small quiet", type: "button", text: "✕", "aria-label": "Remove team",
+    return el("div", { class: "unit-row name-row" }, nm, teams.length > 2 ? el("button", { class: "btn small quiet", type: "button", text: "✕", "aria-label": "Remove team",
       onclick: () => { teams.splice(i, 1); drawTeams(); } }) : null);
   }), teams.length < 12 ? el("button", { class: "btn block", type: "button", text: "+ Add a team", onclick: () => { teams.push({ id: "", name: "" }); drawTeams(); } }) : null);
   const teamScoring = el("select", {}, el("option", { value: "sum", text: "Add up each angler's score" }),
