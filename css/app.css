@@ -417,6 +417,9 @@ textarea { resize: vertical; line-height: 1.4; }
   background: var(--primary-soft); font-size: 13.5px; font-weight: 700; color: var(--ink); }
 .catch-news li { display: flex; align-items: baseline; gap: 6px; }
 .catch-news-icon { flex: none; }
+/* Derby mystery weight */
+.mystery { border-color: var(--gold); }
+.mystery-weight { font: 800 20px/1.2 var(--f-display); }
 /* Fish Finder: a carousel of cards at the top of the feed */
 .ff { border-radius: var(--radius); padding: 12px 14px 10px; display: grid; gap: 6px; color: var(--primary-ink);
   background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 70%, var(--lime)) 140%); }

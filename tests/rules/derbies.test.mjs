@@ -207,3 +207,32 @@ test("a past catch can't be a derby entry", async () => {
   await seedDerby();
   await assertFails(putCatch(as(env, "member"), "pe1", entry("member", { past: true })));
 });
+
+test("mystery weight: hidden from everyone but the organiser and admins until final entries close", async () => {
+  await seedDerby({ start: Date.now() + H, end: Date.now() + 5 * H, mystery: true }); // organiser: admin2; starts in an hour
+  const secret = db => doc(db, "derbies/d1/secret/mystery");
+  const w = (who, oz) => setDoc(secret(as(env, who)), { weightOz: oz, setBy: who, setAt: Date.now() });
+  await assertFails(w("member", 52));                       // not the organiser
+  await assertSucceeds(w("admin2", 52));
+  await assertSucceeds(w("admin2", 54));                    // can change it before the start
+  await assertFails(w("admin2", -1));
+  await assertFails(getDoc(secret(as(env, "member"))));     // members can't peek
+  await assertSucceeds(getDoc(secret(as(env, "admin2"))));
+  await assertSucceeds(getDoc(secret(as(env, "owner"))));   // admins can
+  // Once the derby has started it's locked.
+  await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), "derbies/d1"), { start: Date.now() - H }));
+  await assertFails(w("admin2", 60));
+  await assertFails(deleteDoc(secret(as(env, "admin2"))));
+  // After final entries close, everyone can see it.
+  await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), "derbies/d1"), { start: Date.now() - 30 * H, end: Date.now() - 26 * H }));
+  await assertSucceeds(getDoc(secret(as(env, "member"))));
+  // A derby saved with a mystery note must keep it short.
+  await assertFails(updateDoc(doc(as(env, "admin2"), "derbies/d1"), { mysteryNote: "x".repeat(101) }));
+  await assertSucceeds(updateDoc(doc(as(env, "admin2"), "derbies/d1"), { mysteryNote: "$20 card" }));
+});
+
+test("mystery weight: revealed right after the end when there's no late-entry window", async () => {
+  await seedDerby({ start: Date.now() - 2 * H, end: Date.now() - 60000, syncGraceHours: 0, mystery: true, mysteryNote: "" });
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), "derbies/d1/secret/mystery"), { weightOz: 52, setBy: "admin2", setAt: 1 }));
+  await assertSucceeds(getDoc(doc(as(env, "member"), "derbies/d1/secret/mystery")));
+});

@@ -37,6 +37,7 @@ export const store = {
   entrants: new Map(),    // derby id -> Map(uid -> { joinedAt })
   derbyChat: new Map(),   // derby id -> [message] (loaded when a derby's chat is opened)
   settlements: new Map(), // derby id -> Map(payee key -> { amount, settledAt, by }) (loaded when its Money tab is opened)
+  mystery: new Map(),     // derby id -> { weightOz, setBy, setAt } or null (loaded once the rules let this angler see it)
   scoring: [],            // ranking point versions, oldest first
   trips: new Map(),       // id -> trip ("who's out Saturday?")
   rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at })
@@ -275,7 +276,7 @@ function stopListeners() {
 function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
-  store.derbies = new Map(); store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.scoring = [];
+  store.derbies = new Map(); store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
   store.trips = new Map(); store.rsvps = new Map();
 }
 
@@ -568,6 +569,44 @@ export function watchSettlements(derbyId) {
   }, syncError));
 }
 
+/* The mystery weight. The rules let the organiser (or an admin) read it any time, so they get it live. Everyone else
+   can read it once final entries close: that's checked against the time of the request, and reads over the app's
+   live connection can carry the time the connection opened, so they ask with a one-off transaction read instead
+   (at most once a minute), and keep the answer on the phone for offline. */
+const MYSTERY_KEY = id => "lunker-mystery-" + id;
+const mysteryTried = new Map(); // derby id -> when last asked
+export function watchMystery(derbyId, { live = false } = {}) {
+  if (!cloud.db) return;
+  if (!store.mystery.has(derbyId)) {
+    try { const v = JSON.parse(localStorage.getItem(MYSTERY_KEY(derbyId)) || "null"); if (v) store.mystery.set(derbyId, v); } catch {}
+  }
+  if (live) {
+    const key = "m:" + derbyId;
+    if (derbyChatUnsubs.has(key)) return;
+    const { onSnapshot, doc } = cloud.api;
+    derbyChatUnsubs.set(key, onSnapshot(doc(cloud.db, "derbies", derbyId, "secret", "mystery"), OPTS, snap => {
+      store.mystery.set(derbyId, snap.exists() ? snap.data() : null);
+      emit();
+    }, () => { const u = derbyChatUnsubs.get(key); derbyChatUnsubs.delete(key); if (u) u(); }));
+    return;
+  }
+  if (store.mystery.has(derbyId) || Date.now() - (mysteryTried.get(derbyId) || 0) < 60000) return;
+  mysteryTried.set(derbyId, Date.now());
+  const { runTransaction, doc } = cloud.api;
+  runTransaction(cloud.db, tx => tx.get(doc(cloud.db, "derbies", derbyId, "secret", "mystery"))).then(snap => {
+    const v = snap.exists() ? snap.data() : null;
+    store.mystery.set(derbyId, v);
+    try { localStorage.setItem(MYSTERY_KEY(derbyId), JSON.stringify(v)); } catch {}
+    emit();
+  }).catch(() => {}); // no signal yet, or not closed yet: tried again on a later redraw
+}
+/* Sets (weight in ounces) or removes (null) the mystery weight. */
+export function setMystery(derbyId, weightOz) {
+  const { doc, setDoc, deleteDoc } = cloud.api;
+  const ref = doc(cloud.db, "derbies", derbyId, "secret", "mystery");
+  write(weightOz ? setDoc(ref, { weightOz, setBy: uid(), setAt: Date.now() }) : deleteDoc(ref));
+}
+
 /* Ends a running derby now (fishing over; the late-entry window still applies). */
 export function endDerbyNow(id) {
   write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "derbies", id), { end: Date.now() }));
@@ -587,7 +626,7 @@ export async function deleteDerby(d, { withEntries }) {
       refs.push(doc(cloud.db, "catches", c.id));
     }
   }
-  for (const sub of ["chat", "settlements", "entrants"]) {
+  for (const sub of ["chat", "settlements", "entrants", "secret"]) {
     for (const x of (await getDocs(collection(cloud.db, "derbies", d.id, sub))).docs) refs.push(x.ref);
   }
   refs.push(doc(cloud.db, "derbies", d.id)); // last, so the rules can still see the derby while clearing its parts
