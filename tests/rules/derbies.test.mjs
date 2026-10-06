@@ -249,3 +249,19 @@ test("categories: a derby can have up to 6; a fish only needs what one category 
   await assertSucceeds(putCatch(as(env, "member"), "e1", entry("member", { species: "Northern Pike", weightOz: null, lengthIn: 30 })));
   await assertFails(putCatch(as(env, "member"), "e2", entry("member", { species: "Perch" })));
 });
+
+test("teams: pick one when joining; switch only before the start; the organiser moves anyone", async () => {
+  await seedDerby({ start: Date.now() + H, end: Date.now() + 5 * H, teams: [{ id: "t1", name: "Red" }, { id: "t2", name: "Blue" }] }, []);
+  const me = as(env, "member"), path = "derbies/d1/entrants/member";
+  await assertSucceeds(setDoc(doc(me, path), { joinedAt: Date.now(), team: "t1" }));
+  await assertFails(setDoc(doc(me, "derbies/d1/entrants/admin2"), { joinedAt: Date.now(), team: "t1" }));
+  await assertSucceeds(updateDoc(doc(me, path), { team: "t2" }));                 // before the start
+  await assertFails(updateDoc(doc(me, path), { team: "t1", paid: true }));        // can't tick yourself paid
+  await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), "derbies/d1"), { start: Date.now() - H }));
+  await assertFails(updateDoc(doc(me, path), { team: "t1" }));                    // started: no switching
+  await assertSucceeds(updateDoc(doc(as(env, "admin2"), path), { team: "t1" }));  // the organiser can move you
+  // Someone with no team yet can still pick one after the start.
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), "derbies/d1/entrants/owner"), { joinedAt: 1 }));
+  await assertSucceeds(updateDoc(doc(as(env, "owner"), "derbies/d1/entrants/owner"), { team: "t2" }));
+  await assertFails(setDoc(doc(me, "derbies/d9"), derbyData("member", { teams: Array(13).fill({ id: "x", name: "x" }) })));
+});

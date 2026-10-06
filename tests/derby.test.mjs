@@ -1,7 +1,7 @@
 // Unit tests for derby status, entry rules and standings. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, derbyStatus, entryProblem, derbyEntries, standings, closesAt, nextDates, mysteryBoard, categoryBoards, derbySpecies } from "../js/derby.js";
+import { DEFAULTS, derbyStatus, entryProblem, derbyEntries, standings, closesAt, nextDates, mysteryBoard, categoryBoards, derbySpecies, teamBoard } from "../js/derby.js";
 
 const H = 3600 * 1000;
 const derby = (extra = {}) => ({ ...DEFAULTS, id: "d1", name: "Test", start: 10 * H, end: 20 * H, ...extra });
@@ -121,4 +121,15 @@ test("categories: each board has its own species and scoring; the first is the m
   assert.match(entryProblem(catches[4], d), /Species/);
   // A category with no species takes anything, so the derby does too.
   assert.deepEqual(derbySpecies({ categories: [{ species: ["Walleye"] }, { species: [] }] }), []);
+});
+
+test("team derbies: a team's score is its members' scores added up; no team, no points", () => {
+  const d = derby({ scoring: "heaviest", teams: [{ id: "t1", name: "Red boat" }, { id: "t2", name: "Blue boat" }, { id: "t3", name: "Shore" }] });
+  const ent = new Map([["a", { team: "t1" }], ["b", { team: "t1" }], ["c", { team: "t2" }], ["e", {}], ["f", { team: "t3" }]]);
+  const catches = [fish("a", "Walleye", 50, null, 12), fish("b", "Walleye", 40, null, 13), fish("c", "Walleye", 80, null, 11), fish("e", "Walleye", 200, null, 12)];
+  const board = teamBoard(d, catches, ent);
+  assert.deepEqual(board.map(t => [t.team.name, t.score]), [["Red boat", 90], ["Blue boat", 80], ["Shore", 0]]);
+  assert.deepEqual(board[0].members.map(m => m.uid), ["a", "b"]);
+  assert.equal(board[2].members[0].row, null); // on a team, no fish yet
+  assert.deepEqual(teamBoard(derby(), catches, ent), []); // not a team derby
 });

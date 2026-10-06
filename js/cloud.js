@@ -297,7 +297,9 @@ export async function initCloud() {
   try {
     const [app, auth, fs] = await Promise.all(["app", "auth", "firestore"].map(m => import(`${FIREBASE_SDK}firebase-${m}.js`)));
     cloud.api = { ...auth, ...fs };
-    const fbApp = app.initializeApp(USE_EMULATOR ? { ...FIREBASE_CONFIG, projectId: "demo-lunker" } : FIREBASE_CONFIG);
+    // ?emulator uses the "demo-lunker" project; ?emulator=name uses "demo-name", so two test setups can share one emulator.
+    const emuProject = "demo-" + (new URLSearchParams(location.search).get("emulator") || "lunker").replace(/[^a-z0-9-]/gi, "").slice(0, 20);
+    const fbApp = app.initializeApp(USE_EMULATOR ? { ...FIREBASE_CONFIG, projectId: emuProject } : FIREBASE_CONFIG);
     cloud.auth = auth.getAuth(fbApp);
     if (USE_EMULATOR) {
       // Local testing only: pretend accounts and data in the Firebase emulator, never the real league.
@@ -548,7 +550,11 @@ export function saveDerby(id, data) {
   return ref.id;
 }
 export const setDerbyCancelled = (id, cancelled) => write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "derbies", id), { cancelled }));
-export const joinDerby = id => write(cloud.api.setDoc(cloud.api.doc(cloud.db, "derbies", id, "entrants", uid()), { joinedAt: Date.now() }));
+/* Joins a derby (with a team, in a team derby). */
+export const joinDerby = (id, team) => write(cloud.api.setDoc(cloud.api.doc(cloud.db, "derbies", id, "entrants", uid()),
+  team ? { joinedAt: Date.now(), team } : { joinedAt: Date.now() }));
+/* Puts an angler on a team: yourself before the derby starts, or anyone if you organise it. */
+export const setTeam = (id, who, team) => write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "derbies", id, "entrants", who), { team }));
 export const leaveDerby = (id, who = uid()) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "derbies", id, "entrants", who)));
 /* Entry fees: the organiser ticks who has paid (and who paid into the side pot). */
 export function setPaid(derbyId, who, fields) {

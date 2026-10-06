@@ -256,7 +256,7 @@ service cloud.firestore {
                                "bagSize", "minWeightOz", "minLengthIn", "maxEntries", "proof", "requireLocation", "catchRelease",
                                "requireCrew", "prizeNote", "cancelled", "createdAt",
                                "entryFee", "addedMoney", "payoutPcts", "unpaidCanWin", "captainPct", "netmanPct", "roundTo", "sidePotFee",
-                               "testing", "mystery", "mysteryNote", "categories", "mysteryPct"])
+                               "testing", "mystery", "mysteryNote", "categories", "mysteryPct", "teams"])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.description is string && d.description.size() <= 500
         && d.start is number && d.end is number && d.end > d.start
@@ -275,6 +275,8 @@ service cloud.firestore {
         // Categories (several boards in one derby): the app checks each one; here, at most 6, and the mystery's share.
         && d.get("categories", []) is list && d.get("categories", []).size() <= 6
         && d.get("mysteryPct", 0) is number && d.get("mysteryPct", 0) >= 0 && d.get("mysteryPct", 0) <= 100
+        // Team derbies: the organiser names up to 12 teams.
+        && d.get("teams", []) is list && d.get("teams", []).size() <= 12
         && validMoney(d);
     }
     // Entry fees and payouts (the app only keeps track; nobody pays through it). Older derbies have none of these.
@@ -289,6 +291,7 @@ service cloud.firestore {
         && d.get("payoutPcts", []) is list && d.get("payoutPcts", []).size() <= 10
         && d.get("unpaidCanWin", false) is bool;
     }
+    function validTeam(e) { return e.get("team", "") is string && e.get("team", "").size() <= 40; }
     match /derbies/{did} {
       allow read: if isMember();
       allow create: if isMember() && validDerby(request.resource.data) && request.resource.data.organiserUid == me()
@@ -301,17 +304,22 @@ service cloud.firestore {
       // Deleting: the league owner, any derby; its organiser, only a testing derby. Real results otherwise stay.
       allow delete: if isMember() && (isOwner() || (resource.data.organiserUid == me() && resource.data.get("testing", false) == true));
 
-      // Joining: yourself, until the derby ends. Leaving: yourself, or removed by the organiser or an admin.
+      // Joining: yourself, until the derby ends (picking a team in a team derby). Leaving: yourself, or removed by
+      // the organiser or an admin. You can switch teams until the derby starts; the organiser or an admin any time.
       match /entrants/{who} {
-        allow create: if isMember() && who == me() && request.resource.data.keys().hasOnly(["joinedAt"])
-          && request.resource.data.joinedAt is number
+        allow create: if isMember() && who == me() && request.resource.data.keys().hasOnly(["joinedAt", "team"])
+          && request.resource.data.joinedAt is number && validTeam(request.resource.data)
           && !get(derbyPath(did)).data.cancelled && request.time.toMillis() <= get(derbyPath(did)).data.end;
         allow delete: if isMember() && (who == me() || get(derbyPath(did)).data.organiserUid == me() || isAdmin());
-        // Paid ticks: only the organiser or an admin, and nothing else about the entrant.
+        // Paid ticks and team moves: only the organiser or an admin, and nothing else about the entrant.
         allow update: if isMember() && (get(derbyPath(did)).data.organiserUid == me() || isAdmin())
-          && changed().hasOnly(["paid", "paidAt", "paidMarkedBy", "sidePotPaid"])
+          && changed().hasOnly(["paid", "paidAt", "paidMarkedBy", "sidePotPaid", "team"])
           && request.resource.data.get("paid", false) is bool && request.resource.data.get("sidePotPaid", false) is bool
-          && request.resource.data.get("paidMarkedBy", me()) == me();
+          && (!changed().hasAny(["paidMarkedBy"]) || request.resource.data.paidMarkedBy == me())
+          && validTeam(request.resource.data);
+        // Your own team: picking one any time, switching only before the derby starts.
+        allow update: if isMember() && who == me() && changed().hasOnly(["team"]) && validTeam(request.resource.data)
+          && (resource.data.get("team", "") == "" || request.time.toMillis() < get(derbyPath(did)).data.start);
       }
 
       // "Paid out" ticks for each payee once the organiser has settled up.

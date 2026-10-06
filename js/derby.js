@@ -18,7 +18,7 @@ export const PROOF = {
 export const DEFAULTS = {
   name: "", description: "", start: 0, end: 0, syncGraceHours: 24, species: [], scoring: "heaviest", bagSize: 5,
   minWeightOz: 0, minLengthIn: 0, maxEntries: 0, proof: "any", requireLocation: false, catchRelease: false,
-  requireCrew: false, prizeNote: "", cancelled: false, mystery: false, mysteryNote: "", categories: [], mysteryPct: 0,
+  requireCrew: false, prizeNote: "", cancelled: false, mystery: false, mysteryNote: "", categories: [], mysteryPct: 0, teams: [],
   testing: false, entryFee: 0, addedMoney: 0, payoutPcts: [100], unpaidCanWin: false, captainPct: 0, netmanPct: 0, roundTo: 1, sidePotFee: 0,
 };
 
@@ -164,4 +164,27 @@ export function mysteryBoard(d, catches, entrants, weightOz) {
     if (!cur || off < cur.off || (off === cur.off && e.caughtAt < cur.fish.caughtAt)) best.set(e.uid, { uid: e.uid, fish: e, off });
   }
   return [...best.values()].sort((a, b) => a.off - b.off || a.fish.caughtAt - b.fish.caughtAt);
+}
+
+/* Team derbies: the organiser names the teams ([{ id, name }]) and each angler picks one when joining (the entrant's
+   `team`). A team's score is its members' scores on the main board added up; ties go to the team that got there
+   first. [{ team, score, members: [{ uid, row }], decidedAt }], best first. Anglers with no team aren't counted. */
+export function teamBoard(d, catches, entrants) {
+  const teams = d.teams || [];
+  if (!teams.length) return [];
+  const rows = new Map(standings(d, catches, entrants).map(r => [r.uid, r]));
+  const out = teams.map(team => ({ team, score: 0, members: [], decidedAt: 0 }));
+  const byId = new Map(out.map(t => [t.team.id, t]));
+  for (const [uid, e] of entrants || new Map()) {
+    const t = byId.get((e || {}).team);
+    if (!t) continue;
+    const row = rows.get(uid) || null;
+    t.members.push({ uid, row });
+    if (row) { t.score += row.score; t.decidedAt = Math.max(t.decidedAt, row.decidedAt); }
+  }
+  for (const t of out) {
+    t.score = Math.round(t.score * 100) / 100;
+    t.members.sort((a, b) => (b.row ? b.row.score : -1) - (a.row ? a.row.score : -1));
+  }
+  return out.sort((a, b) => b.score - a.score || (a.score ? a.decidedAt - b.decidedAt : 0));
 }

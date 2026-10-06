@@ -423,6 +423,11 @@ textarea { resize: vertical; line-height: 1.4; }
 .board-pick .chip[aria-pressed="true"] { background: var(--primary); color: var(--primary-ink); }
 .pot-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .pot-parts li { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
+/* Team derbies */
+.team-line { align-items: center; padding: 10px 14px; font-weight: 700; }
+.team-row { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.team-row.top1 { border-color: var(--gold); }
+.team-move { margin-top: 6px; min-height: 40px; font-size: 15px; padding: 4px 10px; }
 /* Derby mystery weight */
 .mystery { border-color: var(--gold); }
 .mystery-weight { font: 800 20px/1.2 var(--f-display); }
