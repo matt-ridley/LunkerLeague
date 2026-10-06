@@ -24,6 +24,7 @@ const ROUTES = {
   d: { tab: "derbies", live: true, render: renderDerby },
   dnew: { tab: "derbies", live: false, render: main => renderDerbyForm(main) },
   dedit: { tab: "derbies", live: false, render: renderDerbyForm },
+  dcopy: { tab: "derbies", live: false, render: (main, id) => renderDerbyForm(main, null, id) },
   dchat: { tab: "derbies", live: true, inPlace: true, render: renderChat },
   enter: { tab: "log", live: false, render: (main, derbyId) => renderLog(main, null, derbyId) },
   chat: { tab: "chat", live: true, inPlace: true, render: renderChat },
