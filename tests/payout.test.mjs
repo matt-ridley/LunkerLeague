@@ -1,7 +1,8 @@
 // Unit tests for derby payouts. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { payouts, fmtMoney, ordinal, hasMoney } from "../js/payout.js";
+import { payouts, fmtMoney, ordinal, hasMoney, derbyMoney } from "../js/payout.js";
+import { DEFAULTS } from "../js/derby.js";
 
 const row = (uid, score, fish) => ({ uid, score, fish: [{ uid, weightOz: score, caughtAt: 1, ...fish }] });
 const ent = (paid, unpaid = [], side = []) => new Map([...paid.map(u => [u, { paid: true, sidePotPaid: side.includes(u) }]),
@@ -75,4 +76,24 @@ test("helpers", () => {
   assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal), ["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd"]);
   assert.equal(hasMoney({ entryFee: 0, sidePotFee: 0 }), false);
   assert.equal(hasMoney({ sidePotFee: 5 }), true);
+});
+
+test("categories split the pot by share, each by its own place split; the mystery share goes to the closest fish", () => {
+  const H = 3600e3;
+  const d = { ...DEFAULTS, id: "d1", start: 0, end: 10 * H, entryFee: 20, roundTo: 1, mystery: true, mysteryPct: 20, categories: [
+    { id: "c1", name: "Big Bass", species: ["Bass"], scoring: "heaviest", pct: 50, payoutPcts: [70, 30] },
+    { id: "c2", name: "Big Walleye", species: ["Walleye"], scoring: "heaviest", pct: 30, payoutPcts: [100] },
+  ] };
+  const f = (uid, species, weightOz) => ({ id: uid + species, uid, species, weightOz, lengthIn: null, caughtAt: H, createdAt: H, derbyId: "d1" });
+  const catches = [f("amy", "Bass", 60), f("bo", "Bass", 50), f("cy", "Walleye", 40), f("bo", "Walleye", 35)];
+  const entrants = ent(["amy", "bo", "cy", "di", "ed"]); // $100 pot
+  const before = derbyMoney(d, catches, entrants);
+  assert.equal(before.pot, 100);
+  assert.deepEqual(before.parts.map(p => [p.name, p.pot]), [["Big Bass", 50], ["Big Walleye", 30], ["🎯 Mystery weight", 20]]);
+  assert.equal(before.mysteryPending, 20); // weight not known yet
+  // Bass: amy $35, bo $15. Walleye: cy $30. Mystery (36 oz): bo's 35 oz walleye is closest.
+  const after = derbyMoney(d, catches, entrants, { mysteryOz: 36 });
+  assert.deepEqual(amounts(after), { "u:amy": 35, "u:bo": 35, "u:cy": 30 });
+  assert.equal(after.payees.reduce((s, p) => s + p.amount, 0), 100);
+  assert.ok(after.payees.find(p => p.key === "u:bo").why.includes("$15 Big Bass: 2nd place"));
 });

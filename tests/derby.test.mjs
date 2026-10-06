@@ -1,7 +1,7 @@
 // Unit tests for derby status, entry rules and standings. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, derbyStatus, entryProblem, derbyEntries, standings, closesAt, nextDates, mysteryBoard } from "../js/derby.js";
+import { DEFAULTS, derbyStatus, entryProblem, derbyEntries, standings, closesAt, nextDates, mysteryBoard, categoryBoards, derbySpecies } from "../js/derby.js";
 
 const H = 3600 * 1000;
 const derby = (extra = {}) => ({ ...DEFAULTS, id: "d1", name: "Test", start: 10 * H, end: 20 * H, ...extra });
@@ -100,4 +100,25 @@ test("mystery weight: each angler's closest weighed fish, closest first; unweigh
   assert.deepEqual(board.map(r => [r.uid, r.off]), [["a", 1], ["b", 1]]);
   assert.equal(board[0].fish.weightOz, 53);
   assert.equal(mysteryBoard(d, [fish("a", "Walleye", 52, null, 12)], null, 52)[0].off, 0);
+});
+
+test("categories: each board has its own species and scoring; the first is the main board", () => {
+  const d = derby({ categories: [
+    { id: "c1", name: "Big Bass", species: ["Largemouth Bass"], scoring: "heaviest", pct: 50, payoutPcts: [100] },
+    { id: "c2", name: "Long Pike", species: ["Northern Pike"], scoring: "longest", pct: 50, payoutPcts: [100] },
+  ] });
+  assert.deepEqual(derbySpecies(d), ["Largemouth Bass", "Northern Pike"]);
+  const catches = [
+    fish("a", "Largemouth Bass", 60, 18, 12), fish("b", "Largemouth Bass", 70, null, 13),
+    fish("a", "Northern Pike", null, 30, 14),                  // only measured: fine for the longest board
+    fish("b", "Northern Pike", 90, null, 14),                  // only weighed: fits no board
+    fish("c", "Walleye", 50, 20, 12),                          // no category takes walleye
+  ];
+  const boards = categoryBoards(d, catches, null);
+  assert.deepEqual(boards.map(b => [b.cat.name, b.rows.map(r => r.uid)]), [["Big Bass", ["b", "a"]], ["Long Pike", ["a"]]]);
+  assert.deepEqual(standings(d, catches, null).map(r => r.uid), ["b", "a"]); // main board
+  assert.equal(entryProblem(catches[3], d), "Needs a length");
+  assert.match(entryProblem(catches[4], d), /Species/);
+  // A category with no species takes anything, so the derby does too.
+  assert.deepEqual(derbySpecies({ categories: [{ species: ["Walleye"] }, { species: [] }] }), []);
 });

@@ -2,9 +2,9 @@
    league's data, so the feed and the bell can date it and season points count it in the right season.
    Pure functions on plain data. */
 import { fishIn, measured, better } from "./stats.js";
-import { derbyStatus, closesAt, standings, derbyEntries } from "./derby.js";
+import { derbyStatus, closesAt, standings } from "./derby.js";
 import { newSpots } from "./crowns.js";
-import { payouts, hasMoney } from "./payout.js";
+import { derbyMoney, hasMoney } from "./payout.js";
 
 const DAY = 24 * 3600 * 1000;
 const lb = n => n * 16;
@@ -219,8 +219,7 @@ function anglerContext(u, L) {
     }
     if (d.organiserUid === u && ent.size >= 4) organised.push(at);
     if (hasMoney(d) && rows.length) {
-      const entries = derbyEntries(d, L.catches, ent).filter(e => !e.problem);
-      if (payouts(d, rows, ent, entries).payees.some(p => p.payee.uid === u && p.amount > 0)) moneyAt.push(at);
+      if (derbyMoney(d, L.catches, ent).payees.some(p => p.payee.uid === u && p.amount > 0)) moneyAt.push(at);
     }
   }
   // Personal bests beaten (not the first catch of a species). A past catch sets the bar to beat, but only a league
