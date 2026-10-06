@@ -70,8 +70,8 @@ export const BADGES = [
   { id: "hypeSquad", icon: "🙌", name: "Hype Squad", desc: "100 reactions given", at: x => nth(x.reactionsGiven, 100, r => r.n) },
   { id: "crowdFav", icon: "⭐", name: "Crowd Favourite", desc: "A catch with 10 or more reactions", at: x => x.crowdFavAt },
   { id: "tallTale", icon: "🤥", name: "Tall Tale", desc: "A catch with 5 or more 🤥 reactions", at: x => x.tallTaleAt },
-  { id: "tripPlanner", icon: "🧭", name: "Trip Planner", desc: "Plan a trip that gets 4 or more \"In\"s", at: x => x.tripPlannerAt },
-  { id: "alwaysIn", icon: "✅", name: "Always In", desc: "Answer \"In\" to 10 trips", at: x => nth(x.insGiven, 10) },
+  { id: "tripPlanner", icon: "🧭", name: "Outing Planner", desc: "Plan an outing that gets 4 or more \"In\"s", at: x => x.tripPlannerAt },
+  { id: "alwaysIn", icon: "✅", name: "Always In", desc: "Answer \"In\" to 10 outings", at: x => nth(x.insGiven, 10) },
   // Crowns and places
   { id: "crownThief", icon: "🦹", name: "Crown Thief", desc: "Steal a crown from someone", at: x => x.crownSteals[0] ?? null },
   { id: "royalty", icon: "🫅", name: "Royalty", desc: "Hold 5 crowns at once (once 3 anglers are fishing)", at: x => x.royaltyAt },

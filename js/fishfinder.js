@@ -43,12 +43,12 @@ function happening(x) {
       ? { title: `${d.name}: fishing's over`, detail: `Last entries in ${span(closesAt(d) - now)}. ${place}`, href }
       : { title: `${d.name} ends in ${span(d.end - now)}`, detail: place, href };
   }
-  // A trip from 12 hours ago to 2 days ahead.
+  // An outing from 12 hours ago to 2 days ahead.
   const t = [...trips.values()].filter(t => t.at > now - 12 * HOUR && t.at < now + 2 * DAY).sort((a, b) => a.at - b.at)[0];
   if (t) {
     const answers = rsvps.get(t.id) || new Map(), mine = (answers.get(me) || {}).answer;
     const ins = [...answers.values()].filter(r => r.answer === "in").length;
-    const mineText = t.uid === me ? "Your trip." : mine === "in" ? "You're in." : mine === "maybe" ? "You're a maybe." : mine === "out" ? "You're out." : "Are you in?";
+    const mineText = t.uid === me ? "Your outing." : mine === "in" ? "You're in." : mine === "maybe" ? "You're a maybe." : mine === "out" ? "You're out." : "Are you in?";
     const when = t.at > now ? `Starts in ${span(t.at - now)}` : "Out now";
     return { title: `🚤 ${t.title}`, detail: [when, t.place, ins ? `${plural(ins, "angler", "anglers")} in` : "No one's in yet"].filter(Boolean).join(" · ") + `. ${mineText}`, href: `#/t/${t.id}` };
   }

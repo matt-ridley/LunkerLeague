@@ -364,16 +364,25 @@ service cloud.firestore {
     }
     match /{path=**}/entrants/{who} { allow read: if isMember(); }
 
-    // ---------- Trips ----------
+    // ---------- Trips (called Outings in the app) ----------
     // "Who's out Saturday?": anyone can plan one; its planner (or an admin) can change or delete it.
-    // Each member answers In / Maybe / Out in their own doc.
+    // Each member answers In / Maybe / Out in their own doc, and on a boat outing can take a seat on a boat.
     function tripPath(id) { return /databases/$(database)/documents/trips/$(id); }
     function validTrip(t) {
-      return t.keys().hasOnly(["uid", "title", "at", "place", "notes", "createdAt"])
+      return t.keys().hasOnly(["uid", "title", "at", "place", "notes", "createdAt", "kind", "endAt"])
         && t.uid is string
         && t.title is string && t.title.size() > 0 && t.title.size() <= 60
         && t.at is number && t.place is string && t.place.size() <= 60
-        && t.notes is string && t.notes.size() <= 500 && t.createdAt is number;
+        && t.notes is string && t.notes.size() <= 500 && t.createdAt is number
+        && t.get("kind", "shore") in ["boat", "shore"]
+        && (t.get("endAt", null) == null || (t.endAt is number && t.endAt > t.at));
+    }
+    // An answer, and on a boat outing the boat (its owner's uid) you're sitting in and when you took the seat.
+    function validRsvp(r) {
+      return r.keys().hasOnly(["answer", "at", "boat", "seatAt"])
+        && r.answer in ["in", "maybe", "out"] && r.at is number
+        && r.get("boat", "") is string && r.get("boat", "").size() <= 128 && r.get("seatAt", 0) is number
+        && (r.get("boat", "") == "" || r.answer == "in");
     }
     match /trips/{tid} {
       allow read: if isMember();
@@ -384,13 +393,23 @@ service cloud.firestore {
       match /rsvps/{who} {
         allow read: if isMember();
         allow create, update: if isMember() && who == me() && exists(tripPath(tid))
-          && request.resource.data.keys().hasOnly(["answer", "at"])
-          && request.resource.data.answer in ["in", "maybe", "out"] && request.resource.data.at is number;
+          && validRsvp(request.resource.data);
         // Yourself, or the trip's planner or an admin clearing out a deleted trip.
         allow delete: if isMember() && (who == me() || isAdmin() || !exists(tripPath(tid)) || get(tripPath(tid)).data.uid == me());
       }
+      // Boats: anyone can offer theirs (spare seats, not counting the owner); only the owner changes it. The owner,
+      // the outing's planner or an admin can take it off (or anyone, once the outing is deleted).
+      match /boats/{owner} {
+        allow read: if isMember();
+        allow create, update: if isMember() && owner == me() && exists(tripPath(tid))
+          && request.resource.data.keys().hasOnly(["seats", "name", "at"])
+          && request.resource.data.seats is int && request.resource.data.seats >= 1 && request.resource.data.seats <= 12
+          && request.resource.data.name is string && request.resource.data.name.size() <= 40 && request.resource.data.at is number;
+        allow delete: if isMember() && (owner == me() || isAdmin() || !exists(tripPath(tid)) || get(tripPath(tid)).data.uid == me());
+      }
     }
     match /{path=**}/rsvps/{who} { allow read: if isMember(); }
+    match /{path=**}/boats/{owner} { allow read: if isMember(); }
 
     // ---------- Season series (Angler of the Year) ----------
     // League admins set them up; derby organisers put their derby in one (the derby's seriesId).
