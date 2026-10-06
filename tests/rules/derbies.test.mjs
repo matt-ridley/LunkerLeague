@@ -236,3 +236,16 @@ test("mystery weight: revealed right after the end when there's no late-entry wi
   await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), "derbies/d1/secret/mystery"), { weightOz: 52, setBy: "admin2", setAt: 1 }));
   await assertSucceeds(getDoc(doc(as(env, "member"), "derbies/d1/secret/mystery")));
 });
+
+test("categories: a derby can have up to 6; a fish only needs what one category needs", async () => {
+  const cats = [{ id: "c1", name: "Big Bass", species: ["Walleye"], scoring: "heaviest", bagSize: 5, pct: 50, payoutPcts: [100] },
+    { id: "c2", name: "Long Pike", species: ["Northern Pike"], scoring: "longest", bagSize: 5, pct: 50, payoutPcts: [100] }];
+  const db = as(env, "member");
+  await assertSucceeds(setDoc(doc(db, "derbies/d9"), derbyData("member", { categories: cats, species: ["Walleye", "Northern Pike"], mysteryPct: 0 })));
+  await assertFails(setDoc(doc(db, "derbies/d8"), derbyData("member", { categories: Array(7).fill(cats[0]) })));
+  await assertFails(setDoc(doc(db, "derbies/d7"), derbyData("member", { mysteryPct: 150 })));
+  await seedDerby({ scoring: "heaviest", categories: cats, species: ["Walleye", "Northern Pike"] });
+  // An unweighed pike can still go on the longest board.
+  await assertSucceeds(putCatch(as(env, "member"), "e1", entry("member", { species: "Northern Pike", weightOz: null, lengthIn: 30 })));
+  await assertFails(putCatch(as(env, "member"), "e2", entry("member", { species: "Perch" })));
+});

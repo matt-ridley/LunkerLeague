@@ -127,8 +127,9 @@ service cloud.firestore {
         && exists(derbyPath(d.derbyId)) && exists(entrantPath(d.derbyId, d.uid)) && derbyOpen(dz)
         && d.caughtAt >= dz.start && d.caughtAt <= dz.end
         && (dz.species.size() == 0 || d.species in dz.species)
-        && (!(dz.scoring in ["heaviest", "bag"]) || d.get("weightOz", null) != null)
-        && (dz.scoring != "longest" || d.get("lengthIn", null) != null)
+        // With categories, a fish only needs what one of them needs (the app checks that), so not here.
+        && (dz.get("categories", []).size() > 0 || !(dz.scoring in ["heaviest", "bag"]) || d.get("weightOz", null) != null)
+        && (dz.get("categories", []).size() > 0 || dz.scoring != "longest" || d.get("lengthIn", null) != null)
         && (dz.minWeightOz == 0 || (d.get("weightOz", null) != null && d.weightOz >= dz.minWeightOz))
         && (dz.minLengthIn == 0 || (d.get("lengthIn", null) != null && d.lengthIn >= dz.minLengthIn))
         && (!dz.catchRelease || d.released == true)
@@ -255,7 +256,7 @@ service cloud.firestore {
                                "bagSize", "minWeightOz", "minLengthIn", "maxEntries", "proof", "requireLocation", "catchRelease",
                                "requireCrew", "prizeNote", "cancelled", "createdAt",
                                "entryFee", "addedMoney", "payoutPcts", "unpaidCanWin", "captainPct", "netmanPct", "roundTo", "sidePotFee",
-                               "testing", "mystery", "mysteryNote"])
+                               "testing", "mystery", "mysteryNote", "categories", "mysteryPct"])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.description is string && d.description.size() <= 500
         && d.start is number && d.end is number && d.end > d.start
@@ -271,6 +272,9 @@ service cloud.firestore {
         && d.cancelled is bool && d.createdAt is number
         && d.get("testing", false) is bool
         && d.get("mystery", false) is bool && d.get("mysteryNote", "") is string && d.get("mysteryNote", "").size() <= 100
+        // Categories (several boards in one derby): the app checks each one; here, at most 6, and the mystery's share.
+        && d.get("categories", []) is list && d.get("categories", []).size() <= 6
+        && d.get("mysteryPct", 0) is number && d.get("mysteryPct", 0) >= 0 && d.get("mysteryPct", 0) <= 100
         && validMoney(d);
     }
     // Entry fees and payouts (the app only keeps track; nobody pays through it). Older derbies have none of these.
