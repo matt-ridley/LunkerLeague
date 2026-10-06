@@ -256,7 +256,7 @@ service cloud.firestore {
                                "bagSize", "minWeightOz", "minLengthIn", "maxEntries", "proof", "requireLocation", "catchRelease",
                                "requireCrew", "prizeNote", "cancelled", "createdAt",
                                "entryFee", "addedMoney", "payoutPcts", "unpaidCanWin", "captainPct", "netmanPct", "roundTo", "sidePotFee",
-                               "testing", "mystery", "mysteryNote", "categories", "mysteryPct", "teams"])
+                               "testing", "mystery", "mysteryNote", "categories", "mysteryPct", "teams", "seriesId"])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.description is string && d.description.size() <= 500
         && d.start is number && d.end is number && d.end > d.start
@@ -277,6 +277,8 @@ service cloud.firestore {
         && d.get("mysteryPct", 0) is number && d.get("mysteryPct", 0) >= 0 && d.get("mysteryPct", 0) <= 100
         // Team derbies: the organiser names up to 12 teams.
         && d.get("teams", []) is list && d.get("teams", []).size() <= 12
+        // The season series it counts toward ("" for none).
+        && d.get("seriesId", "") is string && d.get("seriesId", "").size() <= 40
         && validMoney(d);
     }
     // Entry fees and payouts (the app only keeps track; nobody pays through it). Older derbies have none of these.
@@ -388,6 +390,24 @@ service cloud.firestore {
       }
     }
     match /{path=**}/rsvps/{who} { allow read: if isMember(); }
+
+    // ---------- Season series (Angler of the Year) ----------
+    // League admins set them up; derby organisers put their derby in one (the derby's seriesId).
+    function validSeries(x) {
+      return x.keys().hasOnly(["name", "start", "end", "points", "showUpPts", "bestOf", "createdBy", "createdAt"])
+        && x.name is string && x.name.size() > 0 && x.name.size() <= 60
+        && x.start is number && x.end is number && x.end > x.start
+        && x.points is list && x.points.size() > 0 && x.points.size() <= 20
+        && x.showUpPts is number && x.showUpPts >= 0 && x.showUpPts <= 100
+        && x.bestOf is number && x.bestOf >= 0 && x.bestOf <= 50
+        && x.createdBy is string && x.createdAt is number;
+    }
+    match /series/{sid} {
+      allow read: if isMember();
+      allow create: if isAdmin() && validSeries(request.resource.data) && request.resource.data.createdBy == me();
+      allow update: if isAdmin() && validSeries(request.resource.data) && !changed().hasAny(["createdBy", "createdAt"]);
+      allow delete: if isAdmin();
+    }
 
     // ---------- Ranking points ----------
     // Each change to the scoring values is a new version; old versions are never edited or deleted, so the

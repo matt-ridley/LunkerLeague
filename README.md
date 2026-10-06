@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.33.0 (beta)
+**Current version:** 0.34.0 (beta)
 
 ## Features
 
@@ -90,11 +90,11 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 - ✅ **Trip RSVP**: "Who's out Saturday?" with In / Maybe / Out.
 - ⏸️ **Several photos or a short video per catch** (M): left for later. Several photos would work on the free plan; video needs Firebase Storage (Blaze plan).
 
-### Milestone D: Better derbies
+### Milestone D: Better derbies (done in 0.30.0 to 0.34.0)
 - ✅ **Team or boat derbies** (M): a team leaderboard, using boat crews as teams (done in 0.33.0).
 - ✅ **Several categories in one derby** (M): for example Big Bass, Big Walleye and Mystery Fish, each with its own leaderboard and payout (done in 0.32.0).
 - ✅ **Mystery weight prize** (S): closest to a secret weight, revealed at the end (done in 0.31.0).
-- **Season series or Angler of the Year** (M): a set of derbies with points across the season.
+- ✅ **Season series or Angler of the Year** (M): a set of derbies with points across the season (done in 0.34.0).
 - ✅ **Copy a derby** (S): start a new derby from an old one's settings (done in 0.30.0).
 
 ### Milestone E: Logbook and stats
@@ -235,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.34.0 | 2026-Oct-05 09:37:41 PM | **Season series and Angler of the Year** (Milestone D, now complete): league admins set up a season series (Events tab, "New series") with start and end dates and points by place (default 25, 18, 15, 12, 10, 8, 6, 4, 2, 1, plus 2 for fishing a derby, fish or no fish), optionally counting only each angler's best N derbies. Derby organisers put their derby in a series from the derby form. The series page shows the standings from finished derbies; once the end date passes and its derbies are done, the leader is crowned Angler of the Year, with a trophy, a feed announcement and a bell alert. Ties go to more wins, then more points over every derby. **New security rules: publish firestore.rules.** |
 | 0.33.0 | 2026-Oct-05 09:25:17 PM | **Team derbies** (Milestone D): turn on "Team derby" and name the teams (2 to 12, for example each boat). Anglers pick a team when they join and can switch until the derby starts; someone without a team can pick one any time, and the organiser can move anyone on the Anglers tab. The Board has a 👥 Teams board: each team's score is its anglers' scores on the main board added up. **New security rules: publish firestore.rules.** |
 | 0.32.1 | 2026-Oct-05 09:22:07 PM | **Fix:** opening or reloading the app straight onto a derby's edit or copy form no longer says "Only the organiser can edit this derby." before the derbies have loaded. The form shows "Loading…" and appears once the derby arrives. |
 | 0.32.0 | 2026-Oct-05 09:03:03 PM | **Derby categories** (Milestone D): turn on "Several categories" to run up to 6 boards in one derby (for example Big Bass and Long Pike), each with its own species, scoring, share of the pot and place split. The derby page has a board for each, the Money tab shows each category's share, and payouts add up per angler. With categories, the mystery weight can have its own share of the pot, paid to the closest fish once revealed. The first category is the main one: it decides the derby's places for ranking points, badges, crowns and news. **New security rules: publish firestore.rules.** |

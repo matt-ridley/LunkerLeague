@@ -9,6 +9,7 @@ import { renderFeed, renderCatch, renderLog, maybeShowRejected } from "./catches
 import { renderLeaders } from "./leaders.js";
 import { renderChat, chatUnread } from "./social.js";
 import { renderDerbies, renderDerby, renderDerbyForm } from "./derbies.js";
+import { renderSeries, renderSeriesForm } from "./seriespage.js";
 import { renderScoring } from "./scoring.js";
 import { renderTrip, renderTripForm } from "./trips.js";
 import { renderAlerts, bellCount } from "./alerts.js";
@@ -34,6 +35,9 @@ const ROUTES = {
   scoring: { tab: "leaders", live: false, render: renderScoring },
   t: { tab: "derbies", live: true, render: renderTrip },
   tnew: { tab: "derbies", live: false, render: main => renderTripForm(main) },
+  s: { tab: "derbies", live: true, render: renderSeries },
+  snew: { tab: "derbies", live: false, render: main => renderSeriesForm(main) },
+  sedit: { tab: "derbies", live: false, render: renderSeriesForm },
   tedit: { tab: "derbies", live: false, render: renderTripForm },
   alerts: { tab: null, live: true, render: renderAlerts },
 };

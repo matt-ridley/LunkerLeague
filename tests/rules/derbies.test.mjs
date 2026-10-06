@@ -265,3 +265,9 @@ test("teams: pick one when joining; switch only before the start; the organiser 
   await assertSucceeds(updateDoc(doc(as(env, "owner"), "derbies/d1/entrants/owner"), { team: "t2" }));
   await assertFails(setDoc(doc(me, "derbies/d9"), derbyData("member", { teams: Array(13).fill({ id: "x", name: "x" }) })));
 });
+
+test("a derby can count toward a season series", async () => {
+  const db = as(env, "member");
+  await assertSucceeds(setDoc(doc(db, "derbies/d9"), derbyData("member", { seriesId: "s1" })));
+  await assertFails(setDoc(doc(db, "derbies/d8"), derbyData("member", { seriesId: 7 })));
+});

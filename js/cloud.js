@@ -41,6 +41,7 @@ export const store = {
   mystery: new Map(),     // derby id -> { weightOz, setBy, setAt } or null (loaded once the rules let this angler see it)
   scoring: [],            // ranking point versions, oldest first
   trips: new Map(),       // id -> trip ("who's out Saturday?")
+  series: new Map(),      // id -> season series (Angler of the Year)
   rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at })
 };
 
@@ -190,6 +191,11 @@ function refreshMemberListeners() {
     store.entrants = by;
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "series"), OPTS, snap => {
+    seen("series", snap);
+    store.series = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "trips"), OPTS, snap => {
     seen("trips", snap);
     store.trips = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -279,7 +285,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
-  store.trips = new Map(); store.rsvps = new Map();
+  store.trips = new Map(); store.rsvps = new Map(); store.series = new Map();
 }
 
 function syncError(e) {
@@ -525,6 +531,15 @@ export function watchDerbyChat(derbyId) {
 }
 
 /* ---------- Trips ---------- */
+/* Season series: admins only (the rules check). Returns the id. */
+export function saveSeries(id, data) {
+  const { doc, collection, setDoc } = cloud.api;
+  const ref = id ? doc(cloud.db, "series", id) : doc(collection(cloud.db, "series"));
+  write(setDoc(ref, data));
+  return ref.id;
+}
+export const deleteSeries = id => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "series", id)));
+
 export function saveTrip(id, data) {
   const { doc, collection, setDoc } = cloud.api;
   const ref = id ? doc(cloud.db, "trips", id) : doc(collection(cloud.db, "trips"));
