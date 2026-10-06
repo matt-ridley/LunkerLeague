@@ -54,6 +54,9 @@ test("show: catches only, news only, records and PBs, throwbacks", () => {
   assert.equal(onlyNews.catches.length, 0);
   assert.equal(onlyNews.loose.length, 3); // catch news gets its own card when its catch isn't shown
   assert.deepEqual(ids(run(catches, news, { show: "past" })), [old.id]);
+  const current = run(catches, news, { show: "current" });
+  assert.deepEqual(ids(current), [walleye.id, pike.id, perch.id]); // everything but the past catch
+  assert.equal(current.loose.length, 0); // catches only: no news cards of their own
   assert.ok(!ids(run(catches, news, { show: "records" })).includes(old.id)); // a smaller walleye than Amy's PB
 });
 
