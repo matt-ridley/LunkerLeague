@@ -231,7 +231,12 @@ body.gated .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 .catch-card:active { background: var(--surface-2); }
 .thumb { width: 96px; height: 96px; border-radius: 12px; object-fit: cover; flex: none; background: var(--surface-2); }
 .thumb.sm { width: 48px; height: 48px; border-radius: 8px; }
-.catch-info { min-width: 0; display: grid; gap: 3px; align-content: start; }
+.catch-info { flex: 1; min-width: 0; display: grid; gap: 3px; align-content: start; }
+.catch-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+/* The species keeps whole words; when space is tight the flair stacks instead. */
+.flair { flex: 0 1 auto; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.flair .short { display: none; }
+@media (max-width: 480px) { .flair .long { display: none; } .flair .short { display: inline; } }
 .catch-species { font: 800 20px/1.1 var(--f-display); }
 .catch-size { font-weight: 800; color: var(--primary); font-size: 18px; }
 .catch-size.unmeasured { color: var(--muted); font-weight: 700; font-size: 15px; }
