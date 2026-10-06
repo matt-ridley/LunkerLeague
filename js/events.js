@@ -7,6 +7,7 @@ import { measured, fishIn } from "./stats.js";
 import { badgeTimeline } from "./rank.js";
 import { derbyStatus, closesAt, standings } from "./derby.js";
 import { crownSteals } from "./crowns.js";
+import { seriesStatus, seriesStandings, seriesFinalAt } from "./series.js";
 
 const PLACES = ["1st", "2nd", "3rd"];
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -64,6 +65,18 @@ function postedTimes(catches) {
   };
 }
 
+const aoty = s => (/angler of the year/i.test(s.name) ? `${s.name}!` : `${s.name}: Angler of the Year!`);
+/* Finished season series and their winner: [{ s, uid, at }]. */
+function seriesWinners({ series, derbies, catches, entrants = new Map(), now }) {
+  const out = [];
+  for (const s of asMap(series).values()) {
+    if (seriesStatus(s, derbies, now) !== "final") continue;
+    const top = seriesStandings(s, { derbies, catches, entrants }, now)[0];
+    if (top && top.total) out.push({ s, uid: top.uid, at: seriesFinalAt(s, derbies) });
+  }
+  return out;
+}
+
 /* Feed news: [{ id, at, icon, text, href, uids, cid?, short?, badge? }], newest first. `uids` are the anglers it's about.
    News caused by one catch also has `cid` (that catch) and `short` (the text to show on its card); badge news has `badge`.
    `crowns` (from crownStandings) adds crowns changing hands. */
@@ -89,6 +102,9 @@ export function leagueEvents(data) {
   for (const { d, rows, at } of finishedDerbies({ catches, derbies: derbyMap, entrants, now })) {
     out.push({ id: `derby:${d.id}`, at, icon: "🏁", href: `#/d/${d.id}`, uids: rows.slice(0, 3).map(r => r.uid),
       text: `${d.name} is over: ${rows.slice(0, 3).map((r, i) => `${MEDALS[i]} ${name(r.uid)}`).join(" · ")}` });
+  }
+  for (const w of seriesWinners({ ...data, derbies: derbyMap, now })) {
+    out.push({ id: `series:${w.s.id}`, at: w.at, icon: "🏆", href: `#/s/${w.s.id}`, uids: [w.uid], text: `${name(w.uid)} won ${aoty(w.s)}` });
   }
   return out.sort((a, b) => b.at - a.at);
 }
@@ -176,6 +192,11 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     else for (const [u, r] of rsvps.get(t.id) || new Map()) if (u !== me) {
       add({ id: `rsvp:${t.id}:${u}:${r.answer}`, at: r.at || 0, icon: RSVP_ICON[r.answer] || "🚤", href: `#/t/${t.id}`, text: `${name(u)} ${RSVP_TEXT[r.answer] || "answered"} for ${t.title}` });
     }
+  }
+
+  // A season series you won.
+  for (const w of seriesWinners({ ...data, derbies: derbyMap, now })) if (w.uid === me) {
+    add({ id: `series:${w.s.id}`, at: w.at, icon: "🏆", href: `#/s/${w.s.id}`, text: `You won ${aoty(w.s)}` });
   }
 
   // Past catches (throwbacks) added by others.

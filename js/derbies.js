@@ -7,6 +7,7 @@ import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEnt
   categoryBoards, categoriesOf, derbySpecies, teamBoard } from "./derby.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { tripsSection } from "./trips.js";
+import { seriesSection } from "./seriespage.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -53,6 +54,7 @@ export function renderDerbies(main) {
   fill(main,
     el("h2", { class: "page-title", text: "Events" }),
     tripsSection(),
+    seriesSection(),
     el("div", { class: "row spread" }, el("h3", { text: "🏁 Derbies" }),
       el("a", { class: "btn lime small", href: "#/dnew", html: icon.plus }, "New derby")),
     !all.length ? el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.flag }),
@@ -99,6 +101,7 @@ export function renderDerby(main, id) {
     el("p", { class: "derby-when", text: when(d) }),
     d.description ? el("p", { text: d.description }) : null,
     d.prizeNote ? el("p", { class: "prize", text: `🏆 ${d.prizeNote}` }) : null,
+    store.series.get(d.seriesId) ? el("a", { class: "series-link", href: `#/s/${d.seriesId}`, text: `🏆 Counts toward ${store.series.get(d.seriesId).name}` }) : null,
     el("p", { class: "small", text: `Organised by ${who(d.organiserUid).displayName} · ${ent.size} ${ent.size === 1 ? "angler" : "anglers"}` }));
 
   const actions = el("div", { class: "row" },
@@ -342,6 +345,7 @@ function rulesView(d) {
     rule("Spot", d.requireLocation ? "GPS spot required and shared with the league" : "Optional"),
     rule("Release", d.catchRelease ? "Catch and release only" : "Keep or release"),
     rule("Boat crew", d.requireCrew ? "Captain and net man must be named on every entry" : "Optional"),
+    store.series.get(d.seriesId) ? rule("Season series", `Counts toward ${store.series.get(d.seriesId).name}: points by place on the main board`) : null,
     teamsOf(d) ? rule("Teams", `${teamsOf(d).map(t => t.name).join(", ")}. A team's score is its anglers' scores added up${categoriesOf(d) ? ` (${categoriesOf(d)[0].name})` : ""}.`) : null,
     d.mystery && categoriesOf(d) && hasMoney(d) && d.mysteryPct ? rule("Mystery share", `${d.mysteryPct}% of the pot to the closest fish`) : null,
     d.mystery ? rule("Mystery weight", `A secret weight is set. Each angler's weighed fish closest to it wins${d.mysteryNote ? ` (${d.mysteryNote})` : ""}. It's revealed when final entries close.`) : null);
@@ -619,6 +623,10 @@ export function renderDerbyForm(main, id, copyId) {
     if (teamOn.checked) drawTeams();
   };
   teamOn.addEventListener("change", syncTeams); syncTeams();
+  // Season series: any series that hasn't finished yet (and the one it's already in).
+  const seriesOpts = [...store.series.values()].filter(x => x.end >= Date.now() - 30 * 86400000 || x.id === d.seriesId).sort((a, b) => b.start - a.start);
+  const seriesSel = el("select", {}, el("option", { value: "", text: "Not part of a series" }), ...seriesOpts.map(x => el("option", { value: x.id, text: x.name })));
+  seriesSel.value = store.series.has(d.seriesId) ? d.seriesId : "";
   const singleBox = el("div", { class: "stack" });
   const syncMulti = () => {
     if (multi.checked && !cats.length) {
@@ -647,6 +655,8 @@ export function renderDerbyForm(main, id, copyId) {
       el("datalist", { id: "derby-species" }, ...SPECIES.map(s => el("option", { value: s }))),
       multiRow, multiHint, catList),
     el("section", { class: "card stack" }, el("h3", { text: "👥 Teams" }), teamRow, teamHint, teamList),
+    seriesOpts.length ? el("section", { class: "card stack" }, el("h3", { text: "🏆 Season series" }),
+      field("Counts toward", seriesSel, "Places in this derby earn points toward the series' Angler of the Year. Test derbies never count.")) : null,
     el("section", { class: "card stack" }, el("h3", { text: "Rules" }),
       el("div", { class: "field" }, el("span", { class: "field-label", text: "Minimum weight" }),
         el("div", { class: "unit-row" }, minLb, el("span", { text: "lb" }), minOz, el("span", { text: "oz" }))),
@@ -704,7 +714,7 @@ export function renderDerbyForm(main, id, copyId) {
       unpaidCanWin: unpaidWin.checked, captainPct: Math.min(50, Math.max(0, num(capPct.value))), netmanPct: Math.min(50, Math.max(0, num(netPct.value))),
       roundTo: +roundTo.value, sidePotFee: Math.max(0, num(side.value)),
       mystery: mysteryLocked ? true : myst.checked, mysteryNote: mNote.value.trim().slice(0, 100),
-      categories: [], mysteryPct: mysteryShare,
+      categories: [], mysteryPct: mysteryShare, seriesId: seriesSel.value,
       // Teams keep their ids (anglers' picks point at them); new ones get the next free one.
       teams: teamOn.checked ? (() => { const used = new Set(teams.map(t => t.id).filter(Boolean)); let n = 1;
         return teams.map(t => { let tid = t.id; if (!tid) { while (used.has(`t${n}`)) n++; tid = `t${n}`; used.add(tid); }

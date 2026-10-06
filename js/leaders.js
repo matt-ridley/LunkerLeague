@@ -19,7 +19,7 @@ export function rankInput() {
   const input = {
     catches: [...store.catches.values()], derbies: store.derbies, entrants: store.entrants, versions: store.scoring,
     members: [...store.members.values()].filter(m => !m.suspended).map(m => m.id),
-    comments: store.comments, reactions, spots, trips: store.trips, rsvps: store.rsvps, leagueStart: leagueStartOf(store.league),
+    comments: store.comments, reactions, spots, trips: store.trips, rsvps: store.rsvps, leagueStart: leagueStartOf(store.league), series: store.series,
   };
   input.crowns = crownsNow(input);
   input.badges = badgesNow(input);

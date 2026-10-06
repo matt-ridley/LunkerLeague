@@ -18,7 +18,7 @@ export const PROOF = {
 export const DEFAULTS = {
   name: "", description: "", start: 0, end: 0, syncGraceHours: 24, species: [], scoring: "heaviest", bagSize: 5,
   minWeightOz: 0, minLengthIn: 0, maxEntries: 0, proof: "any", requireLocation: false, catchRelease: false,
-  requireCrew: false, prizeNote: "", cancelled: false, mystery: false, mysteryNote: "", categories: [], mysteryPct: 0, teams: [],
+  requireCrew: false, prizeNote: "", cancelled: false, mystery: false, mysteryNote: "", categories: [], mysteryPct: 0, teams: [], seriesId: "",
   testing: false, entryFee: 0, addedMoney: 0, payoutPcts: [100], unpaidCanWin: false, captainPct: 0, netmanPct: 0, roundTo: 1, sidePotFee: 0,
 };
 
