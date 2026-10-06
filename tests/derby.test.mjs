@@ -1,7 +1,7 @@
 // Unit tests for derby status, entry rules and standings. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, derbyStatus, entryProblem, derbyEntries, standings, closesAt } from "../js/derby.js";
+import { DEFAULTS, derbyStatus, entryProblem, derbyEntries, standings, closesAt, nextDates } from "../js/derby.js";
 
 const H = 3600 * 1000;
 const derby = (extra = {}) => ({ ...DEFAULTS, id: "d1", name: "Test", start: 10 * H, end: 20 * H, ...extra });
@@ -72,4 +72,18 @@ test("most fish and most species", () => {
 test("a stringer is never a derby entry", () => {
   const d = { ...DEFAULTS, scoring: "most", start: 0, end: 100 };
   assert.equal(entryProblem({ uid: "u", species: "Yellow Perch", caughtAt: 50, fishCount: 20, limit: false }, d), "Stringers can't be entered in a derby");
+});
+
+test("a copied derby moves on by whole weeks to the same weekday and time, in the future", () => {
+  const start = new Date(2026, 4, 2, 6).getTime(), end = new Date(2026, 4, 2, 18).getTime(); // Sat 2 May, 6 AM to 6 PM
+  const now = new Date(2026, 4, 20, 9).getTime(); // Wed 20 May
+  const n = nextDates(start, end, now);
+  assert.equal(new Date(n.start).toString(), new Date(2026, 4, 23, 6).toString()); // Sat 23 May, 6 AM
+  assert.equal(n.end - n.start, end - start);
+  // An upcoming derby copies to the week after it, never onto itself.
+  const soon = nextDates(new Date(2026, 4, 23, 6).getTime(), new Date(2026, 4, 23, 18).getTime(), now);
+  assert.equal(new Date(soon.start).getDate(), 30);
+  // Across a clock change, 6 AM stays 6 AM.
+  const fall = nextDates(new Date(2026, 9, 31, 6).getTime(), new Date(2026, 9, 31, 18).getTime(), new Date(2026, 10, 2).getTime());
+  assert.equal(new Date(fall.start).getHours(), 6);
 });

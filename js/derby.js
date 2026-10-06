@@ -25,6 +25,14 @@ export const DEFAULTS = {
 const HOUR = 3600 * 1000;
 export const closesAt = d => d.end + (d.syncGraceHours || 0) * HOUR;
 
+/* Where a copied derby goes: the same weekday, time of day and length, moved on a whole number of weeks (at least
+   one) until it starts in the future. Dates are moved on the calendar, so 6 AM stays 6 AM across a clock change. */
+export function nextDates(start, end, now = Date.now()) {
+  const s = new Date(start), e = new Date(end);
+  do { s.setDate(s.getDate() + 7); e.setDate(e.getDate() + 7); } while (s.getTime() <= now);
+  return { start: s.getTime(), end: e.getTime() };
+}
+
 /* upcoming → active → closing (fishing over, late entries from no-signal spots still accepted) → ended */
 export function derbyStatus(d, now = Date.now()) {
   if (d.cancelled) return "cancelled";

@@ -3,7 +3,7 @@ import { el, field, avatar, fill, fmtDate, fmtDay, fmtWeight, fmtLength, toast, 
 import { store, uid, isAdmin, isOwner, memberName, endDerbyNow, deleteDerby, saveDerby, setDerbyCancelled, joinDerby, leaveDerby, setDisqualified,
   setPaid, setSettled, watchSettlements } from "./cloud.js";
 import { payouts, hasMoney, fmtMoney, ordinal, PAYOUT_PRESETS } from "./payout.js";
-import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEntries, standings } from "./derby.js";
+import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEntries, standings, nextDates } from "./derby.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { tripsSection } from "./trips.js";
 
@@ -136,7 +136,9 @@ export function renderDerby(main, id) {
   const leave = joined && st !== "ended" && st !== "cancelled"
     ? confirmButton("Leave this derby", "Tap again to leave", () => { leaveDerby(id); toast("You left the derby."); }, "btn quiet block") : null;
 
-  fill(main, head, actions, tabs, body, organiser, leave);
+  // Anyone can start a new derby from this one's settings.
+  const copy = el("a", { class: "btn quiet block", href: `#/dcopy/${id}`, text: "📋 Copy this derby" });
+  fill(main, head, actions, tabs, body, organiser, copy, leave);
 }
 
 function deleteSheet(d) {
@@ -333,11 +335,15 @@ const pad = n => String(n).padStart(2, "0");
 const toLocalInput = ms => { const t = new Date(ms); return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`; };
 const num = s => { const n = parseFloat(String(s).replace(",", ".")); return isFinite(n) ? n : 0; };
 
-export function renderDerbyForm(main, id) {
+/* `copyId`: start a new derby from that one's settings, moved on to the same weekday and time in the future. */
+export function renderDerbyForm(main, id, copyId) {
   const editing = id ? store.derbies.get(id) : null;
   if (id && (!editing || !isOrganiser(editing))) return fill(main, el("div", { class: "card" }, el("p", { text: "Only the organiser can edit this derby." })));
-  const d = { ...DEFAULTS, ...(editing || {}) };
-  if (!editing) {
+  const source = !editing && copyId ? store.derbies.get(copyId) : null;
+  if (copyId && !source) return fill(main, el("div", { class: "card empty" }, el("p", { text: store.derbies.size ? "That derby doesn't exist any more." : "Loading…" })));
+  const d = { ...DEFAULTS, ...(editing || source || {}) };
+  if (source) Object.assign(d, nextDates(source.start, source.end), { cancelled: false });
+  else if (!editing) {
     const t = new Date(); t.setDate(t.getDate() + (6 - t.getDay() + 7) % 7 || 7); t.setHours(6, 0, 0, 0); // next Saturday, 6 AM
     d.start = t.getTime(); d.end = t.getTime() + 12 * 3600 * 1000;
   }
@@ -409,7 +415,8 @@ export function renderDerbyForm(main, id) {
   const msg = el("p", { class: "msg" });
 
   const form = el("form", { class: "stack", novalidate: true },
-    el("h2", { class: "page-title", text: editing ? "Edit derby" : "New derby" }),
+    el("h2", { class: "page-title", text: editing ? "Edit derby" : source ? "Copy derby" : "New derby" }),
+    source ? el("p", { class: "hint", text: `Copied from ${source.name}: same rules and prizes, moved to ${fmtDate(d.start)}. Change anything before you create it.` }) : null,
     el("section", { class: "card stack" }, field("Name", name), field("Details (optional)", desc), field("Starts", start), field("Ends", end)),
     el("section", { class: "card stack" }, el("h3", { text: "How it's won" }), field("Scoring", scoring), bagField,
       el("div", { class: "field" }, el("span", { class: "field-label", text: "Species" }), chips, spInput,
