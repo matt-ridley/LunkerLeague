@@ -30,14 +30,17 @@ export function catchCard(c, all = allCatches(), news = []) {
   return el("a", { class: "catch-card", href: `#/c/${c.id}` },
     el("img", { class: "thumb", src: c.thumb, alt: `${c.species} photo`, loading: "lazy" }),
     el("div", { class: "catch-info" },
-      el("div", { class: "catch-species", text: c.species }),
+      // Record and PB flair sits top right, beside the species.
+      el("div", { class: "catch-top" },
+        el("div", { class: "catch-species", text: c.species }),
+        rec.length || pb ? el("div", { class: "flair" },
+          rec.length ? flairBadge("badge record", c.past ? "📜 All-time record" : "👑 League record", c.past ? "📜 All-time" : "👑 Record") : null,
+          pb ? el("span", { class: "badge pb", title: "Personal best", text: "PB" }) : null) : null),
       el("div", { class: "catch-size" + (sizeText(c) ? "" : " unmeasured"), text: sizeText(c) || "Not measured" }),
       el("div", { class: "catch-who" }, avatar(m, "xs"), el("span", { text: `${m.displayName} · ${c.past ? fmtDay(c.caughtAt) : fmtAgo(c.caughtAt)}` })),
       postedLate(c) ? el("div", { class: "catch-posted", text: `Posted ${fmtAgo(c.createdAt)}` }) : null,
-      // Chips for what matters (records, PBs, limits, derbies, problems); the rest goes in the quiet line below.
+      // Chips for the rest that matters (limits, derbies, problems); quieter facts go in the line below.
       el("div", { class: "badges" },
-        rec.length ? el("span", { class: "badge record", text: c.past ? "📜 All-time record" : "👑 League record" }) : null,
-        pb ? el("span", { class: "badge pb", text: "PB" }) : null,
         c.past && !rec.length ? el("span", { class: "badge past", text: "📜 Past catch" }) : null,
         isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limit" }) : null,
         c.derbyId && store.derbies.get(c.derbyId) ? el("span", { class: "badge derby", text: `🏁 ${store.derbies.get(c.derbyId).name}` }) : null,
@@ -46,6 +49,10 @@ export function catchCard(c, all = allCatches(), news = []) {
       cardNews(news),
       metaLine(c)));
 }
+
+/* A chip with a long label, and a short one for narrow phones (CSS shows one). */
+const flairBadge = (cls, long, short) => el("span", { class: cls, title: long },
+  el("span", { class: "long", text: long }), el("span", { class: "short", text: short }));
 
 /* News on a catch card: one line each for records and crowns, and all its badges together on one line. */
 function cardNews(news) {
