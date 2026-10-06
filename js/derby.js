@@ -18,7 +18,7 @@ export const PROOF = {
 export const DEFAULTS = {
   name: "", description: "", start: 0, end: 0, syncGraceHours: 24, species: [], scoring: "heaviest", bagSize: 5,
   minWeightOz: 0, minLengthIn: 0, maxEntries: 0, proof: "any", requireLocation: false, catchRelease: false,
-  requireCrew: false, prizeNote: "", cancelled: false, mystery: false, mysteryNote: "", categories: [], mysteryPct: 0, teams: [], seriesId: "",
+  requireCrew: false, prizeNote: "", cancelled: false, mystery: false, mysteryNote: "", categories: [], mysteryPct: 0, teams: [], teamScoring: "sum", seriesId: "",
   testing: false, entryFee: 0, addedMoney: 0, payoutPcts: [100], unpaidCanWin: false, captainPct: 0, netmanPct: 0, roundTo: 1, sidePotFee: 0,
 };
 
@@ -167,24 +167,39 @@ export function mysteryBoard(d, catches, entrants, weightOz) {
 }
 
 /* Team derbies: the organiser names the teams ([{ id, name }]) and each angler picks one when joining (the entrant's
-   `team`). A team's score is its members' scores on the main board added up; ties go to the team that got there
-   first. [{ team, score, members: [{ uid, row }], decidedAt }], best first. Anglers with no team aren't counted. */
+   `team`). Two ways to score a team (d.teamScoring):
+   - "sum" (the default): its anglers' scores on the main board added up.
+   - "boat": the boat as one angler: all its anglers' fish pooled and scored by the main board's rules, so a bag of 5
+     is the boat's best 5 fish together, whoever caught them.
+   [{ team, score, members: [{ uid, row, counted }], decidedAt }], best first; `counted` is how many of the angler's
+   fish count for the team. Ties go to the team that got there first. Anglers with no team aren't counted. */
 export function teamBoard(d, catches, entrants) {
   const teams = d.teams || [];
   if (!teams.length) return [];
-  const rows = new Map(standings(d, catches, entrants).map(r => [r.uid, r]));
+  const board = categoryBoards(d, catches, entrants)[0];
+  const rows = new Map(board.rows.map(r => [r.uid, r]));
   const out = teams.map(team => ({ team, score: 0, members: [], decidedAt: 0 }));
-  const byId = new Map(out.map(t => [t.team.id, t]));
+  const byId = new Map(out.map(t => [t.team.id, t])), teamOf = new Map();
   for (const [uid, e] of entrants || new Map()) {
     const t = byId.get((e || {}).team);
     if (!t) continue;
+    teamOf.set(uid, t.team.id);
     const row = rows.get(uid) || null;
-    t.members.push({ uid, row });
-    if (row) { t.score += row.score; t.decidedAt = Math.max(t.decidedAt, row.decidedAt); }
+    t.members.push({ uid, row, counted: row ? row.fish.length : 0 });
+    if (row && d.teamScoring !== "boat") { t.score += row.score; t.decidedAt = Math.max(t.decidedAt, row.decidedAt); }
+  }
+  if (d.teamScoring === "boat") {
+    // Every fish on the main board, credited to its angler's boat.
+    const ok = derbyEntries(d, catches, entrants).filter(e => !e.problem && !entryProblem(e, board.d) && teamOf.has(e.uid));
+    for (const r of rank(board.d, ok.map(e => ({ ...e, uid: teamOf.get(e.uid), angler: e.uid })))) {
+      const t = byId.get(r.uid);
+      t.score = r.score; t.decidedAt = r.decidedAt;
+      for (const m of t.members) m.counted = r.fish.filter(f => f.angler === m.uid).length;
+    }
   }
   for (const t of out) {
     t.score = Math.round(t.score * 100) / 100;
-    t.members.sort((a, b) => (b.row ? b.row.score : -1) - (a.row ? a.row.score : -1));
+    t.members.sort((a, b) => b.counted - a.counted || (b.row ? b.row.score : -1) - (a.row ? a.row.score : -1));
   }
   return out.sort((a, b) => b.score - a.score || (a.score ? a.decidedAt - b.decidedAt : 0));
 }

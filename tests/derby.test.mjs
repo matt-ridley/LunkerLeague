@@ -133,3 +133,24 @@ test("team derbies: a team's score is its members' scores added up; no team, no 
   assert.equal(board[2].members[0].row, null); // on a team, no fish yet
   assert.deepEqual(teamBoard(derby(), catches, ent), []); // not a team derby
 });
+
+test("team derbies scored as one boat: a bag is the boat's best fish together, whoever caught them", () => {
+  const teams = [{ id: "red", name: "Red" }, { id: "blue", name: "Blue" }];
+  const ent = new Map([["ann", { team: "red" }], ["cy", { team: "red" }], ["bo", { team: "blue" }]]);
+  const lb = n => n * 16;
+  const catches = [
+    ...[4, 3, 3, 2, 2].map((w, i) => fish("ann", "Walleye", lb(w), null, 11 + i * 0.1)),
+    ...[3, 2, 2, 1, 1].map((w, i) => fish("cy", "Walleye", lb(w), null, 12 + i * 0.1)),
+    ...[6, 5, 4, 3, 3].map((w, i) => fish("bo", "Walleye", lb(w), null, 13 + i * 0.1)),
+  ];
+  const sum = teamBoard(derby({ scoring: "bag", bagSize: 5, teams }), catches, ent);
+  assert.deepEqual(sum.map(t => [t.team.id, t.score / 16]), [["red", 23], ["blue", 21]]); // each angler's bag added up
+  const boat = teamBoard(derby({ scoring: "bag", bagSize: 5, teams, teamScoring: "boat" }), catches, ent);
+  // Red's best 5 together: 4, 3, 3, 3 (Cy's), 2 = 15 lb; Blue: 21 lb.
+  assert.deepEqual(boat.map(t => [t.team.id, t.score / 16]), [["blue", 21], ["red", 15]]);
+  assert.deepEqual(boat[1].members.map(m => [m.uid, m.counted]), [["ann", 4], ["cy", 1]]);
+  // Longest single fish, as one boat: the boat's longest.
+  const long = teamBoard(derby({ scoring: "longest", teams, teamScoring: "boat" }),
+    [fish("ann", "Pike", null, 30, 12), fish("cy", "Pike", null, 34, 12), fish("bo", "Pike", null, 32, 12)], ent);
+  assert.deepEqual(long.map(t => [t.team.id, t.score]), [["red", 34], ["blue", 32]]);
+});

@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.34.0 (beta)
+**Current version:** 0.35.0 (beta)
 
 ## Features
 
@@ -235,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.35.0 | 2026-Oct-05 10:58:46 PM | **Team bag (score each boat as one angler):** team derbies get a "Team score" setting. "Add up each angler's score" works as before; "Score each boat as one angler" pools the boat's fish and scores them by the derby's rules, so with a bag of 5 it's the boat's best 5 fish together, whoever caught them, and bigger boats don't get extra fish. The Teams board shows how many of each angler's fish count. **New security rules: publish firestore.rules.** |
 | 0.34.0 | 2026-Oct-05 09:37:41 PM | **Season series and Angler of the Year** (Milestone D, now complete): league admins set up a season series (Events tab, "New series") with start and end dates and points by place (default 25, 18, 15, 12, 10, 8, 6, 4, 2, 1, plus 2 for fishing a derby, fish or no fish), optionally counting only each angler's best N derbies. Derby organisers put their derby in a series from the derby form. The series page shows the standings from finished derbies; once the end date passes and its derbies are done, the leader is crowned Angler of the Year, with a trophy, a feed announcement and a bell alert. Ties go to more wins, then more points over every derby. **New security rules: publish firestore.rules.** |
 | 0.33.0 | 2026-Oct-05 09:25:17 PM | **Team derbies** (Milestone D): turn on "Team derby" and name the teams (2 to 12, for example each boat). Anglers pick a team when they join and can switch until the derby starts; someone without a team can pick one any time, and the organiser can move anyone on the Anglers tab. The Board has a 👥 Teams board: each team's score is its anglers' scores on the main board added up. **New security rules: publish firestore.rules.** |
 | 0.32.1 | 2026-Oct-05 09:22:07 PM | **Fix:** opening or reloading the app straight onto a derby's edit or copy form no longer says "Only the organiser can edit this derby." before the derbies have loaded. The form shows "Loading…" and appears once the derby arrives. |

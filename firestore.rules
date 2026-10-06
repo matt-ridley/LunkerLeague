@@ -256,7 +256,7 @@ service cloud.firestore {
                                "bagSize", "minWeightOz", "minLengthIn", "maxEntries", "proof", "requireLocation", "catchRelease",
                                "requireCrew", "prizeNote", "cancelled", "createdAt",
                                "entryFee", "addedMoney", "payoutPcts", "unpaidCanWin", "captainPct", "netmanPct", "roundTo", "sidePotFee",
-                               "testing", "mystery", "mysteryNote", "categories", "mysteryPct", "teams", "seriesId"])
+                               "testing", "mystery", "mysteryNote", "categories", "mysteryPct", "teams", "teamScoring", "seriesId"])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.description is string && d.description.size() <= 500
         && d.start is number && d.end is number && d.end > d.start
@@ -277,6 +277,7 @@ service cloud.firestore {
         && d.get("mysteryPct", 0) is number && d.get("mysteryPct", 0) >= 0 && d.get("mysteryPct", 0) <= 100
         // Team derbies: the organiser names up to 12 teams.
         && d.get("teams", []) is list && d.get("teams", []).size() <= 12
+        && d.get("teamScoring", "sum") in ["sum", "boat"]
         // The season series it counts toward ("" for none).
         && d.get("seriesId", "") is string && d.get("seriesId", "").size() <= 40
         && validMoney(d);
