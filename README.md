@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.36.0 (beta)
+**Current version:** 0.37.0 (beta)
 
 ## Features
 
@@ -235,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.37.0 | 2026-Oct-06 09:40:05 AM | **Feed filter: current catches.** Filters → Show has a new **Current catches (no past ones)** option: league catches only, leaving out past catches (throwbacks) and news. |
 | 0.36.0 | 2026-Oct-05 11:37:30 PM | **Outings** (trips, reworked): the Events page has **Derbies** (with season series) and **Outings** tabs. An outing is a **boat** or **shore, fly or ice** outing with an optional "back by" time. On boat outings, anglers bring boats (spare seats, not counting the owner) and grab seats first come, first seated, with a waitlist when a boat is full and a "needs a seat" list. Once it starts, the outing shows what the people who were In caught during it, and when it's over the feed gets a one-line recap. **New security rules: publish firestore.rules.** |
 | 0.35.1 | 2026-Oct-05 11:13:54 PM | **Fix:** team name boxes on the derby form are full width again (they were squeezed to a few letters), and the Teams hint no longer says scores are always added up, since the Team score setting decides. |
 | 0.35.0 | 2026-Oct-05 10:58:46 PM | **Team bag (score each boat as one angler):** team derbies get a "Team score" setting. "Add up each angler's score" works as before; "Score each boat as one angler" pools the boat's fish and scores them by the derby's rules, so with a bag of 5 it's the boat's best 5 fish together, whoever caught them, and bigger boats don't get extra fish. The Teams board shows how many of each angler's fish count. **New security rules: publish firestore.rules.** |

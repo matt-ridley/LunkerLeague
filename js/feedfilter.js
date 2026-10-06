@@ -4,7 +4,8 @@ import { isPersonalBest, recordKinds, measured } from "./stats.js";
 
 export const NO_FILTERS = { q: "", angler: "", species: "", show: "all", when: "any", derby: "", sort: "new" };
 
-export const SHOW = [["all", "Everything"], ["catches", "Catches only"], ["news", "News only"], ["records", "Records & PBs"], ["past", "Throwbacks (past catches)"]];
+export const SHOW = [["all", "Everything"], ["catches", "Catches only"], ["news", "News only"], ["records", "Records & PBs"],
+  ["current", "Current catches (no past ones)"], ["past", "Throwbacks (past catches)"]];
 export const WHEN = [["any", "Any time"], ["today", "Today"], ["7d", "Last 7 days"], ["30d", "Last 30 days"], ["year", "This year"]];
 export const SORT = [["new", "Newest"], ["heavy", "Heaviest"], ["long", "Longest"]];
 
@@ -37,6 +38,7 @@ export function filterFeed({ catches, news, f, now = Date.now() }) {
     && c.caughtAt >= since
     && (f.show !== "records" || isPersonalBest(c, catches) || recordKinds(c, catches).length > 0)
     && (f.show !== "past" || c.past)
+    && (f.show !== "current" || !c.past)
     && (!ws.length || matches(`${c.notes || ""} ${c.locShared ? c.spotName || "" : ""}`, ws)));
   if (f.show === "news") cs = [];
   if (f.sort === "heavy") cs = cs.filter(c => measured(c) && c.weightOz > 0).sort((a, b) => b.weightOz - a.weightOz);
