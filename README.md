@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.28.0 (beta)
+**Current version:** 0.29.0 (beta)
 
 ## Features
 
@@ -235,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.29.0 | 2026-Oct-05 08:18:14 PM | **Fish Finder:** the card at the top of the feed is now a carousel (‹ › buttons, swipe, or tap a dot) of up to seven cards, most relevant first: Happening now (a live or coming derby, or a trip in the next 2 days), Your standing (place this season and points to your next title), Within reach (the league record you're closest to), Crown watch (your closest challenger, or the crown you're nearest to taking), Badge watch (the counting badge you're nearest), This week (the league's last 7 days and the biggest fish), and Get out there / Keep it going (moves up front when your last catch was a week or more ago). Each card opens the page it's about. Replaces the old catches/species/PBs card. |
 | 0.28.0 | 2026-Oct-05 08:01:47 PM | **Record and PB flair top right:** on feed and profile cards, the League record / All-time record and PB chips sit in the top-right corner beside the species. On phones they read "👑 Record" and "📜 All-time", and stack when the species name is long. |
 | 0.27.0 | 2026-Oct-05 07:53:15 PM | **Filters do it all:** the feed's search box and Everyone/Mine switch are gone; one Filters button sits in a row with the chips for filters in use. Angler now starts with "Me". Searching moved into the Filters sheet as "Notes or spot contains" (words in notes and shared spot names). |
 | 0.26.0 | 2026-Oct-05 07:39:41 PM | **Search and filter the feed:** a search box (species, angler, notes, shared spot names, derby) and a Filters sheet: angler, species, show (catches, news, records & PBs, throwbacks), when caught (today, 7 days, 30 days, this year), derby, and sort (newest, heaviest, longest). Filters in use show as chips you can tap to remove, with a result count and Clear all. They stay set until the app is closed. Works offline. |

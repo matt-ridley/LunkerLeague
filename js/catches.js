@@ -11,6 +11,7 @@ import { crewText } from "./derbies.js";
 import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer, pastCatch, loggedLate, leagueStartOf, DEFAULT_GRACE_DAYS } from "./stats.js";
 import { leagueEvents, postedAt } from "./events.js";
 import { NO_FILTERS, SHOW, WHEN, SORT, filterFeed, activeCount } from "./feedfilter.js";
+import { fishFinderCards } from "./fishfinder.js";
 import { rankInput } from "./leaders.js";
 
 const allCatches = () => [...store.catches.values()];
@@ -86,17 +87,10 @@ const setFilters = changes => { filters = { ...filters, ...changes }; feedLimit 
 const clearFilters = () => setFilters({ ...NO_FILTERS });
 
 export function renderFeed(main) {
-  const all = allCatches();
-  // Hero counts are league catches; past catches (logbook) only count toward PBs.
-  const me = uid(), stats = anglerStats(all.filter(c => !c.past), me), pbs = personalBests(all, me).size;
+  const all = allCatches(), me = uid();
   // Catches mixed with league news (records stolen, badges, derby results), newest first.
-  const news = store.catchesLoaded ? leagueEvents({ ...rankInput(), name: memberName }) : [];
-  const hero = el("section", { class: "hero" },
-    el("p", { class: "eyebrow", text: (store.league && store.league.name) || "Lunker League" }),
-    el("h2", { text: `${store.me.displayName}, tight lines!` }),
-    el("div", { class: "hero-stats" },
-      stat(stats.catches, "catches"), stat(stats.species, "species"), stat(pbs, "PBs")),
-    stats.catches ? null : el("a", { class: "btn lime block", href: "#/log", html: icon.plus }, "Log your first catch"));
+  const input = store.catchesLoaded ? { ...rankInput(), name: memberName } : null;
+  const news = input ? leagueEvents(input) : [];
   // One row: the Filters button, then a removable chip for each filter in use.
   const tools = el("div", { class: "feed-tools" });
   const results = el("div", { class: "feed-results" });
@@ -134,7 +128,7 @@ export function renderFeed(main) {
         onclick: () => { feedLimit += 30; redrawFeed(); } }) : null);
   };
   redrawFeed();
-  fill(main, hero, tools, results);
+  fill(main, input ? fishFinder(input, me) : null, tools, results);
 }
 
 const countText = (c, n) => [`${c} ${c === 1 ? "catch" : "catches"}`, n ? `${n} news` : null].filter(Boolean).join(" · ");
@@ -193,7 +187,45 @@ function dayLabel(t) {
 }
 const newsCard = e => el("a", { class: "news-card", href: e.href },
   el("span", { class: "news-icon", text: e.icon }), el("span", { class: "grow", text: e.text }), el("span", { class: "muted small", text: fmtAgo(e.at) }));
-const stat = (n, label) => el("div", { class: "stat" }, el("b", { text: String(n) }), el("span", { text: label }));
+
+/* ---------- Fish Finder: a carousel of cards about what's going on (fishfinder.js picks them) ---------- */
+let finderAt = 0; // the card showing, kept when live data redraws the feed
+function fishFinder(input, me) {
+  const cards = fishFinderCards(input, me);
+  if (!cards.length) return null;
+  finderAt = Math.min(finderAt, cards.length - 1);
+  const track = el("div", { class: "ff-track" }, ...cards.map((c, i) =>
+    el("a", { class: "ff-card", href: c.href, role: "group", "aria-roledescription": "card", "aria-label": `${i + 1} of ${cards.length}: ${c.label}`,
+      onclick: c.crowns ? () => { try { sessionStorage.setItem("lunker-leaders-tab", "crowns"); } catch {} } : null },
+      el("span", { class: "ff-label", text: c.label }),
+      el("b", { class: "ff-title", text: c.title }),
+      c.detail ? el("span", { class: "ff-detail", text: c.detail }) : null)));
+  const dots = el("div", { class: "ff-dots" }, ...cards.map((c, i) =>
+    el("button", { type: "button", "aria-label": `Card ${i + 1}: ${c.label}`, onclick: () => go(i) })));
+  const mark = () => [...dots.children].forEach((d, i) => d.setAttribute("aria-current", String(i === finderAt)));
+  // ‹ › wrap around; swiping scrolls the track (it snaps to a card), and the dots follow.
+  let width = 0; // the track's width when last lined up: a resize (or turning the phone) lines it up again
+  const go = (i, smooth = true) => {
+    finderAt = (i + cards.length) % cards.length; mark();
+    width = track.clientWidth;
+    track.scrollTo({ left: finderAt * width, behavior: smooth ? "smooth" : "instant" });
+  };
+  track.addEventListener("scroll", () => {
+    if (track.clientWidth !== width) return go(finderAt, false);
+    const i = Math.round(track.scrollLeft / Math.max(1, width));
+    if (i !== finderAt && i >= 0 && i < cards.length) { finderAt = i; mark(); }
+  }, { passive: true });
+  mark();
+  // Lines up on the current card once it's on screen, and again whenever its width changes.
+  new ResizeObserver(() => { if (track.clientWidth && track.clientWidth !== width) go(finderAt, false); }).observe(track);
+  const arrow = (dir, label, path) => el("button", { class: "ff-arrow", type: "button", "aria-label": label, onclick: () => go(finderAt + dir),
+    html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>` });
+  return el("section", { class: "ff", "aria-roledescription": "carousel", "aria-label": "Fish Finder" },
+    el("div", { class: "ff-head" }, el("span", { class: "ff-name", text: "Fish Finder" }),
+      cards.length > 1 ? el("div", { class: "ff-nav" }, arrow(-1, "Previous card", "m15 18-6-6 6-6"), arrow(1, "Next card", "m9 18 6-6-6-6")) : null),
+    track,
+    cards.length > 1 ? dots : null);
+}
 
 /* ---------- One catch ---------- */
 let celebrate = null; // { id, previous } after saving a new personal best
