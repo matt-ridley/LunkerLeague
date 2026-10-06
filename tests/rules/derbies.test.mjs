@@ -271,3 +271,9 @@ test("a derby can count toward a season series", async () => {
   await assertSucceeds(setDoc(doc(db, "derbies/d9"), derbyData("member", { seriesId: "s1" })));
   await assertFails(setDoc(doc(db, "derbies/d8"), derbyData("member", { seriesId: 7 })));
 });
+
+test("team scoring is either added up or as one boat", async () => {
+  const db = as(env, "member");
+  await assertSucceeds(setDoc(doc(db, "derbies/d9"), derbyData("member", { teamScoring: "boat" })));
+  await assertFails(setDoc(doc(db, "derbies/d8"), derbyData("member", { teamScoring: "best" })));
+});
