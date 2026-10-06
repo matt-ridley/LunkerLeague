@@ -113,12 +113,6 @@ body.gated main { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
 
 /* ---------- Cards and text ---------- */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
-.hero {
-  border-radius: var(--radius); padding: 20px; display: grid; gap: 8px;
-  background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 70%, var(--lime)) 140%);
-  color: var(--primary-ink);
-}
-.hero .eyebrow { color: inherit; opacity: .85; }
 .empty { text-align: center; display: grid; gap: 12px; justify-items: center; padding: 32px 20px; }
 .empty-art { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--primary); }
 .empty-art svg { width: 40px; height: 40px; }
@@ -423,6 +417,26 @@ textarea { resize: vertical; line-height: 1.4; }
   background: var(--primary-soft); font-size: 13.5px; font-weight: 700; color: var(--ink); }
 .catch-news li { display: flex; align-items: baseline; gap: 6px; }
 .catch-news-icon { flex: none; }
+/* Fish Finder: a carousel of cards at the top of the feed */
+.ff { border-radius: var(--radius); padding: 12px 14px 10px; display: grid; gap: 6px; color: var(--primary-ink);
+  background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 70%, var(--lime)) 140%); }
+.ff-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ff-name { font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
+.ff-nav { display: flex; gap: 6px; }
+.ff-arrow { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 99px; padding: 0;
+  background: rgba(255, 255, 255, .22); color: inherit; cursor: pointer; }
+.ff-arrow svg { width: 20px; height: 20px; }
+.ff-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+.ff-track::-webkit-scrollbar { display: none; }
+.ff-card { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; display: grid; gap: 2px; align-content: start;
+  color: inherit; text-decoration: none; padding: 2px 0; }
+.ff-label { font-size: 13px; font-weight: 800; opacity: .8; }
+.ff-title { font: 800 21px/1.2 var(--f-display); overflow-wrap: anywhere; }
+.ff-detail { font-size: 15px; font-weight: 600; opacity: .9; }
+.ff-dots { display: flex; justify-content: center; gap: 2px; }
+.ff-dots button { width: 22px; height: 22px; border: 0; padding: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.ff-dots button::after { content: ""; width: 8px; height: 8px; border-radius: 99px; background: currentColor; opacity: .35; }
+.ff-dots button[aria-current="true"]::after { width: 18px; opacity: .9; }
 /* Feed filters: the Filters button and a chip for each filter in use, in one row */
 .feed-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .filter-btn { flex: none; min-height: 44px; white-space: nowrap; }
