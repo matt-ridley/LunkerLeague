@@ -8,6 +8,8 @@ import { badgeTimeline } from "./rank.js";
 import { derbyStatus, closesAt, standings } from "./derby.js";
 import { crownSteals } from "./crowns.js";
 import { seriesStatus, seriesStandings, seriesFinalAt } from "./series.js";
+import { outingEnd, outingRecap } from "./outings.js";
+import { fmtWeight, fmtLength } from "./ui.js";
 
 const PLACES = ["1st", "2nd", "3rd"];
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -102,6 +104,15 @@ export function leagueEvents(data) {
   for (const { d, rows, at } of finishedDerbies({ catches, derbies: derbyMap, entrants, now })) {
     out.push({ id: `derby:${d.id}`, at, icon: "🏁", href: `#/d/${d.id}`, uids: rows.slice(0, 3).map(r => r.uid),
       text: `${d.name} is over: ${rows.slice(0, 3).map((r, i) => `${MEDALS[i]} ${name(r.uid)}`).join(" · ")}` });
+  }
+  // Outings that are over and caught something: one line, once it's done.
+  for (const t of asMap(data.trips).values()) {
+    if (outingEnd(t) >= now) continue;
+    const r = outingRecap(t, catches, (data.rsvps || new Map()).get(t.id) || new Map(), now);
+    if (!r.fish) continue;
+    const big = r.biggest ? `, biggest ${name(r.biggest.uid)}'s ${r.biggest.weightOz > 0 ? fmtWeight(r.biggest.weightOz) : fmtLength(r.biggest.lengthIn)} ${r.biggest.species}` : "";
+    out.push({ id: `outing:${t.id}`, at: outingEnd(t), icon: t.kind === "boat" ? "🚤" : "🎣", href: `#/t/${t.id}`, uids: r.anglers.map(a => a.uid),
+      text: `${t.title}: ${r.fish} fish${big}` });
   }
   for (const w of seriesWinners({ ...data, derbies: derbyMap, now })) {
     out.push({ id: `series:${w.s.id}`, at: w.at, icon: "🏆", href: `#/s/${w.s.id}`, uids: [w.uid], text: `${name(w.uid)} won ${aoty(w.s)}` });

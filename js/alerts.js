@@ -81,7 +81,7 @@ export function renderAlerts(main) {
             a.at > seen ? el("span", { class: "dot", "aria-label": "New" }) : null),
           el("button", { class: "alert-dismiss", type: "button", "aria-label": `Clear: ${a.text}`, text: "×", onclick: () => { dismiss([a]); redraw(); } }))))
       : el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.bell }),
-          el("p", { text: all.length ? "All clear. New alerts will show up here." : "Nothing new. When someone mentions you, comments on your catch, takes your record or plans a trip, it shows up here." })),
+          el("p", { text: all.length ? "All clear. New alerts will show up here." : "Nothing new. When someone mentions you, comments on your catch, takes your record or plans an outing, it shows up here." })),
     el("p", { class: "hint", text: "There are no phone notifications: check here when you open the app." }));
   // Opening the bell marks everything as seen (still highlighted until you leave this screen). Later live redraws
   // only do so while the app is on screen, so alerts arriving while it sits in the background stay new.

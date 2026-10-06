@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.35.1 (beta)
+**Current version:** 0.36.0 (beta)
 
 ## Features
 
@@ -25,9 +25,9 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Reactions and comments.** React to any catch with 🎣 🔥 🐟 😂 👏 🤥 (fish story!) or any emoji from the picker, and see who reacted. Comment on catches; the comment's author, the catch's angler or an admin can remove one. Catch cards show the top reactions and the comment count.
 - **League chat.** One group chat for the league, with day separators, an emoji picker and an unread badge on the Chat tab. Tap your own message to delete it (admins can delete any).
 - **@mentions.** Type `@` in chat or a comment to pick someone from the league. Their name is highlighted, and they get an alert.
-- **What's new (the bell).** The bell at the top shows what's new for you since you last looked: mentions, comments and reactions on your catches, records taken from you, badges you earned, your derbies going live and finishing (with your place), new derbies and trips, answers to your trips, and a count of new catches. There are no phone notifications; you see these when you open the app. Tap **×** to clear one alert or **Clear all** to clear the list (with Undo); cleared alerts stay cleared on that phone.
+- **What's new (the bell).** The bell at the top shows what's new for you since you last looked: mentions, comments and reactions on your catches, records taken from you, badges you earned, your derbies going live and finishing (with your place), new derbies and outings, answers to your outings, and a count of new catches. There are no phone notifications; you see these when you open the app. Tap **×** to clear one alert or **Clear all** to clear the list (with Undo); cleared alerts stay cleared on that phone.
 - **League news in the feed.** The feed also announces records changing hands, badges earned and derby results.
-- **Trips.** "Who's out Saturday?" Plan a trip on the **Events** tab (what, when, where, notes) and everyone answers **In**, **Maybe** or **Out**. The trip shows who's coming and who hasn't answered.
+- **Outings.** "Who's out Saturday?" Plan one on **Events → Outings** (what, when, an optional "back by" time, where, notes, and whether it's a **boat** or **shore, fly or ice** outing), and everyone answers **In**, **Maybe** or **Out**. On a boat outing, anyone can say **I'm bringing a boat** with how many spare seats, and people who are In **grab a seat**: first come, first seated, with a waitlist when a boat is full and a "needs a seat" list when there aren't enough boats. Once it starts, the outing shows what the people who were In caught during it (fish, species, the biggest, photos, PBs and records), and when it's over the feed gets a one-line recap.
 - **Derbies.** Any member can set one up and is its organiser:
   - **When:** start and end times, plus a late-entry window so catches made in no-signal spots can sync afterwards.
   - **Scoring:** heaviest fish, longest fish, heaviest bag of the best N fish, most fish, or most species.
@@ -61,7 +61,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Angler rankings.** Who's the best angler, for bragging rights, on the Leaders tab, all-time or this season.
   - **Points:** for catches (with a daily cap), limits, each new species, holding a top-3 spot on a species' weight or length board, each crown held, each badge earned, and finishing derbies. Disqualified catches and test derbies don't count.
   - **Titles:** from Bait Bucket up to Legend of the Lake.
-  - **Badges:** 56 badges, kept for good and worth a point each (admins can change it): catch totals (Ten Fish to the 500 Club, Double-Digit Day), species (Five Species, Grand Slam, Trophy Case), size (Five Pounder to Twenty Pounder, Twenty-Incher, Yardstick, Tiny Terror, PB Machine), records (Record Setter, Record Breaker, Untouchable, Double Record), stringers and limits, time and season (Sunrise Strike, Hard Water, Four Seasons, Hot Streak…), derbies (First Derby, Podium, Hat Trick, In the Money, Skunked…), social (Trash Talker, Hype Squad, Tall Tale, Trip Planner…), crowns (Crown Thief, Royalty, Long Reign) and Wanderer, plus the originals (First Fish, 10 Species, Derby Champ, Catch & Release Hero, Night Owl, Lucky Net). Tap the badges on a profile to see all of them and how to earn the rest. The **Leaders → Badges** tab shows who has the most badges and every badge with how many anglers have it; tap one to see who earned it and when.
+  - **Badges:** 56 badges, kept for good and worth a point each (admins can change it): catch totals (Ten Fish to the 500 Club, Double-Digit Day), species (Five Species, Grand Slam, Trophy Case), size (Five Pounder to Twenty Pounder, Twenty-Incher, Yardstick, Tiny Terror, PB Machine), records (Record Setter, Record Breaker, Untouchable, Double Record), stringers and limits, time and season (Sunrise Strike, Hard Water, Four Seasons, Hot Streak…), derbies (First Derby, Podium, Hat Trick, In the Money, Skunked…), social (Trash Talker, Hype Squad, Tall Tale, Outing Planner…), crowns (Crown Thief, Royalty, Long Reign) and Wanderer, plus the originals (First Fish, 10 Species, Derby Champ, Catch & Release Hero, Night Owl, Lucky Net). Tap the badges on a profile to see all of them and how to earn the rest. The **Leaders → Badges** tab shows who has the most badges and every badge with how many anglers have it; tap one to see who earned it and when.
   - **Crowns:** 16 crowns, each held by whoever has the most of something right now: Derby King, Golden Net, Best Captain, Conservationist, Meat Eater, Stringer Filler (most limits), Species Hunter, Grinder, Record Holder, Early Bird, Night Stalker, Iron Angler, Explorer (shared spots only), Fish Story King, Hype Man and Skunk Master. You only steal one by passing the holder (a tie isn't enough). The feed announces steals, the bell tells you when you take or lose one, profiles show the crowns held, and each crown is worth points while you hold it (2 by default, set by admins). See them on Leaders → Crowns.
   - **Breakdown:** tap any angler to see where their points came from, or tap **How points work**.
   - **Admin control:** admins can change every value and the title thresholds, choosing **All history** (everything is rescored) or **From now on** (points already earned stay), with a live preview of the new standings before saving. Every change is kept as a version and can be loaded again.
@@ -104,7 +104,7 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 - **Map of catches** (M): your spots and the league's shared spots on a free OpenStreetMap map.
 - **Best-bite times forecast** (M): solunar times.
 - **Estimated weight from length** (S): standard species formulas, for fish that were only measured.
-- **Skunk tracker** (S): log trips with no fish, to show fish per trip.
+- **Skunk tracker** (S): log outings with no fish, to show fish per outing.
 - **Export or backup your catches** (S) as a spreadsheet file.
 - **AI fish identification from the photo** (L): only if a free option exists, because it costs money per photo.
 
@@ -179,7 +179,7 @@ npm run deploy:rules
 
 ## Where data is stored
 
-- Accounts, profiles, catches, photos, derbies, trips and chat are stored in the league's Firebase project. Only members can read them.
+- Accounts, profiles, catches, photos, derbies, outings and chat are stored in the league's Firebase project. Only members can read them.
 - Photos are stored in Firestore itself (Firebase's file storage needs the paid plan), so they use most of the free plan's 1 GB. A new catch takes about 270 KB, photo included, which leaves room for roughly 3,500 to 4,000 catches. Admins can see how much is used on the League admin page (**Storage**). If it gets full: delete old test catches, or move to Firebase's Blaze plan.
 - Nothing about members is stored in this repository, which is public so GitHub Pages can host it for free.
 - Picking a spot on the map loads map pictures from OpenStreetMap (street map) and Esri (satellite). They only see which area is being viewed, never the catch or who is looking.
@@ -235,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.36.0 | 2026-Oct-05 11:37:30 PM | **Outings** (trips, reworked): the Events page has **Derbies** (with season series) and **Outings** tabs. An outing is a **boat** or **shore, fly or ice** outing with an optional "back by" time. On boat outings, anglers bring boats (spare seats, not counting the owner) and grab seats first come, first seated, with a waitlist when a boat is full and a "needs a seat" list. Once it starts, the outing shows what the people who were In caught during it, and when it's over the feed gets a one-line recap. **New security rules: publish firestore.rules.** |
 | 0.35.1 | 2026-Oct-05 11:13:54 PM | **Fix:** team name boxes on the derby form are full width again (they were squeezed to a few letters), and the Teams hint no longer says scores are always added up, since the Team score setting decides. |
 | 0.35.0 | 2026-Oct-05 10:58:46 PM | **Team bag (score each boat as one angler):** team derbies get a "Team score" setting. "Add up each angler's score" works as before; "Score each boat as one angler" pools the boat's fish and scores them by the derby's rules, so with a bag of 5 it's the boat's best 5 fish together, whoever caught them, and bigger boats don't get extra fish. The Teams board shows how many of each angler's fish count. **New security rules: publish firestore.rules.** |
 | 0.34.0 | 2026-Oct-05 09:37:41 PM | **Season series and Angler of the Year** (Milestone D, now complete): league admins set up a season series (Events tab, "New series") with start and end dates and points by place (default 25, 18, 15, 12, 10, 8, 6, 4, 2, 1, plus 2 for fishing a derby, fish or no fish), optionally counting only each angler's best N derbies. Derby organisers put their derby in a series from the derby form. The series page shows the standings from finished derbies; once the end date passes and its derbies are done, the leader is crowned Angler of the Year, with a trophy, a feed announcement and a bell alert. Ties go to more wins, then more points over every derby. **New security rules: publish firestore.rules.** |

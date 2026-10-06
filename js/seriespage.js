@@ -35,6 +35,7 @@ function seriesCard(s) {
 
 /* ---------- One series ---------- */
 export function renderSeries(main, id) {
+  try { sessionStorage.setItem("lunker-events-tab", "derbies"); } catch {}
   const s = store.series.get(id);
   if (!s) return fill(main, el("div", { class: "card empty" }, el("p", { text: store.series.size ? "This series doesn't exist." : "Loading…" })));
   const st = seriesStatus(s, store.derbies), rows = seriesStandings(s, input()), derbies = seriesDerbies(s, store.derbies);

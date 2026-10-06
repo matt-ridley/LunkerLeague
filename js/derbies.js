@@ -40,7 +40,11 @@ function when(d, now = Date.now()) {
   return `Finished ${fmtDay(d.end)}`;
 }
 
-/* ---------- List (the Events tab: trips, then derbies) ---------- */
+/* ---------- List (the Events tab: Derbies, with season series, and Outings) ---------- */
+// Which Events tab shows. Opening a derby or an outing remembers its tab, so "← Events" goes back to the right one.
+const EVENTS_TAB = "lunker-events-tab";
+const getEventsTab = () => { try { return sessionStorage.getItem(EVENTS_TAB) === "outings" ? "outings" : "derbies"; } catch { return "derbies"; } };
+export const setEventsTab = t => { try { sessionStorage.setItem(EVENTS_TAB, t); } catch {} };
 export function renderDerbies(main) {
   const all = [...store.derbies.values()];
   const now = Date.now();
@@ -51,9 +55,12 @@ export function renderDerbies(main) {
   const cancelled = group(["cancelled"]).sort((a, b) => b.start - a.start);
   const section = (title, list) => list.length ? el("section", { class: "stack" }, el("h3", { text: title }),
     el("div", { class: "card-list" }, ...list.map(derbyCard))) : null;
+  const tab = getEventsTab();
+  const tabs = el("div", { class: "seg" }, ...[["derbies", "🏁 Derbies"], ["outings", "🚤 Outings"]].map(([k, label]) =>
+    el("button", { type: "button", "aria-pressed": String(tab === k), text: label, onclick: () => { setEventsTab(k); renderDerbies(main); } })));
+  if (tab === "outings") return fill(main, el("h2", { class: "page-title", text: "Events" }), tabs, tripsSection());
   fill(main,
-    el("h2", { class: "page-title", text: "Events" }),
-    tripsSection(),
+    el("h2", { class: "page-title", text: "Events" }), tabs,
     seriesSection(),
     el("div", { class: "row spread" }, el("h3", { text: "🏁 Derbies" }),
       el("a", { class: "btn lime small", href: "#/dnew", html: icon.plus }, "New derby")),
@@ -84,6 +91,7 @@ function derbyCard(d) {
 let derbyTab = "board";
 const boardPick = new Map(); // derby id -> which category board is showing
 export function renderDerby(main, id) {
+  setEventsTab("derbies");
   const d = store.derbies.get(id);
   if (!d) return fill(main, el("div", { class: "card empty" }, el("p", { text: store.derbies.size ? "This derby doesn't exist." : "Loading…" })));
   const st = derbyStatus(d), ent = entrantsOf(id), joined = ent.has(uid());

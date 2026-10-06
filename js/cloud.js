@@ -42,7 +42,8 @@ export const store = {
   scoring: [],            // ranking point versions, oldest first
   trips: new Map(),       // id -> trip ("who's out Saturday?")
   series: new Map(),      // id -> season series (Angler of the Year)
-  rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at })
+  rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at, boat, seatAt })
+  boats: new Map(),       // trip id -> Map(owner uid -> { seats, name, at })
 };
 
 const subs = new Set();
@@ -201,6 +202,18 @@ function refreshMemberListeners() {
     store.trips = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "boats"), OPTS, snap => {
+    seen("boats", snap);
+    const by = new Map();
+    for (const d of snap.docs) {
+      const tripId = d.ref.parent.parent && d.ref.parent.parent.id;
+      if (!tripId) continue;
+      if (!by.has(tripId)) by.set(tripId, new Map());
+      by.get(tripId).set(d.id, d.data());
+    }
+    store.boats = by;
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "rsvps"), OPTS, snap => {
     seen("rsvps", snap);
     const by = new Map();
@@ -285,7 +298,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
-  store.trips = new Map(); store.rsvps = new Map(); store.series = new Map();
+  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map();
 }
 
 function syncError(e) {
@@ -530,8 +543,8 @@ export function watchDerbyChat(derbyId) {
   }, syncError));
 }
 
-/* ---------- Trips ---------- */
-/* Season series: admins only (the rules check). Returns the id. */
+/* ---------- Season series ---------- */
+/* Admins only (the rules check). Returns the id. */
 export function saveSeries(id, data) {
   const { doc, collection, setDoc } = cloud.api;
   const ref = id ? doc(cloud.db, "series", id) : doc(collection(cloud.db, "series"));
@@ -540,19 +553,41 @@ export function saveSeries(id, data) {
 }
 export const deleteSeries = id => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "series", id)));
 
+/* ---------- Trips (Outings in the app) ---------- */
 export function saveTrip(id, data) {
   const { doc, collection, setDoc } = cloud.api;
   const ref = id ? doc(cloud.db, "trips", id) : doc(collection(cloud.db, "trips"));
   write(setDoc(ref, data));
   return ref.id;
 }
-export const setRsvp = (tripId, answer) =>
-  write(cloud.api.setDoc(cloud.api.doc(cloud.db, "trips", tripId, "rsvps", uid()), { answer, at: Date.now() }));
-/* Deletes a trip and everyone's answers in one go. */
+/* Answers In / Maybe / Out. Staying In keeps your seat; anything else gives it up, and takes your own boat off. */
+export function setRsvp(tripId, answer) {
+  const { setDoc, deleteDoc, doc } = cloud.api;
+  const prev = (store.rsvps.get(tripId) || new Map()).get(uid()) || {};
+  const keep = answer === "in" && prev.answer === "in" && prev.boat ? { boat: prev.boat, seatAt: prev.seatAt || 0 } : {};
+  write(setDoc(doc(cloud.db, "trips", tripId, "rsvps", uid()), { answer, at: Date.now(), ...keep }));
+  if (answer !== "in" && (store.boats.get(tripId) || new Map()).has(uid())) write(deleteDoc(doc(cloud.db, "trips", tripId, "boats", uid())));
+}
+/* Takes a seat on a boat (its owner's uid), or gives it up (null). Taking a seat means you're In. */
+export function setSeat(tripId, boatOwner) {
+  write(cloud.api.setDoc(cloud.api.doc(cloud.db, "trips", tripId, "rsvps", uid()),
+    boatOwner ? { answer: "in", at: Date.now(), boat: boatOwner, seatAt: Date.now() } : { answer: "in", at: Date.now() }));
+}
+/* Offers your boat (spare seats, not counting you) and puts you In, on it; or takes it off (seats 0). */
+export function setBoat(tripId, seats, name = "") {
+  const { setDoc, deleteDoc, doc } = cloud.api;
+  const ref = doc(cloud.db, "trips", tripId, "boats", uid());
+  if (!seats) return write(deleteDoc(ref));
+  const prev = (store.boats.get(tripId) || new Map()).get(uid());
+  write(setDoc(ref, { seats, name: String(name).trim().slice(0, 40), at: prev ? prev.at : Date.now() }));
+  setSeat(tripId, null); // In, and not in anyone else's seat
+}
+/* Deletes a trip, its boats and everyone's answers in one go. */
 export function deleteTrip(id) {
   const { writeBatch, doc } = cloud.api;
   const b = writeBatch(cloud.db);
   for (const who of (store.rsvps.get(id) || new Map()).keys()) b.delete(doc(cloud.db, "trips", id, "rsvps", who));
+  for (const owner of (store.boats.get(id) || new Map()).keys()) b.delete(doc(cloud.db, "trips", id, "boats", owner));
   b.delete(doc(cloud.db, "trips", id));
   write(b.commit());
 }
