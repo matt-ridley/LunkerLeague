@@ -1,7 +1,7 @@
 // Unit tests for derby status, entry rules and standings. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, derbyStatus, entryProblem, derbyEntries, standings, closesAt, nextDates } from "../js/derby.js";
+import { DEFAULTS, derbyStatus, entryProblem, derbyEntries, standings, closesAt, nextDates, mysteryBoard } from "../js/derby.js";
 
 const H = 3600 * 1000;
 const derby = (extra = {}) => ({ ...DEFAULTS, id: "d1", name: "Test", start: 10 * H, end: 20 * H, ...extra });
@@ -86,4 +86,18 @@ test("a copied derby moves on by whole weeks to the same weekday and time, in th
   // Across a clock change, 6 AM stays 6 AM.
   const fall = nextDates(new Date(2026, 9, 31, 6).getTime(), new Date(2026, 9, 31, 18).getTime(), new Date(2026, 10, 2).getTime());
   assert.equal(new Date(fall.start).getHours(), 6);
+});
+
+test("mystery weight: each angler's closest weighed fish, closest first; unweighed and problem entries don't count", () => {
+  const d = derby({ scoring: "most", mystery: true });
+  const catches = [
+    fish("a", "Walleye", 50, null, 11), fish("a", "Walleye", 53, null, 12),   // a: 53 is 1 oz off
+    fish("b", "Perch", 51, null, 13),                                          // b: 1 oz off, but caught later
+    fish("c", "Bass", null, 15, 12),                                           // c: never weighed
+    fish("e", "Pike", 52, null, 25),                                           // e: caught after the derby
+  ];
+  const board = mysteryBoard(d, catches, null, 52);
+  assert.deepEqual(board.map(r => [r.uid, r.off]), [["a", 1], ["b", 1]]);
+  assert.equal(board[0].fish.weightOz, 53);
+  assert.equal(mysteryBoard(d, [fish("a", "Walleye", 52, null, 12)], null, 52)[0].off, 0);
 });

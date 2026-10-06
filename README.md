@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.30.0 (beta)
+**Current version:** 0.31.0 (beta)
 
 ## Features
 
@@ -93,7 +93,7 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 ### Milestone D: Better derbies
 - **Team or boat derbies** (M): a team leaderboard, using boat crews as teams.
 - **Several categories in one derby** (M): for example Big Bass, Big Walleye and Mystery Fish, each with its own leaderboard and payout.
-- **Mystery weight prize** (S): closest to a secret weight, revealed at the end.
+- ✅ **Mystery weight prize** (S): closest to a secret weight, revealed at the end (done in 0.31.0).
 - **Season series or Angler of the Year** (M): a set of derbies with points across the season.
 - ✅ **Copy a derby** (S): start a new derby from an old one's settings (done in 0.30.0).
 
@@ -235,6 +235,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.31.0 | 2026-Oct-05 08:48:58 PM | **Mystery weight** (Milestone D): an organiser can turn on a mystery weight prize and set a secret weight (with an optional prize). It stays hidden from everyone except the organiser and admins until final entries close (the security rules enforce it), and it can't be changed once the derby starts. Then the derby's Board shows the weight and each angler's closest weighed fish, closest first. **New security rules: publish firestore.rules.** |
 | 0.30.0 | 2026-Oct-05 08:32:03 PM | **Copy a derby** (Milestone D): "Copy this derby" on any derby's page opens the new-derby form with the same rules, species, money and prizes, moved to the same weekday and time in the coming weeks. Change anything before creating it. |
 | 0.29.0 | 2026-Oct-05 08:18:14 PM | **Fish Finder:** the card at the top of the feed is now a carousel (‹ › buttons, swipe, or tap a dot) of up to seven cards, most relevant first: Happening now (a live or coming derby, or a trip in the next 2 days), Your standing (place this season and points to your next title), Within reach (the league record you're closest to), Crown watch (your closest challenger, or the crown you're nearest to taking), Badge watch (the counting badge you're nearest), This week (the league's last 7 days and the biggest fish), and Get out there / Keep it going (moves up front when your last catch was a week or more ago). Each card opens the page it's about. Replaces the old catches/species/PBs card. |
 | 0.28.0 | 2026-Oct-05 08:01:47 PM | **Record and PB flair top right:** on feed and profile cards, the League record / All-time record and PB chips sit in the top-right corner beside the species. On phones they read "👑 Record" and "📜 All-time", and stack when the species name is long. |

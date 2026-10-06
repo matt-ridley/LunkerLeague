@@ -1,9 +1,9 @@
 /* Derbies: the list, a derby's page (leaderboard, rules, entries, anglers) and the create/edit form. */
 import { el, field, avatar, fill, fmtDate, fmtDay, fmtWeight, fmtLength, toast, icon, openSheet, closeSheet, confirmButton, copyText } from "./ui.js";
 import { store, uid, isAdmin, isOwner, memberName, endDerbyNow, deleteDerby, saveDerby, setDerbyCancelled, joinDerby, leaveDerby, setDisqualified,
-  setPaid, setSettled, watchSettlements } from "./cloud.js";
+  setPaid, setSettled, watchSettlements, watchMystery, setMystery, subscribe } from "./cloud.js";
 import { payouts, hasMoney, fmtMoney, ordinal, PAYOUT_PRESETS } from "./payout.js";
-import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEntries, standings, nextDates } from "./derby.js";
+import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEntries, standings, nextDates, mysteryBoard } from "./derby.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { tripsSection } from "./trips.js";
 
@@ -70,6 +70,7 @@ function derbyCard(d) {
     el("div", { class: "derby-meta" },
       el("span", { text: `🏁 ${(SCORING[d.scoring] || {}).label || ""}${d.scoring === "bag" ? ` (${d.bagSize})` : ""}` }),
       el("span", { text: `👥 ${ent.size}` }),
+      d.mystery ? el("span", { text: "🎯 Mystery weight" }) : null,
       ent.has(uid()) ? el("span", { class: "badge pb", text: "You're in" }) : null),
     top ? el("div", { class: "derby-leader" }, el("span", { text: st === "ended" ? "🏆 Winner" : "👑 Leading" }), avatar(who(top.uid), "xs"),
       el("b", { text: who(top.uid).displayName }), el("span", { text: scoreText(d, top) })) : null);
@@ -116,7 +117,7 @@ export function renderDerby(main, id) {
   else if (derbyTab === "rules") body = rulesView(d);
   else if (derbyTab === "anglers") body = anglersView(d, ent, entries);
   else if (derbyTab === "money") body = moneyView(d, money, ent, st);
-  else body = boardView(d, rows, st, money);
+  else body = el("div", { class: "stack" }, d.mystery ? mysteryCard(d, entries, st) : null, boardView(d, rows, st, money));
 
   const canDelete = isOwner() || (organiserHere && d.testing);
   const organiser = isOrganiser(d) ? el("section", { class: "card stack" },
@@ -188,6 +189,38 @@ function boardView(d, rows, st, money) {
     st === "closing" ? el("p", { class: "hint", text: "Fishing time is over. Entries from anyone who was out of signal can still arrive until final entries close." }) : null);
 }
 
+/* The mystery weight: secret until final entries close (the rules hide it), except from the organiser and admins. */
+const offText = off => (off ? `${fmtWeight(off)} off` : "Spot on!");
+function mysteryCard(d, entries, st) {
+  const final = st === "ended", canSee = isOrganiser(d) || final;
+  if (canSee) watchMystery(d.id, { live: isOrganiser(d) });
+  const secret = canSee ? store.mystery.get(d.id) : undefined;
+  const title = el("h3", { text: "🎯 Mystery weight" });
+  const prize = d.mysteryNote ? el("p", { class: "prize", text: `🏆 ${d.mysteryNote}` }) : null;
+  if (!canSee) {
+    return el("section", { class: "card stack mystery" }, title,
+      el("p", { text: `A secret weight is set. Each angler's weighed fish closest to it wins. Revealed when final entries close, ${fmtDate(closesAt(d))}.` }), prize);
+  }
+  if (secret === undefined) return el("section", { class: "card stack mystery" }, title, el("p", { class: "muted", text: final ? "Revealing…" : "Loading…" }));
+  if (!secret) {
+    return el("section", { class: "card stack mystery" }, title, prize,
+      el("p", { text: final ? "The organiser never set the weight, so there's no mystery winner." : "You haven't set the weight yet. Edit the derby to set it before it starts." }));
+  }
+  const counted = entries.filter(e => !e.problem);
+  const board = mysteryBoard(d, counted, null, secret.weightOz);
+  const line = (r, i) => el("li", { class: "member-row" },
+    el("span", { class: "rank", text: MEDALS[i] || String(i + 1) }), avatar(who(r.uid), "sm"),
+    el("div", { class: "grow" }, el("div", { class: "name", text: who(r.uid).displayName }),
+      el("div", { class: "muted small", text: `${fmtWeight(r.fish.weightOz)} ${r.fish.species}` })),
+    el("b", { text: offText(r.off) }));
+  return el("section", { class: "card stack mystery" }, title, prize,
+    el("p", { class: "mystery-weight", text: final ? `The mystery weight was ${fmtWeight(secret.weightOz)}` : `Hidden from the league: ${fmtWeight(secret.weightOz)}` }),
+    board.length ? el("ol", { class: "member-list" }, ...board.slice(0, final ? 3 : 1).map(line))
+      : el("p", { class: "muted", text: "No weighed fish entered yet." }),
+    !final && board.length ? el("p", { class: "hint", text: "Closest so far. Everyone else sees the weight when final entries close." }) : null,
+    final ? el("p", { class: "hint", text: secret.setAt <= d.start ? "The weight was set before the derby started." : `The weight was set ${fmtDate(secret.setAt)}, after the derby started.` }) : null);
+}
+
 function podium(d, rows) {
   const spot = (r, place) => r ? el("div", { class: `podium-spot p${place}` },
     el("div", { class: "podium-medal", text: MEDALS[place - 1] }), avatar(who(r.uid), place === 1 ? "lg" : ""),
@@ -246,7 +279,8 @@ function rulesView(d) {
     rule("Photo proof", PROOF[d.proof]),
     rule("Spot", d.requireLocation ? "GPS spot required and shared with the league" : "Optional"),
     rule("Release", d.catchRelease ? "Catch and release only" : "Keep or release"),
-    rule("Boat crew", d.requireCrew ? "Captain and net man must be named on every entry" : "Optional"));
+    rule("Boat crew", d.requireCrew ? "Captain and net man must be named on every entry" : "Optional"),
+    d.mystery ? rule("Mystery weight", `A secret weight is set. Each angler's weighed fish closest to it wins${d.mysteryNote ? ` (${d.mysteryNote})` : ""}. It's revealed when final entries close.`) : null);
 }
 
 function anglersView(d, ent, entries) {
@@ -385,6 +419,29 @@ export function renderDerbyForm(main, id, copyId) {
     canSetTesting ? "For trying things out. You can delete a test derby (and its entries) when you're done. Can't be changed later." : null);
   testing.disabled = !canSetTesting;
   const prize = el("input", { type: "text", maxlength: 300, value: d.prizeNote, placeholder: "e.g. Loser buys breakfast" });
+  // Mystery weight: kept apart from the derby so only the organiser can see it, and locked once the derby starts.
+  const mysteryLocked = !!(editing && editing.mystery && Date.now() >= editing.start);
+  const [myst, mystRow] = check("🎯 Mystery weight prize", !!d.mystery);
+  const mLb = el("input", { type: "text", inputmode: "numeric", placeholder: "0" });
+  const mOz = el("input", { type: "text", inputmode: "decimal", placeholder: "0" });
+  const mNote = el("input", { type: "text", maxlength: 100, value: d.mysteryNote || "", placeholder: "e.g. $20 Tim's card" });
+  let mysteryNow = null; // the saved weight, once loaded (editing only)
+  const fillMystery = w => { mysteryNow = w || null; if (w) { mLb.value = String(Math.floor(w / 16)); mOz.value = String(Math.round((w % 16) * 10) / 10); } };
+  if (editing && editing.mystery) {
+    watchMystery(id, { live: true });
+    // The form doesn't redraw with live data, so fill the weight in when it arrives (unless it's been typed over).
+    const take = () => { const m = store.mystery.get(id); if (!m) return false; if (!mLb.value && !mOz.value) fillMystery(m.weightOz); else mysteryNow = m.weightOz; return true; };
+    if (!take()) { const off = subscribe(() => { if (take()) off(); }); }
+  }
+  for (const x of [myst, mLb, mOz]) x.disabled = mysteryLocked;
+  const mysteryBox = el("div", { class: "stack" },
+    el("div", { class: "field" }, el("span", { class: "field-label", text: "Secret weight" }),
+      el("div", { class: "unit-row" }, mLb, el("span", { text: "lb" }), mOz, el("span", { text: "oz" }))),
+    field("Mystery prize (optional)", mNote),
+    el("p", { class: "hint", text: mysteryLocked ? "The mystery weight is locked now that the derby has started."
+      : "Only you (and league admins) can see it until final entries close. Each angler's weighed fish closest to it wins. It can't be changed once the derby starts." }));
+  const syncMystery = () => { mysteryBox.hidden = !myst.checked; };
+  myst.addEventListener("change", syncMystery); syncMystery();
   const dollars = v => el("input", { type: "text", inputmode: "decimal", placeholder: "0", value: v ? String(v) : "" });
   const fee = dollars(d.entryFee), added = dollars(d.addedMoney), side = dollars(d.sidePotFee);
   const presetKey = (d.payoutPcts || [100]).join(",");
@@ -436,6 +493,7 @@ export function renderDerbyForm(main, id, copyId) {
       field("Entry fee ($ per angler)", fee, "Leave at 0 for a free derby. The app only keeps track; settle up by e-transfer or cash."),
       moneyBox,
       field("Prize or bragging rights (optional)", prize)),
+    el("section", { class: "card stack" }, mystRow, mysteryBox),
     msg,
     el("button", { class: "btn lime block big", type: "submit", text: editing ? "Save changes" : "Create derby" }),
     el("a", { class: "btn quiet block", href: editing ? `#/d/${id}` : "#/derbies", text: "Cancel" }));
@@ -451,6 +509,9 @@ export function renderDerbyForm(main, id, copyId) {
     const pcts = (split.value === "custom" ? custom.value : split.value).split(/[,\s/]+/).map(num).filter(x => x > 0);
     if ((num(fee.value) > 0 || num(added.value) > 0) && Math.round(pcts.reduce((a, b) => a + b, 0)) !== 100) return fail("The payout split has to add up to 100%.");
     if (num(capPct.value) + num(netPct.value) > 50) return fail("Crew cuts can't add up to more than 50%.");
+    const mysteryOz = Math.round((num(mLb.value) * 16 + num(mOz.value)) * 10) / 10;
+    if (myst.checked && !mysteryLocked && !(mysteryOz > 0) && !mysteryNow) return fail("Set the secret weight for the mystery prize.");
+    if (myst.checked && !mysteryLocked && s <= Date.now() && !(editing && editing.mystery)) return fail("A mystery weight has to be set before the derby starts.");
     const data = {
       ...DEFAULTS, name: name.value.trim().slice(0, 60), description: desc.value.trim().slice(0, 500),
       organiserUid: editing ? editing.organiserUid : uid(), start: s, end: en, syncGraceHours: num(grace.value),
@@ -463,9 +524,15 @@ export function renderDerbyForm(main, id, copyId) {
       entryFee: Math.max(0, num(fee.value)), addedMoney: Math.max(0, num(added.value)), payoutPcts: pcts.length ? pcts : [100],
       unpaidCanWin: unpaidWin.checked, captainPct: Math.min(50, Math.max(0, num(capPct.value))), netmanPct: Math.min(50, Math.max(0, num(netPct.value))),
       roundTo: +roundTo.value, sidePotFee: Math.max(0, num(side.value)),
+      mystery: mysteryLocked ? true : myst.checked, mysteryNote: mNote.value.trim().slice(0, 100),
     };
     const newId = saveDerby(editing ? id : null, data);
     if (!editing) joinDerby(newId); // the organiser is in by default
+    // After the derby itself, so the rules can see who organises it.
+    if (!mysteryLocked) {
+      if (myst.checked && mysteryOz > 0 && mysteryOz !== mysteryNow) setMystery(newId, mysteryOz);
+      else if (!myst.checked && editing && editing.mystery) setMystery(newId, null);
+    }
     toast(editing ? "Derby updated." : "Derby created. Share it in the chat!");
     location.hash = `#/d/${newId}`;
   });

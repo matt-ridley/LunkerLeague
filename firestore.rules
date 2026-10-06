@@ -255,7 +255,7 @@ service cloud.firestore {
                                "bagSize", "minWeightOz", "minLengthIn", "maxEntries", "proof", "requireLocation", "catchRelease",
                                "requireCrew", "prizeNote", "cancelled", "createdAt",
                                "entryFee", "addedMoney", "payoutPcts", "unpaidCanWin", "captainPct", "netmanPct", "roundTo", "sidePotFee",
-                               "testing"])
+                               "testing", "mystery", "mysteryNote"])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.description is string && d.description.size() <= 500
         && d.start is number && d.end is number && d.end > d.start
@@ -270,6 +270,7 @@ service cloud.firestore {
         && d.prizeNote is string && d.prizeNote.size() <= 300
         && d.cancelled is bool && d.createdAt is number
         && d.get("testing", false) is bool
+        && d.get("mystery", false) is bool && d.get("mysteryNote", "") is string && d.get("mysteryNote", "").size() <= 100
         && validMoney(d);
     }
     // Entry fees and payouts (the app only keeps track; nobody pays through it). Older derbies have none of these.
@@ -317,6 +318,22 @@ service cloud.firestore {
           && request.resource.data.amount is number && request.resource.data.settledAt is number
           && request.resource.data.by == me();
         allow delete: if isMember() && (get(derbyPath(did)).data.organiserUid == me() || isAdmin());
+      }
+
+      // The mystery weight. Only the organiser (or an admin) can see it until final entries close; then everyone can.
+      // It can be set any time but only changed or removed before the derby starts, so nobody moves it to suit a fish.
+      // Deleting the derby (league owner, or a test derby's organiser) clears it too.
+      match /secret/{key} {
+        allow read: if isMember() && (get(derbyPath(did)).data.organiserUid == me() || isAdmin()
+          || request.time.toMillis() > get(derbyPath(did)).data.end + get(derbyPath(did)).data.syncGraceHours * 3600000);
+        allow create, update: if isMember() && key == "mystery" && (get(derbyPath(did)).data.organiserUid == me() || isAdmin())
+          && (resource == null || request.time.toMillis() < get(derbyPath(did)).data.start)
+          && request.resource.data.keys().hasOnly(["weightOz", "setBy", "setAt"])
+          && request.resource.data.weightOz is number && request.resource.data.weightOz > 0 && request.resource.data.weightOz <= 2000
+          && request.resource.data.setBy == me() && request.resource.data.setAt is number;
+        allow delete: if isMember() && (isOwner()
+          || ((get(derbyPath(did)).data.organiserUid == me() || isAdmin()) && request.time.toMillis() < get(derbyPath(did)).data.start)
+          || (get(derbyPath(did)).data.organiserUid == me() && get(derbyPath(did)).data.get("testing", false) == true));
       }
 
       // Derby chat (trash talk for this derby).

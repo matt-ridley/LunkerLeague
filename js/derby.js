@@ -18,7 +18,7 @@ export const PROOF = {
 export const DEFAULTS = {
   name: "", description: "", start: 0, end: 0, syncGraceHours: 24, species: [], scoring: "heaviest", bagSize: 5,
   minWeightOz: 0, minLengthIn: 0, maxEntries: 0, proof: "any", requireLocation: false, catchRelease: false,
-  requireCrew: false, prizeNote: "", cancelled: false,
+  requireCrew: false, prizeNote: "", cancelled: false, mystery: false, mysteryNote: "",
   testing: false, entryFee: 0, addedMoney: 0, payoutPcts: [100], unpaidCanWin: false, captainPct: 0, netmanPct: 0, roundTo: 1, sidePotFee: 0,
 };
 
@@ -109,4 +109,16 @@ export function standings(d, catches, entrants) {
     rows.push({ uid, score, fish: counted, decidedAt, biggest: Math.max(...fish.map(c => c.weightOz || 0)) });
   }
   return rows.sort((a, b) => b.score - a.score || (d.scoring === "bag" ? b.biggest - a.biggest : 0) || a.decidedAt - b.decidedAt);
+}
+
+/* The mystery weight: each angler's closest weighed fish among the entries that count, closest first (ties go to
+   the fish caught first). [{ uid, fish, off }], where `off` is how far from the mystery weight, in ounces. */
+export function mysteryBoard(d, catches, entrants, weightOz) {
+  const best = new Map();
+  for (const e of derbyEntries(d, catches, entrants)) {
+    if (e.problem || !(e.weightOz > 0)) continue;
+    const off = Math.round(Math.abs(e.weightOz - weightOz) * 10) / 10, cur = best.get(e.uid);
+    if (!cur || off < cur.off || (off === cur.off && e.caughtAt < cur.fish.caughtAt)) best.set(e.uid, { uid: e.uid, fish: e, off });
+  }
+  return [...best.values()].sort((a, b) => a.off - b.off || a.fish.caughtAt - b.fish.caughtAt);
 }
