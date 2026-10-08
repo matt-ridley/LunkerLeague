@@ -42,6 +42,26 @@ export function pickerItems(items, me, catches, tackle) {
     .sort((a, b) => (lastUsed.get(b.id) || 0) - (lastUsed.get(a.id) || 0) || (b.createdAt || 0) - (a.createdAt || 0));
 }
 
+/* An angler's lucky lure: the item they pinned (if it's still in their box), else the item that's caught them the most
+   fish (from the catches this phone can see). { item, fish, pinned } or null. */
+export function luckyLure(owner, pinnedId, items, catches, tackle) {
+  const fishBy = new Map();
+  for (const [id, t] of tackle) {
+    const c = catches.get(id);
+    if (!t.itemId || !c || c.dq || c.uid !== owner) continue;
+    fishBy.set(t.itemId, (fishBy.get(t.itemId) || 0) + (Number.isInteger(c.fishCount) && c.fishCount > 1 ? c.fishCount : 1));
+  }
+  const pinned = pinnedId && items.get(pinnedId);
+  if (pinned && pinned.uid === owner) return { item: pinned, fish: fishBy.get(pinned.id) || 0, pinned: true };
+  let best = null;
+  for (const i of items.values()) {
+    const n = fishBy.get(i.id) || 0;
+    if (i.uid !== owner || !n) continue;
+    if (!best || n > best.fish || (n === best.fish && (i.createdAt || 0) < (best.item.createdAt || 0))) best = { item: i, fish: n, pinned: false };
+  }
+  return best;
+}
+
 /* The tackle on this angler's last-logged catch that had some (for "Same tackle as your last catch?"), or null. */
 export function lastTackle(me, catches, tackle) {
   let best = null;

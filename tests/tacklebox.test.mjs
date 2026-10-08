@@ -53,3 +53,18 @@ test("filling the box from catches: one item per lure, the usual technique and d
   assert.deepEqual(add, [{ name: "Jig and minnow", technique: "jigging", depthFt: 20, catchIds: ["a", "b", "d"] }]);
   assert.deepEqual(link, [{ itemId: "i1", catchIds: ["e"] }]);
 });
+
+test("the lucky lure: a pinned item, else the one with the most fish", async () => {
+  const { luckyLure } = await import("../js/tacklebox.js");
+  const items = new Map([
+    ["i1", { id: "i1", uid: "me", name: "Jig", createdAt: 1 }], ["i2", { id: "i2", uid: "me", name: "Spoon", createdAt: 2 }],
+    ["i3", { id: "i3", uid: "me", name: "Never used", createdAt: 3 }], ["i9", { id: "i9", uid: "you", name: "Theirs", createdAt: 0 }],
+  ]);
+  const catches = new Map([c("a", "me", 1), c("b", "me", 2), c("d", "me", 3, 3, { fishCount: 12 }), c("e", "me", 4, 4, { dq: true })]);
+  const tackle = new Map([t("a", "me", "Jig", { itemId: "i1" }), t("b", "me", "Jig", { itemId: "i1" }), t("d", "me", "Spoon", { itemId: "i2" }), t("e", "me", "Jig", { itemId: "i1" })]);
+  assert.deepEqual(luckyLure("me", null, items, catches, tackle), { item: items.get("i2"), fish: 12, pinned: false }); // a stringer counts its fish
+  assert.deepEqual(luckyLure("me", "i3", items, catches, tackle), { item: items.get("i3"), fish: 0, pinned: true });
+  assert.equal(luckyLure("me", "i9", items, catches, tackle).item.id, "i2"); // someone else's item can't be pinned
+  assert.equal(luckyLure("me", "gone", items, catches, tackle).item.id, "i2");
+  assert.equal(luckyLure("nobody", null, items, catches, tackle), null);
+});
