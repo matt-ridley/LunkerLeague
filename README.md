@@ -6,11 +6,12 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.58.0 (beta)
+**Current version:** 0.59.0 (beta)
 
 ## Features
 
 - **Accounts for friends only.** Friends create an account with their email and a password, then join with the league's invite code. Nobody else can see anything.
+- **Works on a computer too.** On a wide screen (a computer or laptop) the tabs move to a rail on the left with a big **Log** button, pages get a wider column, and pop-ups open as dialogs in the middle of the screen. **📱 Phone view** at the bottom of the rail shows the app in a phone-sized frame, exactly as a phone shows it (handy for screenshots); **🖥️ Web view** switches back, and the browser remembers the choice. Phones and tablets keep the phone layout.
 - **System info.** Tap the fish at the top (or **System info** on your profile) to see the connection in words (since when, the last sync, catches and changes still waiting, the outbox), the app version with **Check for an update**, this phone (space used, whether saved data is protected), and league facts: anglers, fish, species, league age, total weighed, derbies and outings, fish today and this week, the most caught species, the busiest day, the first catch, and the storage meter.
 - **Storage meter.** The League admin page (and System info, for everyone) shows roughly how much of the free plan's 1 GB is used and how many more catches fit, and warns when it's getting full.
 - **League owner and admins.** Whoever sets up the league owns it. The owner can make other members admins. Admins can change the invite code, rename the league, and pause or remove members.
@@ -186,6 +187,8 @@ Not planned yet, but worth keeping in mind.
    - **iPhone:** tap **Share**, then **Add to Home Screen**.
 3. Always open the app from the home-screen icon.
 
+On a computer, just open the same address in any browser and sign in.
+
 ## Setting up the league (first time only)
 
 ### 1. Create the Firebase project
@@ -299,6 +302,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.59.0 | 2026-Oct-08 06:10:47 PM | **Web view**: on screens 1024px and wider the bottom tabs become a left rail (big lime **Log** button, chat badge beside Chat), the column widens to 760px with the header lined up to it, sheets open as centred dialogs, the map is taller, and there are hover effects for a mouse. **📱 Phone view** on the rail shows the real app in a 390 × 844 phone frame (only that copy runs), keeping the page you're on; **🖥️ Web view** switches back, remembered per browser. Phone and tablet layouts are unchanged (checked element by element before and after at 375px and 800px). No new security rules. |
 | 0.58.0 | 2026-Oct-08 02:05:49 PM | **Status in the fish, and System info**: the Live/Offline pill is gone from the header so the league name fits on a phone. The fish icon shows the connection instead (green connected, pulsing green syncing, blue offline, red a sync problem; a dot on Back on inner pages) and opens the new **System info** page: connection details, version and update check, this phone, league facts and fun stats, and the storage meter (now shown to everyone). No new security rules. |
 | 0.57.0 | 2026-Oct-08 01:46:32 PM | **Season awards** (Milestone F is complete): Leaders → 🏆 **Season awards** opens a page for each season (the calendar year, this one "so far", past ones kept): the top-3 podium (the current season matches This season; a finished season counts the points earned during it), awards for the biggest fish, most fish, most species, most days out, most skunks, the record breaker, most badges, the top boat and the top lure (shared tackle only), the records set (linking to the Hall of Fame) and the crowns held now or at the season's end. **Share recap** draws a picture of it on the phone and opens the share menu (or saves it). No new security rules. |
 | 0.56.0 | 2026-Oct-08 01:18:46 PM | **Boat profiles**: 🚤 **Boats** (on every profile) lists the league's saved boats by fish caught; **Add my boat** saves a name, photo (small, like tackle photos), regular crew and notes. The log form's Where card has a **Boat** pick (your boats and ones you crew on), starting with the saved boat you're on for an outing happening now, or the one on your last catch. "I'm bringing a boat" on an outing can pick your saved boat (its name fills in) and links to it. A boat's page: captain, crew, fish and species, the biggest fish, top anglers, outings and its catches; the owner can edit, retire or delete it. Catches show their boat. The storage meter counts boat photos. **New security rules: publish firestore.rules.** |
