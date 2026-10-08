@@ -297,6 +297,12 @@ body.gated .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 .photo-pick { display: block; width: 100%; padding: 0; font: inherit; color: inherit; cursor: pointer; border-radius: 14px; overflow: hidden; background: var(--surface-2); border: 2px dashed var(--line); }
 .photo-pick:active { border-color: var(--primary); }
 .photo-pick img { display: block; width: 100%; max-height: 360px; object-fit: contain; background: #000; }
+/* Adjust thumbnail: the photo with the feed's square on it (the rest dimmed); tap or drag to move the square. */
+.focus-area { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; overflow: hidden; border-radius: 12px;
+  touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+.focus-area img { display: block; max-width: 100%; max-height: 52dvh; pointer-events: none; }
+.focus-frame { position: absolute; border: 3px solid var(--lime); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .5); pointer-events: none; }
+.focus-preview { flex-wrap: nowrap; }
 .photo-empty { display: grid; justify-items: center; gap: 6px; padding: 32px 16px; color: var(--muted); font-weight: 700; }
 .photo-empty svg { width: 44px; height: 44px; }
 .unit-row { display: flex; align-items: center; gap: 8px; }

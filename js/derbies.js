@@ -10,6 +10,7 @@ import { tripsSection } from "./trips.js";
 import { seriesSection } from "./seriespage.js";
 import { challengesSection } from "./h2hpage.js";
 import { betsSection } from "./betspage.js";
+import { focusStyle } from "./thumbfocus.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -327,7 +328,7 @@ function entriesView(d, entries) {
   // Waiting for approval first (oldest first, so they're checked in order), then the rest, newest first.
   const waiting = entries.filter(e => awaitingApproval(e, d)), rest = entries.filter(e => !awaitingApproval(e, d)).reverse();
   return el("ul", { class: "entry-list" }, ...[...waiting, ...rest].map(e => el("li", { class: "entry" + (awaitingApproval(e, d) ? " waiting" : e.problem ? " out" : "") },
-    el("a", { href: `#/c/${e.id}` }, el("img", { class: "thumb sm", src: e.thumb, alt: "", loading: "lazy" })),
+    el("a", { href: `#/c/${e.id}` }, el("img", { class: "thumb sm", src: e.thumb, alt: "", loading: "lazy", style: focusStyle(e) })),
     el("div", { class: "grow" },
       el("div", {}, el("b", { text: who(e.uid).displayName }), el("span", { class: "muted small", text: ` · ${fmtDate(e.caughtAt)}` })),
       el("div", { text: `${e.species} · ${[fmtWeight(e.weightOz), fmtLength(e.lengthIn)].filter(Boolean).join(" · ")}` }),

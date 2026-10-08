@@ -8,6 +8,7 @@ import { crownStandings, crownScore } from "./crowns.js";
 import { badgeTimeline, BADGES } from "./badges.js";
 import { closesAt as derbyClosesAt } from "./derby.js";
 import { closesAt as h2hClosesAt } from "./h2h.js";
+import { focusStyle } from "./thumbfocus.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -272,6 +273,6 @@ function speciesPage(main, all, species, by) {
         el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), el("div", { class: "muted small", text: fmtDay(c.caughtAt) + (c.past ? " · 📜 past catch" : "") })),
         pts(i) ? el("span", { class: "pts-tag", text: `+${pts(i)}` }) : null,
         el("b", { class: "board-size", text: by === "length" ? fmtLength(c.lengthIn) : fmtWeight(c.weightOz) }),
-        el("img", { class: "thumb sm", src: c.thumb, alt: "", loading: "lazy" })));
+        el("img", { class: "thumb sm", src: c.thumb, alt: "", loading: "lazy", style: focusStyle(c) })));
     })) : el("p", { class: "muted", text: `No ${species} has been ${by === "length" ? "measured" : "weighed"} yet.` }));
 }

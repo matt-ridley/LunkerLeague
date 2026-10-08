@@ -9,6 +9,7 @@ import { isPersonalBest, recordKinds } from "./stats.js";
 import { biteTimes } from "./solunar.js";
 import { biteDay } from "./bitepage.js";
 import { myBoats } from "./fleet.js";
+import { focusStyle } from "./thumbfocus.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const ANSWERS = [["in", "In"], ["maybe", "Maybe"], ["out", "Out"]];
@@ -205,7 +206,7 @@ function recapSection(t) {
       el("div", { class: "people" }, ...r.anglers.map(a => el("a", { class: "person", href: `#/u/${a.uid}` }, avatar(who(a.uid), "xs"),
         el("span", { text: `${who(a.uid).displayName} · ${a.fish}` })))),
       el("div", { class: "recap-thumbs" }, ...r.catches.slice(0, 12).map(c => el("a", { class: "recap-thumb", href: `#/c/${c.id}`, title: `${c.species} ${sizeOf(c) || ""}` },
-        el("img", { class: "thumb sm", src: c.thumb, alt: `${c.species} by ${who(c.uid).displayName}`, loading: "lazy" }),
+        el("img", { class: "thumb sm", src: c.thumb, alt: `${c.species} by ${who(c.uid).displayName}`, loading: "lazy", style: focusStyle(c) }),
         flags(c) ? el("span", { class: "recap-flag", text: flags(c) }) : null))),
     ]);
 }

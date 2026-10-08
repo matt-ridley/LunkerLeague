@@ -68,6 +68,9 @@ test("late entries sync during the grace period, but not after it", async () => 
   await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), "derbies/d1"), { syncGraceHours: 2 }));
   await assertFails(putCatch(as(env, "member"), "e2", entry("member", { caughtAt: Date.now() - 6 * H })));
   await assertFails(updateDoc(doc(as(env, "member"), "catches/e1"), { weightOz: 200 }));  // locked once closed
+  // Moving the thumbnail is still fine: it isn't part of the entry.
+  await assertSucceeds(updateDoc(doc(as(env, "member"), "catches/e1"), { focus: { x: 10, y: 50 } }));
+  await assertFails(updateDoc(doc(as(env, "member"), "catches/e1"), { focus: { x: 10, y: 50 }, weightOz: 200 }));
 });
 
 test("derby rules are enforced: species, minimums, release, spot and crew", async () => {

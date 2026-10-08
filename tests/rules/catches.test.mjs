@@ -220,3 +220,17 @@ test("tackle can be changed or removed with its catch, and goes when the catch i
   b.delete(doc(admin, "tackle/t2"));
   await assertSucceeds(b.commit());
 });
+
+test("the thumbnail focus is optional, must be two whole numbers 0-100, and only the angler can move it", async () => {
+  const db = as(env, "member");
+  await assertSucceeds(saveAll(db, "f1", "member", { extra: { focus: { x: 20, y: 50 } } }));
+  await assertSucceeds(saveAll(db, "f2", "member", { extra: { focus: null } }));
+  await assertFails(saveAll(db, "f3", "member", { extra: { focus: { x: 120, y: 50 } } }));
+  await assertFails(saveAll(db, "f4", "member", { extra: { focus: { x: 20.5, y: 50 } } }));
+  await assertFails(saveAll(db, "f5", "member", { extra: { focus: { x: 20 } } }));
+  await assertFails(saveAll(db, "f6", "member", { extra: { focus: { x: 20, y: 50, zoom: 2 } } }));
+  await assertSucceeds(updateDoc(doc(db, "catches/f1"), { focus: { x: 80, y: 50 } }));
+  await assertSucceeds(updateDoc(doc(db, "catches/f1"), { focus: null }));
+  await assertFails(updateDoc(doc(db, "catches/f1"), { focus: { x: -1, y: 50 } }));
+  await assertFails(updateDoc(doc(as(env, "admin2"), "catches/f1"), { focus: { x: 10, y: 50 } }));
+});
