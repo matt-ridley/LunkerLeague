@@ -4,7 +4,9 @@
 
    A bet: { id, title, organiserUid, kind: "contest", rule, open, invited: [uid], start, end, buyIn, roundTo, prize, note,
    createdAt, cancelled }
-   - rule: { win: "heaviest" | "longest" | "most" | "first", species: [], minWeightOz, minLengthIn }
+   - rule: { win: "heaviest" | "longest" | "most" | "first" | "called", species: [], minWeightOz, minLengthIn }. "called": the
+     organiser decides (anything the catches can't settle, like "first boat to the launch"), from proof photos.
+   - result (called bets, once the organiser settles it): { winners: [uid], wash, at, by }
    - open: anyone can join until it starts; otherwise only the organiser and the anglers invited.
    Players: Map(uid -> { at, in }); `in: false` is an invite turned down. */
 import { isStringer, fishIn } from "./stats.js";
@@ -16,7 +18,9 @@ export const RULES = {
   longest: { label: "Biggest fish by length" },
   most: { label: "Most fish" },
   first: { label: "First to catch one" },
+  called: { label: "The organiser decides (with proof photos)" },
 };
+export const isCalled = b => b.rule.win === "called";
 export const LATE_HOURS = 12; // catches made during it can still sync this long after (no-signal spots)
 export const MAX_DAYS = 366;
 const HOUR = 3600 * 1000;
@@ -46,6 +50,7 @@ const firstCatches = (b, list) => list.length ? list.filter(c => c.caughtAt === 
 /* When the result can't change any more: the late window after the end, or for "first to catch", after the first
    catch (an earlier one could still sync from a no-signal spot until then). */
 export function finalAt(b, catches, players) {
+  if (isCalled(b)) return b.result ? b.result.at : Infinity;
   if (b.rule.win === "first") {
     const f = firstCatches(b, betCatches(b, catches, players))[0];
     if (f) return Math.min(f.caughtAt, b.end) + LATE_HOURS * HOUR;
@@ -59,12 +64,15 @@ export function betStatus(b, catches, players, now = Date.now()) {
   if (b.cancelled) return "cancelled";
   if (now < b.start) return "open";
   if (playersIn(players).length < 2) return "off";
+  // The organiser settles it whenever they can (even before the end, e.g. once someone's at the launch).
+  if (isCalled(b)) return b.result ? "done" : now <= b.end ? "live" : "deciding";
   const fin = finalAt(b, catches, players);
   if (now >= fin) return "done";
   const caught = b.rule.win === "first" && betCatches(b, catches, players).length > 0;
   return now <= b.end && !caught ? "live" : "closing";
 }
-export const STATUS_LABEL = { open: "Open to join", live: "Live now", closing: "Final catches", done: "Finished", cancelled: "Cancelled", off: "Called off" };
+export const STATUS_LABEL = { open: "Open to join", live: "Live now", closing: "Final catches", deciding: "Waiting for the organiser",
+  done: "Finished", cancelled: "Cancelled", off: "Called off" };
 
 /* Every player's score, best first: [{ uid, score, fish, count }]. For "first to catch", score is 1 for whoever got
    there first. A stringer has no size for each fish, so it only counts for most fish (and a plain "first to catch"). */
@@ -92,8 +100,16 @@ export function betBoard(b, catches, players) {
    scoring is a wash: no winner, nothing owed. Shares are rounded the organiser's way, the difference going to (or
    coming off) the first winner on the board. */
 export function betResult(b, catches, players) {
-  const rows = betBoard(b, catches, players), top = rows[0];
   const pot = Math.round((b.buyIn || 0) * playersIn(players).length * 100) / 100;
+  if (isCalled(b)) {
+    // The organiser's call, kept to anglers who are in it (in the order they were picked).
+    const ins = new Set(playersIn(players)), winners = ((b.result && b.result.winners) || []).filter(u => ins.has(u));
+    const rows = playersIn(players).map(u => ({ uid: u, score: winners.includes(u) ? 1 : 0, fish: [], count: 0 }))
+      .sort((a, c) => c.score - a.score);
+    if (!winners.length) return { winners: [], wash: true, pot, shares: new Map(), rows };
+    return { winners, wash: false, pot, shares: splitPot(pot, winners, b.roundTo || 0), rows };
+  }
+  const rows = betBoard(b, catches, players), top = rows[0];
   if (!top || !(top.score > 0)) return { winners: [], wash: true, pot, shares: new Map(), rows };
   const winners = rows.filter(r => r.score === top.score).map(r => r.uid);
   return { winners, wash: false, pot, shares: splitPot(pot, winners, b.roundTo || 0), rows };
@@ -113,6 +129,7 @@ export function betProblem(b, now = Date.now(), editing = false) {
   if (!String(b.title || "").trim()) return "Give the bet a name.";
   if (!RULES[b.rule.win]) return "Pick how it's won.";
   if ((b.rule.species || []).length > 10) return "Pick up to 10 species, or any species.";
+  if (isCalled(b) && !String(b.note || "").trim()) return "Say what wins in the details, so everyone knows what the proof has to show.";
   if (!isFinite(b.start) || !isFinite(b.end)) return "Set when it starts and ends.";
   if (!editing && b.start <= now) return "It has to start in the future, so people can join first.";
   if (b.end <= b.start) return "It has to end after it starts.";
@@ -124,6 +141,7 @@ export function betProblem(b, now = Date.now(), editing = false) {
 
 /* Words for the screens, the feed and the bell. */
 export function ruleText(r) {
+  if (r.win === "called") return "The organiser decides, from proof photos";
   const sp = r.species && r.species.length ? r.species.join(", ") : r.win === "first" ? "any fish" : "any species";
   if (r.win !== "first") return `${RULES[r.win].label} · ${sp}`;
   const size = [r.minWeightOz > 0 ? `${fmtWeight(r.minWeightOz)}+` : "", r.minLengthIn > 0 ? `${fmtLength(r.minLengthIn)}+` : ""].filter(Boolean).join(", ");

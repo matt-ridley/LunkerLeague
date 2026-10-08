@@ -1,16 +1,19 @@
 /* Bets: the list (with head-to-head challenges on the Events page's Bets tab), one bet's page (who's in, the live
    board, the result and the pot) and the form for setting one up. */
-import { el, field, avatar, fill, fmtDate, fmtDay, toast, confirmButton } from "./ui.js";
-import { store, uid, isOwner, memberName, saveBet, setBetCancelled, joinBet, leaveBet, deleteBet, subscribe } from "./cloud.js";
+import { el, field, avatar, fill, fmtDate, fmtDay, toast, confirmButton, openSheet, closeSheet, icon } from "./ui.js";
+import { store, uid, isOwner, memberName, saveBet, setBetCancelled, joinBet, leaveBet, deleteBet, subscribe,
+  watchProofs, sendProof, removeProof, settleBet } from "./cloud.js";
 import { RULES, MAX_DAYS, LATE_HOURS, betStatus, STATUS_LABEL, betBoard, betResult, finalAt, playersIn, canJoin, betProblem,
-  ruleText, betScoreText } from "./bets.js";
+  ruleText, betScoreText, isCalled } from "./bets.js";
+import { pickImage, catchPhoto } from "./photos.js";
+import { photoTakenAt } from "./exif.js";
 import { fmtMoney } from "./payout.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const allCatches = () => [...store.catches.values()];
 const playersOf = id => store.betPlayers.get(id) || new Map();
-const PILL = { open: "upcoming", live: "active", closing: "closing", done: "", cancelled: "cancelled", off: "cancelled" };
+const PILL = { open: "upcoming", live: "active", closing: "closing", deciding: "closing", done: "", cancelled: "cancelled", off: "cancelled" };
 
 /* "3 h 20 min", "2 days" */
 function span(ms) {
@@ -24,6 +27,7 @@ function when(b, st, now = Date.now()) {
   if (st === "open") return `Starts in ${span(b.start - now)} · ${fmtDate(b.start)}. Join before then`;
   if (st === "live") return `Ends in ${span(b.end - now)} · ${fmtDate(b.end)}`;
   if (st === "closing") return `Catches from no-signal spots can still sync until ${fmtDate(finalAt(b, allCatches(), playersOf(b.id)))}`;
+  if (st === "deciding") return `Ended ${fmtDate(b.end)}. Waiting for ${who(b.organiserUid).displayName} to pick the winner`;
   if (st === "off") return "Called off: fewer than 2 anglers joined";
   if (st === "cancelled") return "Cancelled by the organiser";
   return `${fmtDay(b.start)} to ${fmtDay(b.end)}`;
@@ -93,7 +97,7 @@ export function renderBet(main, id) {
 
   // The board: live scores, then the result and the pot.
   let board = null;
-  if (["live", "closing", "done"].includes(st)) {
+  if (["live", "closing", "done"].includes(st) && !(isCalled(b) && st !== "done")) {
     const r = st === "done" ? betResult(b, allCatches(), players) : null, rows = r ? r.rows : betBoard(b, allCatches(), players);
     board = el("section", { class: "card stack" },
       el("h3", { text: r ? (r.wash ? "🫧 A wash" : `🏆 ${r.winners.map(u => who(u).displayName).join(" and ")} ${r.winners.length > 1 ? "split it" : "won"}`) : "Standings" }),
@@ -101,9 +105,9 @@ export function renderBet(main, id) {
       el("ol", { class: "board" }, ...rows.map((row, i) => el("li", { class: "member-row" },
         el("span", { class: "rank", text: row.score ? String(i + 1) : "·" }), avatar(who(row.uid), "sm"),
         el("div", { class: "grow" }, el("div", { class: "name", text: who(row.uid).displayName }),
-          el("div", { class: "muted small", text: row.count ? `${row.count} fish that count` : "Nothing that counts yet" })),
+          isCalled(b) ? null : el("div", { class: "muted small", text: row.count ? `${row.count} fish that count` : "Nothing that counts yet" })),
         row.fish[0] ? el("a", { href: `#/c/${row.fish[0].id}` }, el("img", { class: "thumb sm", src: row.fish[0].thumb, alt: row.fish[0].species, loading: "lazy" })) : null,
-        el("div", { class: "board-right" }, el("b", { text: betScoreText(b.rule, row.score) }),
+        el("div", { class: "board-right" }, el("b", { text: isCalled(b) ? (row.score ? "🏆" : "") : betScoreText(b.rule, row.score) }),
           r && r.shares.get(row.uid) ? el("span", { class: "money-chip", text: `💵 ${fmtMoney(r.shares.get(row.uid))}` }) : null)))),
       st === "closing" ? el("p", { class: "hint", text: "Fishing's over (or someone got there first), but catches from no-signal spots can still sync, so this can change." }) : null,
       r && !r.wash && pot ? el("p", { class: "hint", text: `Pot ${fmtMoney(pot)} (${ins.length} × ${fmtMoney(b.buyIn)}). The app only keeps track: settle up by e-transfer or cash.` }) : null);
@@ -121,7 +125,8 @@ export function renderBet(main, id) {
     fact("Starts", fmtDate(b.start)), fact("Ends", fmtDate(b.end)),
     fact("Stakes", `${stakesText(b)}. Never league points`),
     b.buyIn ? fact("The pot", `The winner takes it; a tie splits it${b.roundTo ? `, rounded to the nearest $${b.roundTo}` : ""}`) : null,
-    fact("What counts", `Catches made during it by the anglers in it, sent within ${LATE_HOURS} h${b.rule.win === "first" ? " of the first one" : " of the end"}. Nobody scoring is a wash`),
+    isCalled(b) ? fact("Who decides", `${who(b.organiserUid).displayName} picks the winner from the proof photos (several can split it). Nobody: a wash`)
+      : fact("What counts", `Catches made during it by the anglers in it, sent within ${LATE_HOURS} h${b.rule.win === "first" ? " of the first one" : " of the end"}. Nobody scoring is a wash`),
     fact("Fewer than 2", "If fewer than 2 anglers are in when it starts, it's called off"));
 
   const canDelete = isOwner() || (org && st === "open");
@@ -134,7 +139,79 @@ export function renderBet(main, id) {
       canDelete ? confirmButton("Delete", "Tap again to delete", () => { deleteBet(id); location.hash = "#/derbies"; toast("Bet deleted."); }) : null),
     el("p", { class: "hint", text: "You can change the bet until it starts. After that, only cancel it." })) : null;
 
-  fill(main, head, join, board, people, facts, organiser);
+  fill(main, head, join, board, isCalled(b) ? proofSection(b, st, ins) : null, isCalled(b) ? settleSection(b, st, ins) : null, people, facts, organiser);
+}
+
+/* ---------- Proof and settling (bets the organiser decides) ---------- */
+function viewPhoto(p, name) {
+  openSheet(box => box.append(el("div", { class: "stack" },
+    el("h2", { text: `${name}'s proof` }),
+    el("img", { class: "proof-full", src: p.photo || p.thumb, alt: `Proof from ${name}` }),
+    p.note ? el("p", { text: p.note }) : null,
+    el("p", { class: "muted small", text: [p.takenAt ? `Photo taken ${fmtDate(p.takenAt)}` : "No time in the photo", `sent ${fmtDate(p.at)}`].join(" · ") }),
+    el("button", { class: "btn block", type: "button", text: "Close", onclick: closeSheet }))));
+}
+function proofSection(b, st, ins) {
+  if (!["live", "deciding", "done"].includes(st)) return null;
+  watchProofs(b.id);
+  const proofs = store.proofs.get(b.id), me = uid(), mine = proofs && proofs.get(me), inIt = ins.includes(me);
+  const canSend = inIt && st !== "done";
+  const note = el("input", { type: "text", maxlength: 200, placeholder: "e.g. At the launch, 5:42 AM", value: (mine && mine.note) || "" });
+  const msg = el("p", { class: "msg" });
+  const send = async camera => {
+    const file = await pickImage({ camera });
+    if (!file) return;
+    msg.className = "msg ok"; msg.textContent = "Getting the photo ready…";
+    try {
+      const [p, takenAt] = await Promise.all([catchPhoto(file), photoTakenAt(file)]);
+      sendProof(b.id, { photo: p.full, thumb: p.thumb, takenAt: takenAt || null, note: note.value.trim().slice(0, 200) });
+      msg.textContent = ""; toast(navigator.onLine ? "Proof sent." : "Proof saved. It sends when you have signal.");
+    } catch (e) { console.warn(e); msg.className = "msg err"; msg.textContent = "That photo couldn't be used. Try another."; }
+  };
+  return el("section", { class: "card stack" },
+    el("h3", { text: "📸 Proof" }),
+    proofs === undefined ? el("p", { class: "muted", text: "Loading…" })
+      : proofs.size ? el("ul", { class: "member-list" }, ...[...proofs].sort((a, c) => a[1].at - c[1].at).map(([u, p]) => el("li", { class: "member-row" },
+          el("button", { class: "proof-thumb", type: "button", "aria-label": `See ${who(u).displayName}'s proof`, onclick: () => viewPhoto(p, who(u).displayName) },
+            el("img", { class: "thumb sm", src: p.thumb, alt: "" })),
+          el("div", { class: "grow" }, el("div", { class: "name", text: who(u).displayName }),
+            el("div", { class: "muted small", text: [p.note, p.takenAt ? `taken ${fmtDate(p.takenAt)}` : ""].filter(Boolean).join(" · ") })),
+          (u === me && canSend) || (b.organiserUid === me && st !== "done") ? confirmButton("Remove", "Sure?", () => removeProof(b.id, u), "btn small quiet") : null)))
+      : el("p", { class: "muted", text: "No proof yet." }),
+    canSend ? el("div", { class: "stack" },
+      field(mine ? "Replace your proof (optional note)" : "Send your proof (optional note)", note),
+      el("div", { class: "row" },
+        el("button", { class: "btn", type: "button", html: icon.camera, onclick: () => send(true) }, "Camera"),
+        el("button", { class: "btn", type: "button", html: icon.image, onclick: () => send(false) }, "Gallery")),
+      msg,
+      el("p", { class: "hint", text: "One photo each: sending another replaces yours. The time the photo was taken shows with it." })) : null);
+}
+function settleSection(b, st, ins) {
+  const me = uid(), canSettle = (b.organiserUid === me || isOwner()) && ["live", "deciding", "done"].includes(st);
+  if (!canSettle) return null;
+  if (st === "done") {
+    return el("section", { class: "card stack" }, el("h3", { text: "Organiser" }),
+      confirmButton("Change the result", "Tap again to take it back", () => { settleBet(b.id, null); toast("Result taken back. Pick again."); }, "btn"),
+      el("p", { class: "hint", text: `Settled ${fmtDate(b.result.at)} by ${who(b.result.by).displayName}.` }));
+  }
+  const picked = new Set();
+  const boxes = ins.map(u => {
+    const box = el("input", { type: "checkbox", onchange: () => { if (box.checked) picked.add(u); else picked.delete(u); } });
+    return el("label", { class: "check" }, box, el("span", { text: who(u).displayName }));
+  });
+  const msg = el("p", { class: "msg" });
+  return el("section", { class: "card stack" },
+    el("h3", { text: "🏁 Settle the bet" }),
+    el("p", { class: "hint", text: st === "live" ? "You can settle it now if it's already decided, or wait until it ends." : "It's over: check the proof and pick the winner." }),
+    ...boxes,
+    msg,
+    el("div", { class: "row" },
+      el("button", { class: "btn lime", type: "button", text: "Pick the winner", onclick: () => {
+        if (!picked.size) { msg.className = "msg err"; msg.textContent = "Tick the winner (several split the pot), or call it a wash."; return; }
+        settleBet(b.id, ins.filter(u => picked.has(u))); toast("Settled!");
+      } }),
+      confirmButton("Nobody won (a wash)", "Tap again: a wash", () => { settleBet(b.id, []); toast("A wash: nobody owes anything."); }, "btn quiet")),
+    el("p", { class: "hint", text: "Tick more than one to split the pot. The league owner can settle it too." }));
 }
 const fact = (k, v) => el("div", { class: "fact" }, el("dt", { text: k }), el("dd", { text: v }));
 
@@ -177,8 +254,10 @@ export function renderBetForm(main, id) {
       el("div", { class: "unit-row" }, minLb, el("span", { text: "lb" }), minOz, el("span", { text: "oz" }))),
     el("div", { class: "field" }, el("span", { class: "field-label", text: "At least (optional)" }), el("div", { class: "unit-row" }, minIn, el("span", { text: "inches" }))),
     el("p", { class: "hint", text: "The first angler in the bet to catch one wins. Nobody by the end: it's a wash." }));
-  const syncWin = () => { sizeBox.hidden = win.value !== "first"; };
-  win.addEventListener("change", syncWin); syncWin();
+  const calledHint = el("p", { class: "hint", text: "For anything the catches can't settle, like “first boat to the launch”. Say what wins in the details. Anyone in the bet can send a photo as proof, and you pick the winner (you can be in it too)." });
+  let speciesField = null;
+  const syncWin = () => { sizeBox.hidden = win.value !== "first"; calledHint.hidden = win.value !== "called"; if (speciesField) speciesField.hidden = win.value === "called"; };
+  win.addEventListener("change", syncWin);
 
   let species = [...(b.rule.species || [])];
   const chips = el("div", { class: "chips" });
@@ -223,8 +302,8 @@ export function renderBetForm(main, id) {
   const form = el("form", { class: "stack", novalidate: true },
     el("h2", { class: "page-title", text: editing ? "Edit bet" : "Start a bet" }),
     el("section", { class: "card stack" }, field("Name", title), field("Details (optional)", note)),
-    el("section", { class: "card stack" }, el("h3", { text: "How it's won" }), field("Winner", win), sizeBox,
-      el("div", { class: "field" }, el("span", { class: "field-label", text: "Species" }), chips, spInput),
+    el("section", { class: "card stack" }, el("h3", { text: "How it's won" }), field("Winner", win), sizeBox, calledHint,
+      speciesField = el("div", { class: "field" }, el("span", { class: "field-label", text: "Species" }), chips, spInput),
       el("datalist", { id: "bet-species" }, ...SPECIES.map(s => el("option", { value: s })))),
     el("section", { class: "card stack" }, el("h3", { text: "When" }),
       field("Starts", start, "Joining closes when it starts. Fewer than 2 in by then and it's called off."), field("Ends", end, "Up to a year.")),
@@ -238,10 +317,12 @@ export function renderBetForm(main, id) {
     el("button", { class: "btn lime block big", type: "submit", text: editing ? "Save changes" : "Start the bet" }),
     el("a", { class: "btn quiet block", href: editing ? `#/b/${id}` : "#/derbies", text: "Cancel" }));
 
+  syncWin();
   form.addEventListener("submit", e => {
     e.preventDefault();
     const fail = x => { msg.className = "msg err"; msg.textContent = x; msg.scrollIntoView({ block: "center", behavior: "smooth" }); };
     if (spInput.value.trim()) addSp();
+    if (win.value === "called") species = [];
     const data = {
       title: title.value.trim().slice(0, 80), organiserUid: me, kind: "contest",
       rule: { win: win.value, species, minWeightOz: win.value === "first" ? Math.round((num(minLb.value) * 16 + num(minOz.value)) * 10) / 10 : 0,

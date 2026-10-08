@@ -287,6 +287,7 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     if (b.organiserUid !== me && st === "open" && !mineP && canJoin(b, me)) add({ id: `betinv:${b.id}`, at: b.createdAt || 0, icon: "🎲", href,
       text: b.open ? `${name(b.organiserUid)} started a bet: ${b.title}. Want in?` : `${name(b.organiserUid)} invited you to a bet: ${b.title}. You in?` });
     if (b.organiserUid === me) for (const [u, p] of players) if (u !== me && p.in !== false) add({ id: `betjoin:${b.id}:${u}`, at: p.at || 0, icon: "🤝", href, text: `${name(u)} is in on your bet: ${b.title}` });
+    if (b.organiserUid === me && st === "deciding") add({ id: `betcall:${b.id}`, at: b.end, icon: "🏁", href, text: `“${b.title}” is over. Check the proof and pick the winner` });
     if (!inIt) continue;
     if (st === "off") add({ id: `betoff:${b.id}`, at: b.start, icon: "🫧", href, text: `“${b.title}” was called off: fewer than 2 joined` });
     if (st === "done") {

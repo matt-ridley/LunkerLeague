@@ -62,3 +62,42 @@ test("joining: yourself, before it starts; invite-only bets only for the invited
   await assertFails(deleteDoc(doc(as(env, "admin2"), "bets/b1/players/admin2")));                           // no backing out once it starts
   await assertFails(deleteDoc(doc(as(env, "member"), "bets/b1/players/admin2")));
 });
+
+test("settling: the organiser (or the league owner) calls a bet they decide, once it has started", async () => {
+  const called = { rule: { win: "called", species: [], minWeightOz: 0, minLengthIn: 0 }, note: "First boat to the launch" };
+  await seed(bet("member", called));
+  const result = by => ({ winners: ["admin2"], wash: false, at: Date.now(), by });
+  await assertFails(updateDoc(doc(as(env, "member"), "bets/b1"), { result: result("member") }));               // not started yet
+  await seed(bet("member", { ...called, start: Date.now() - H }));
+  await assertFails(updateDoc(doc(as(env, "admin2"), "bets/b1"), { result: result("admin2") }));              // not the organiser
+  await assertFails(updateDoc(doc(as(env, "member"), "bets/b1"), { result: result("admin2") }));              // as someone else
+  await assertFails(updateDoc(doc(as(env, "member"), "bets/b1"), { result: result("member"), buyIn: 100 }));   // nothing else
+  await assertSucceeds(updateDoc(doc(as(env, "member"), "bets/b1"), { result: result("member") }));
+  await assertSucceeds(updateDoc(doc(as(env, "owner"), "bets/b1"), { result: { winners: [], wash: true, at: Date.now(), by: "owner" } }));
+  // A bet the app settles can't be called by hand.
+  await seed(bet("member", { start: Date.now() - H }));
+  await assertFails(updateDoc(doc(as(env, "member"), "bets/b1"), { result: result("member") }));
+  await assertFails(setDoc(doc(as(env, "member"), "bets/x"), bet("member", { ...called, result: result("member") })));     // not when starting one
+});
+
+test("proof: one photo each from anglers in the bet, while it's being decided", async () => {
+  const called = { rule: { win: "called", species: [], minWeightOz: 0, minLengthIn: 0 }, note: "First boat to the launch", start: Date.now() - H };
+  const proof = { photo: "data:image/jpeg;base64," + "P".repeat(500), thumb: "data:image/jpeg;base64," + "T".repeat(200), takenAt: Date.now(), note: "Here first", at: Date.now() };
+  await seed(bet("member", called));
+  await env.withSecurityRulesDisabled(async ctx => {
+    await setDoc(doc(ctx.firestore(), "bets/b1/players/admin2"), { at: 1, in: true });
+    await setDoc(doc(ctx.firestore(), "bets/b1/players/owner"), { at: 1, in: false });
+  });
+  await assertSucceeds(setDoc(doc(as(env, "admin2"), "bets/b1/proofs/admin2"), proof));
+  await assertSucceeds(setDoc(doc(as(env, "admin2"), "bets/b1/proofs/admin2"), { ...proof, note: "Replaced" }));
+  await assertFails(setDoc(doc(as(env, "admin2"), "bets/b1/proofs/member"), proof));                           // not for someone else
+  await assertFails(setDoc(doc(as(env, "owner"), "bets/b1/proofs/owner"), proof));                             // turned the invite down
+  await assertFails(setDoc(doc(as(env, "admin2"), "bets/b1/proofs/admin2"), { ...proof, photo: "x" }));
+  await assertSucceeds(getDoc(doc(as(env, "owner"), "bets/b1/proofs/admin2")));
+  await assertSucceeds(deleteDoc(doc(as(env, "member"), "bets/b1/proofs/admin2")));                            // the organiser removes it
+  // Not before it starts, and not once it's settled.
+  await seed(bet("member", { ...called, start: Date.now() + H }));
+  await assertFails(setDoc(doc(as(env, "admin2"), "bets/b1/proofs/admin2"), proof));
+  await seed(bet("member", { ...called, result: { winners: [], wash: true, at: Date.now(), by: "member" } }));
+  await assertFails(setDoc(doc(as(env, "admin2"), "bets/b1/proofs/admin2"), proof));
+});
