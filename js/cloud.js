@@ -42,6 +42,8 @@ export const store = {
   scoring: [],            // ranking point versions, oldest first
   trips: new Map(),       // id -> trip ("who's out Saturday?")
   challenges: new Map(),  // id -> head-to-head challenge
+  bets: new Map(),        // id -> bet
+  betPlayers: new Map(),  // bet id -> Map(uid -> { at, in })
   series: new Map(),      // id -> season series (Angler of the Year)
   rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at, boat, seatAt })
   boats: new Map(),       // trip id -> Map(owner uid -> { seats, name, at })
@@ -203,6 +205,23 @@ function refreshMemberListeners() {
     store.challenges = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "bets"), OPTS, snap => {
+    seen("bets", snap);
+    store.bets = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "players"), OPTS, snap => {
+    seen("betPlayers", snap);
+    const by = new Map();
+    for (const d of snap.docs) {
+      const betId = d.ref.parent.parent && d.ref.parent.parent.id;
+      if (!betId) continue;
+      if (!by.has(betId)) by.set(betId, new Map());
+      by.get(betId).set(d.id, d.data());
+    }
+    store.betPlayers = by;
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "trips"), OPTS, snap => {
     seen("trips", snap);
     store.trips = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -304,7 +323,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
-  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map();
+  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map();
 }
 
 function syncError(e) {
@@ -700,6 +719,23 @@ export async function deleteDerby(d, { withEntries }) {
     refs.slice(i, i + 450).forEach(r => b.delete(r));
     await b.commit();
   }
+}
+
+/* Bets: the organiser sets one up (and is in it unless they say not); players join or turn an invite down. */
+export function saveBet(id, data, { join = false } = {}) {
+  const ref = id ? cloud.api.doc(cloud.db, "bets", id) : cloud.api.doc(cloud.api.collection(cloud.db, "bets"));
+  write(cloud.api.setDoc(ref, data));
+  if (join) joinBet(ref.id, true);
+  return ref.id;
+}
+export const setBetCancelled = (id, cancelled) => write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "bets", id), { cancelled }));
+export const joinBet = (id, on = true) => write(cloud.api.setDoc(cloud.api.doc(cloud.db, "bets", id, "players", uid()), { at: Date.now(), in: on }));
+export const leaveBet = (id, who = uid()) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "bets", id, "players", who)));
+export function deleteBet(id) {
+  const { writeBatch, doc } = cloud.api, b = writeBatch(cloud.db);
+  for (const who of (store.betPlayers.get(id) || new Map()).keys()) b.delete(doc(cloud.db, "bets", id, "players", who));
+  b.delete(doc(cloud.db, "bets", id));
+  b.commit().catch(syncError);
 }
 
 /* Head-to-head challenges. Offering one makes it the other angler's turn; they accept, decline or counter. */

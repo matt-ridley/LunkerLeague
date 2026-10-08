@@ -9,6 +9,7 @@ import { SPECIES, normalizeSpecies } from "./species.js";
 import { tripsSection } from "./trips.js";
 import { seriesSection } from "./seriespage.js";
 import { challengesSection } from "./h2hpage.js";
+import { betsSection } from "./betspage.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -57,10 +58,10 @@ export function renderDerbies(main) {
   const section = (title, list) => list.length ? el("section", { class: "stack" }, el("h3", { text: title }),
     el("div", { class: "card-list" }, ...list.map(derbyCard))) : null;
   const tab = getEventsTab();
-  const tabs = el("div", { class: "seg" }, ...[["derbies", "🏁 Derbies"], ["outings", "🚤 Outings"], ["h2h", "⚔️ H2H"]].map(([k, label]) =>
+  const tabs = el("div", { class: "seg" }, ...[["derbies", "🏁 Derbies"], ["outings", "🚤 Outings"], ["h2h", "🎲 Bets"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(tab === k), text: label, onclick: () => { setEventsTab(k); renderDerbies(main); } })));
   if (tab === "outings") return fill(main, el("h2", { class: "page-title", text: "Events" }), tabs, tripsSection());
-  if (tab === "h2h") return fill(main, el("h2", { class: "page-title", text: "Events" }), tabs, challengesSection());
+  if (tab === "h2h") return fill(main, el("h2", { class: "page-title", text: "Events" }), tabs, betsSection(), challengesSection());
   fill(main,
     el("h2", { class: "page-title", text: "Events" }), tabs,
     seriesSection(),
