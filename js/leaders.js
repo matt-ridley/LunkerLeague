@@ -98,6 +98,7 @@ function rankView(main) {
   return el("div", { class: "stack" },
     el("div", { class: "seg" }, ...[["all", "All-time"], ["season", `${year} season`]].map(([k, label]) =>
       el("button", { type: "button", "aria-pressed": String(season === k), text: label, onclick: () => { season = k; renderLeaders(main); } }))),
+    el("a", { class: "btn block", href: "#/awards", text: `🏆 Season awards` }),
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading…" }) : el("ol", { class: "board" }, ...rows.map((r, i) => {
       const m = who(r.uid);
       return el("li", {}, el("button", { type: "button", class: "board-row rank-row" + (i < 3 && r.points > 0 ? ` top${i + 1}` : "") + (r.uid === uid() ? " me" : ""),
