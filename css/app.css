@@ -692,6 +692,14 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .map-legend .spot-dot { width: 14px; height: 14px; border-width: 1px; vertical-align: -2px; }
 .spot-pop ul { margin: 6px 0 0; padding-left: 18px; }
 .spot-pop li { margin: 4px 0; }
+/* Best-bite times */
+.bite-rating { font-weight: 800; white-space: nowrap; }
+.bite-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bite-list li { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px; padding: 8px 10px; border-radius: 12px; background: var(--surface-2); }
+.bite-list li .muted { grid-column: 2; }
+.bite-list .chip { background: var(--surface); }
+.bite-list .bite-major .chip { background: var(--primary); color: var(--primary-ink); }
+.bite-list li.now, .bite-list li.during { outline: 2px solid var(--primary); }
 .skunk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

@@ -199,7 +199,7 @@ const newsCard = e => el("a", { class: "news-card", href: e.href },
 /* ---------- Fish Finder: a carousel of cards about what's going on (fishfinder.js picks them) ---------- */
 let finderAt = 0; // the card showing, kept when live data redraws the feed
 function fishFinder(input, me) {
-  const cards = fishFinderCards(input, me);
+  const cards = fishFinderCards({ ...input, home: store.league && store.league.home }, me);
   if (!cards.length) return null;
   finderAt = Math.min(finderAt, cards.length - 1);
   const track = el("div", { class: "ff-track" }, ...cards.map((c, i) =>
