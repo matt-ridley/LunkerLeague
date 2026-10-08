@@ -85,7 +85,7 @@ function storageMeter() {
         el("p", {}, el("b", { text: `About ${fmtBytes(e.used)} of ${fmtBytes(FREE_BYTES)} used (${e.pct}%)` })),
         el("p", { text: e.catchesLeft ? `Room for about ${e.catchesLeft.toLocaleString()} more catches at about ${fmtBytes(e.perCatch)} each (photo included).` : "Full. New catches will be refused until space is freed." }),
         level !== "ok" ? el("p", { class: "msg err", text: "Getting full. Options: delete old test catches, or move to Firebase's Blaze plan (pennies a month at this size)." }) : null,
-        el("p", { class: "hint", text: `${photoTotals.total.toLocaleString()} photos. Firebase's free plan holds 1 GB. This is an estimate; the exact figure is in the Firebase console under Firestore → Usage.` }));
+        el("p", { class: "hint", text: `${photoTotals.total.toLocaleString()} catch photos${photoTotals.tackleN ? ` and ${photoTotals.tackleN.toLocaleString()} tackle box photos (${fmtBytes(photoTotals.tackleBytes)})` : ""}. Firebase's free plan holds 1 GB. This is an estimate; the exact figure is in the Firebase console under Firestore → Usage.` }));
     }
     kids.push(el("button", { class: "btn small", type: "button", text: "Refresh", onclick: () => { photoTotals = null; draw(); load(); } }));
     fill(box, ...kids);
@@ -99,7 +99,7 @@ function storageMeter() {
    phone, so it's slightly under-counted). */
 function everyDoc() {
   const out = [...store.catches.values(), ...store.members.values(), ...store.derbies.values(), ...store.trips.values(),
-    ...store.spots.values(), ...store.scoring, ...store.chat];
+    ...store.spots.values(), ...store.scoring, ...store.chat, ...store.box.values(), ...store.tackle.values(), ...store.weather.values()];
   for (const list of store.comments.values()) out.push(...list);
   for (const m of store.reactions.values()) for (const emojis of m.values()) out.push({ emojis, at: 0, uid: "" });
   for (const m of store.entrants.values()) for (const e of m.values()) out.push(e);
