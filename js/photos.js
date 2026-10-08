@@ -94,6 +94,15 @@ function fit(img, maxEdge, quality, maxBytes) {
   return url;
 }
 
+/* A tackle box photo: much smaller than a catch photo (a lure doesn't need a scale read off it). A 640 px photo of about
+   60 KB as stored, opened when the item is, and a 160 px thumbnail for the picker. */
+export async function tacklePhoto(file) {
+  const img = await decode(file, 1000);
+  const out = { full: fit(img, 640, 0.7, 60 * 1024), thumb: fit(img, 160, 0.7, 12 * 1024) };
+  release(img);
+  return out;
+}
+
 /* A catch photo: a full version for proof (zoomable) and a small thumbnail for lists. The full one is kept to about
    240 KB as stored (it was up to ~530 KB before 0.16.0): still sharp enough to read a scale on a phone, and the free
    plan's 1 GB holds about twice as many catches. */

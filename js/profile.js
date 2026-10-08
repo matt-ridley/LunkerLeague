@@ -63,6 +63,7 @@ export function renderProfile(main, id) {
   const challenge = !mine && !m.suspended ? el("a", { class: "btn block", href: `#/hnew/${m.id}`, text: `⚔️ Challenge ${m.displayName}` }) : null;
   const statsLink = el("a", { class: "btn block", href: `#/stats/${m.id}`, text: mine ? "📊 Your stats and what's working" : `📊 ${m.displayName}'s stats` });
   const parts = [head, challenge, rankCard, profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
+    el("a", { class: "btn block", href: `#/box/${m.id}`, text: mine ? "🧰 Your tackle box" : `🧰 ${m.displayName}'s tackle box` }),
     mine ? el("a", { class: "btn block", href: "#/map", text: "🗺️ Map of catches" }) : null];
 
   if (mine) {

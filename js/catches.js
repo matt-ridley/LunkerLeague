@@ -16,6 +16,8 @@ import { rankInput } from "./leaders.js";
 import { estimatedWeight, estimateWeightOz } from "./estimate.js";
 import { skunkSheet } from "./statspage.js";
 import { weatherText, moonText } from "./weather.js";
+import { pickerItems, lastTackle } from "./tacklebox.js";
+import { itemSheet, itemThumb } from "./tackleboxpage.js";
 import { TECHNIQUES, cleanLure, parseDepth, hasTackle, tackleText, lureSuggestions } from "./tackle.js";
 
 const allCatches = () => [...store.catches.values()];
@@ -354,7 +356,9 @@ function weatherFact(c) {
 function tackleView(c, mine) {
   const t = store.tackle.get(c.id);
   if (!t) return "🔒 Secret tackle";
-  return t.shared ? tackleText(t) : `🔒 ${tackleText(t)} (secret: only you can see it)`;
+  const item = t.itemId && store.box.get(t.itemId);
+  const text = item ? el("a", { href: `#/ti/${item.id}`, class: "tackle-link" }, itemThumb(item, "box-thumb tiny"), tackleText(t)) : tackleText(t);
+  return t.shared ? text : el("span", {}, "🔒 ", text, " (secret: only you can see it)");
 }
 
 function spotView(c, spot, mine) {
@@ -568,8 +572,55 @@ export function renderLog(main, editId, derbyArg) {
     ...TECHNIQUES.map(([v, t]) => el("option", { value: v, text: t })));
   technique.value = oldTackle ? oldTackle.technique || "" : "";
   const tackleSecret = el("input", { type: "checkbox", checked: oldTackle ? !oldTackle.shared : false });
+  // The tackle box: pick an item to fill in the lure (and its usual technique and depth), or add one.
+  st.itemId = oldTackle && oldTackle.itemId && store.box.has(oldTackle.itemId) ? oldTackle.itemId : null;
+  const boxPick = el("div", { class: "box-pick" });
+  const added = new Map(); // items added from this form, until they arrive from the server
+  const boxItem = id => store.box.get(id) || added.get(id);
+  const useItem = (item, { all = true } = {}) => {
+    st.itemId = item.id; lure.value = item.name;
+    if (all && item.technique) technique.value = item.technique;
+    if (all && item.depthFt) depth.value = String(item.depthFt);
+    drawBox();
+  };
+  const drawBox = () => {
+    const items = pickerItems(new Map([...added, ...store.box]), uid(), store.catches, store.tackle);
+    fill(boxPick,
+      ...items.map(i => el("button", { type: "button", class: "box-chip", "aria-pressed": String(st.itemId === i.id), title: i.name,
+        onclick: () => { if (st.itemId === i.id) { st.itemId = null; drawBox(); } else useItem(i); } },
+        itemThumb(i, "box-thumb small"), el("span", { text: i.name }))),
+      el("button", { type: "button", class: "box-chip add", onclick: async () => {
+        const item = await itemSheet(null, { name: st.itemId ? "" : cleanLure(lure.value) });
+        if (item) { added.set(item.id, item); useItem(item); }
+      } }, el("span", { class: "box-thumb small empty", text: "+" }), el("span", { text: "New" })));
+  };
+  // Typing a different lure means it's not that item any more.
+  lure.addEventListener("input", () => {
+    const item = st.itemId && boxItem(st.itemId);
+    if (item && cleanLure(lure.value) !== item.name) { st.itemId = null; drawBox(); }
+  });
+  drawBox();
+  // A new catch: offer the last catch's tackle (lure only, or the depth and technique too).
+  const last = !editing && lastTackle(uid(), store.catches, store.tackle);
+  const sameBox = el("div", { class: "same-tackle" });
+  if (last && (last.lure || last.technique || last.depthFt)) {
+    const pick = all => {
+      const item = last.itemId && boxItem(last.itemId);
+      if (item) useItem(item, { all: false }); else { st.itemId = null; lure.value = last.lure; drawBox(); }
+      if (all) { technique.value = last.technique || ""; depth.value = last.depthFt ? String(last.depthFt) : ""; }
+      sameBox.remove();
+    };
+    fill(sameBox,
+      el("p", {}, el("b", { text: "Same tackle as your last catch? " }), tackleText(last)),
+      el("div", { class: "row" },
+        last.lure ? el("button", { class: "btn small", type: "button", text: "Lure only", onclick: () => pick(false) }) : null,
+        el("button", { class: "btn small primary", type: "button", text: last.lure ? "Everything" : "Yes", onclick: () => pick(true) }),
+        el("button", { class: "btn small quiet", type: "button", text: "No thanks", onclick: () => sameBox.remove() })));
+  }
   const tackleSection = el("section", { class: "card stack" },
-    el("h3", { text: "🎣 Tackle (optional)" }),
+    el("div", { class: "row spread" }, el("h3", { text: "🎣 Tackle (optional)" }), el("a", { class: "small", href: `#/box/${uid()}`, text: "🧰 Tackle box" })),
+    sameBox.childNodes.length ? sameBox : null,
+    boxPick,
     field("Bait or lure", lure), lureList,
     el("div", { class: "field" }, el("span", { class: "field-label", text: "Depth" }),
       el("div", { class: "unit-row" }, depth, el("span", { text: "ft" }))),
@@ -729,6 +780,7 @@ export function renderLog(main, editId, derbyArg) {
       hasSpot: !!st.spot, locShared: !!st.spot && st.share, spotName: st.spot && st.share ? spotName.value.trim().slice(0, 60) : "",
     };
     const t = { lure: cleanLure(lure.value), depthFt, technique: technique.value };
+    if (st.itemId && boxItem(st.itemId) && t.lure) t.itemId = st.itemId;
     if (!tackleHidden) Object.assign(data, { hasTackle: hasTackle(t), tackleShared: hasTackle(t) && !tackleSecret.checked });
     if (stringer) Object.assign(data, { fishCount: count, limit: st.limit });
     if (savePast()) data.past = true;

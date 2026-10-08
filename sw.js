@@ -10,7 +10,7 @@ const APP_FILES = [
   "./", "index.html", "manifest.webmanifest", "css/app.css",
   "js/main.js", "js/config.js", "js/ui.js", "js/cloud.js", "js/gate.js", "js/profile.js", "js/admin.js",
   "js/theme.js", "js/photos.js", "js/catches.js", "js/leaders.js", "js/stats.js", "js/species.js", "js/exif.js", "js/outbox.js", "js/camera.js", "js/social.js", "js/derby.js", "js/derbies.js", "js/payout.js", "js/rank.js", "js/scoring.js", "js/mappick.js",
-  "js/events.js", "js/mentions.js", "js/alerts.js", "js/trips.js", "js/crowns.js", "js/invite.js", "js/storage.js", "js/badges.js", "js/feedfilter.js", "js/fishfinder.js", "js/series.js", "js/seriespage.js", "js/outings.js", "js/h2h.js", "js/h2hpage.js", "js/bets.js", "js/betspage.js", "js/tackle.js", "js/estimate.js", "js/mystats.js", "js/statspage.js", "js/skunks.js", "js/export.js", "js/weather.js", "js/catchmap.js", "js/mappage.js", "js/solunar.js", "js/bitepage.js",
+  "js/events.js", "js/mentions.js", "js/alerts.js", "js/trips.js", "js/crowns.js", "js/invite.js", "js/storage.js", "js/badges.js", "js/feedfilter.js", "js/fishfinder.js", "js/series.js", "js/seriespage.js", "js/outings.js", "js/h2h.js", "js/h2hpage.js", "js/bets.js", "js/betspage.js", "js/tackle.js", "js/estimate.js", "js/mystats.js", "js/statspage.js", "js/skunks.js", "js/export.js", "js/weather.js", "js/catchmap.js", "js/mappage.js", "js/solunar.js", "js/bitepage.js", "js/tacklebox.js", "js/tackleboxpage.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
 ];
 const SDK_FILES = ["app", "auth", "firestore"].map(m => `${SDK}firebase-${m}.js`);

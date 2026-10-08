@@ -28,6 +28,7 @@ export const store = {
   spots: new Map(),       // catch id -> GPS spot (shared ones, plus all of this user's own)
   tackle: new Map(),      // catch id -> { lure, depthFt, technique } (shared ones, plus all of this user's own)
   skunks: new Map(),      // "{uid}_{day}" -> { uid, day, notes, createdAt }: days out with no fish
+  box: new Map(),         // tackle box item id -> { uid, name, type, technique, depthFt, notes, thumb, retired, createdAt }
   weather: new Map(),     // catch id -> { tempC, windKph, windDir, gustKph, pressureHpa, cloud, code, forAt, src }
   rejected: [],           // outbox entries the server refused
   comments: new Map(),    // catch id -> [comment], oldest first
@@ -226,6 +227,11 @@ function refreshMemberListeners() {
     store.betPlayers = by;
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "tackleBox"), OPTS, snap => {
+    seen("tackleBox", snap);
+    store.box = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "weather"), OPTS, snap => {
     seen("weather", snap);
     store.weather = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -348,7 +354,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
-  store.skunks = new Map(); store.weather = new Map();
+  store.skunks = new Map(); store.weather = new Map(); store.box = new Map();
   store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
 }
 
@@ -502,6 +508,57 @@ export function deleteCatch(c) {
   b.commit().catch(syncError);
 }
 
+/* ---------- Tackle box ---------- */
+export const newBoxItemId = () => cloud.api.doc(cloud.api.collection(cloud.db, "tackleBox")).id;
+/* Saves an item. photo: { full, thumb } for a new photo, null to remove it, undefined to leave it alone. */
+export function saveBoxItem(id, data, photo) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db), me = uid();
+  const old = store.box.get(id);
+  const item = { ...data, uid: me, createdAt: old ? old.createdAt : Date.now(), retired: !!data.retired,
+    thumb: photo ? photo.thumb : photo === null ? null : old ? old.thumb ?? null : null };
+  b.set(doc(cloud.db, "tackleBox", id), item);
+  if (photo) { b.set(doc(cloud.db, "tackleBoxPhotos", id), { uid: me, src: photo.full, bytes: photo.full.length }); boxPhotos.set(id, photo.full); }
+  else if (photo === null && old && old.thumb) { b.delete(doc(cloud.db, "tackleBoxPhotos", id)); boxPhotos.delete(id); }
+  b.commit().catch(syncError);
+}
+/* Deletes an item (catches keep its name). */
+export function deleteBoxItem(item) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db);
+  b.delete(doc(cloud.db, "tackleBox", item.id));
+  if (item.thumb) b.delete(doc(cloud.db, "tackleBoxPhotos", item.id));
+  boxPhotos.delete(item.id);
+  b.commit().catch(syncError);
+}
+const boxPhotos = new Map();
+export const cachedBoxPhoto = id => boxPhotos.get(id) || "";
+export async function loadBoxPhoto(id) {
+  if (boxPhotos.has(id)) return boxPhotos.get(id);
+  const snap = await cloud.api.getDoc(cloud.api.doc(cloud.db, "tackleBoxPhotos", id));
+  const src = snap.exists() ? String(snap.data().src || "") : "";
+  if (src) boxPhotos.set(id, src);
+  return src;
+}
+/* Fills the box from lures typed on catches (tacklebox.js fillFromCatches works out what): new items, and each
+   catch's tackle linked to its item. In batches of up to 450 writes. */
+export async function fillBox({ add, link }) {
+  const { writeBatch, doc } = cloud.api;
+  const writes = [], me = uid(), now = Date.now();
+  for (const a of add) {
+    const id = newBoxItemId();
+    writes.push(b => b.set(doc(cloud.db, "tackleBox", id), { uid: me, name: a.name, type: "", technique: a.technique || "",
+      depthFt: a.depthFt || null, notes: "", thumb: null, retired: false, createdAt: now }));
+    for (const cid of a.catchIds) writes.push(b => b.set(doc(cloud.db, "tackle", cid), { itemId: id }, { merge: true }));
+  }
+  for (const l of link) for (const cid of l.catchIds) writes.push(b => b.set(doc(cloud.db, "tackle", cid), { itemId: l.itemId }, { merge: true }));
+  for (let i = 0; i < writes.length; i += 450) {
+    const b = writeBatch(cloud.db);
+    writes.slice(i, i + 450).forEach(w => w(b));
+    await b.commit();
+  }
+}
+
 /* Full-size photos load only when a catch is opened. Ones opened before are kept for offline use. */
 const photoCache = new Map();
 export const cachedPhoto = id => photoCache.get(id) || "";
@@ -556,7 +613,10 @@ export async function photoStorage() {
     getAggregateFromServer(photos, { n: count() }),
     getAggregateFromServer(query(photos, where("bytes", ">", 0)), { n: count(), bytes: sum("bytes") }),
   ]);
-  return { total: all.data().n, sized: sized.data().n, sizedBytes: sized.data().bytes || 0 };
+  // Tackle box photos (each saves its size too) are counted on top.
+  const box = await getAggregateFromServer(collection(cloud.db, "tackleBoxPhotos"), { n: count(), bytes: sum("bytes") });
+  return { total: all.data().n, sized: sized.data().n, sizedBytes: sized.data().bytes || 0,
+    tackleN: box.data().n, tackleBytes: box.data().bytes || 0 };
 }
 
 /* ---------- Comments, reactions and chat ---------- */

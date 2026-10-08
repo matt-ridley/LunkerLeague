@@ -7,6 +7,9 @@ const MB = 1024 ** 2;
 
 test("photos with a recorded size count exactly; older ones are estimated", () => {
   const e = estimateStorage({ photos: { total: 10, sized: 6, sizedBytes: 6 * 200 * 1024 }, docs: 0, catches: 0 });
+  const withTackle = estimateStorage({ photos: { total: 10, sized: 6, sizedBytes: 6 * 200 * 1024, tackleBytes: 50 * 1024 }, docs: 0, catches: 0 });
+  assert.equal(withTackle.used - e.used, Math.round(50 * 1024 * 1.1));
+  assert.equal(withTackle.perCatch, e.perCatch); // tackle photos aren't part of a catch
   assert.equal(e.used, Math.round((6 * 200 * 1024 + 4 * 400 * 1024) * 1.1));
 });
 

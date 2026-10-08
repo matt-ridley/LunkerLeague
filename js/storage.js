@@ -17,12 +17,13 @@ export function docsBytes(docs) {
   return n;
 }
 
-/* photos: { total, sized, sizedBytes } from the server; docs: bytes of everything else; catches: how many catches.
+/* photos: { total, sized, sizedBytes, tackleBytes } from the server (tackleBytes: tackle box photos, counted as used
+   but not as part of a catch); docs: bytes of everything else; catches: how many catches.
    Returns { used, pct, perCatch, catchesLeft }. */
 export function estimateStorage({ photos, docs, catches }) {
   const unsized = Math.max(0, photos.total - photos.sized);
   const photoBytes = photos.sizedBytes + unsized * OLD_PHOTO_BYTES;
-  const used = Math.round((photoBytes + docs) * INDEX_FACTOR);
+  const used = Math.round((photoBytes + (photos.tackleBytes || 0) + docs) * INDEX_FACTOR);
   const newPhoto = photos.sized >= 5 ? photos.sizedBytes / photos.sized : NEW_PHOTO_BYTES;
   const docPerCatch = catches ? docs / catches : 45 * 1024; // the catch with its small photo, plus its share of the rest
   const perCatch = Math.round((newPhoto + docPerCatch) * INDEX_FACTOR);

@@ -280,7 +280,10 @@ service cloud.firestore {
     match /tackle/{id} {
       allow read: if isMember() && (resource.data.shared == true || resource.data.uid == me());
       allow create, update: if isMember()
-        && request.resource.data.keys().hasOnly(["uid", "lure", "depthFt", "technique", "shared"])
+        && request.resource.data.keys().hasOnly(["uid", "lure", "depthFt", "technique", "shared", "itemId"])
+        // The tackle box item it came from (the name is copied into `lure`, so the item can change or go).
+        && (request.resource.data.get("itemId", null) == null
+            || (request.resource.data.itemId is string && request.resource.data.itemId.size() <= 40))
         && request.resource.data.uid == me()
         && request.resource.data.lure is string && request.resource.data.lure.size() <= 60
         && (request.resource.data.depthFt == null
@@ -294,6 +297,37 @@ service cloud.firestore {
         && getAfter(catchPath(id)).data.get("tackleShared", false) == request.resource.data.shared;
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin() || get(catchPath(id)).data.uid == me()
         || get(catchPath(id)).data.get("enteredBy", null) == me() || testingOrganiserOf(get(catchPath(id)).data));
+    }
+
+    // The tackle box: each angler's library of tackle. Everyone in the league can see it; only its angler changes it.
+    function validBoxItem(d) {
+      return d.keys().hasOnly(["uid", "name", "type", "technique", "depthFt", "notes", "thumb", "retired", "createdAt"])
+        && d.uid == me()
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.type in ["", "jig", "crankbait", "jerkbait", "spinnerbait", "spinner", "spoon", "plastic", "swimbait", "topwater",
+                      "bucktail", "fly", "livebait", "rig", "other"]
+        && d.technique in ["", "casting", "trolling", "jigging", "livebait", "fly", "ice", "drift", "bottom"]
+        && (d.depthFt == null || (d.depthFt is number && d.depthFt > 0 && d.depthFt <= 1000))
+        && d.notes is string && d.notes.size() <= 200
+        && (d.thumb == null || (d.thumb is string && d.thumb.size() < 20000))
+        && d.retired is bool && d.createdAt is number;
+    }
+    function boxItemPath(id) { return /databases/$(database)/documents/tackleBox/$(id); }
+    match /tackleBox/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && validBoxItem(request.resource.data);
+      allow update: if isMember() && resource.data.uid == me() && validBoxItem(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+    }
+    // An item's photo (small: about 60 KB), loaded only when it's opened.
+    match /tackleBoxPhotos/{id} {
+      allow read: if isMember();
+      allow create, update: if isMember() && getAfter(boxItemPath(id)).data.uid == me()
+        && request.resource.data.keys().hasOnly(["uid", "src", "bytes"]) && request.resource.data.uid == me()
+        && request.resource.data.src is string && request.resource.data.src.size() > 100 && request.resource.data.src.size() < 100000
+        && request.resource.data.bytes is int;
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
     }
 
     // Weather at the time of a catch, filled in by its angler's phone from Open-Meteo. No location is saved here.
