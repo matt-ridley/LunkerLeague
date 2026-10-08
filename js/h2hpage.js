@@ -8,6 +8,7 @@ import { WIN, MAX_DAYS, LATE_HOURS, challengeStatus, STATUS_LABEL, challengeBoar
 import { rankings, scoringTimeline, currentScoring } from "./rank.js";
 import { rankInput } from "./leaders.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
+import { focusStyle } from "./thumbfocus.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const allCatches = () => [...store.catches.values()];
@@ -131,7 +132,7 @@ export function renderChallenge(main, id) {
           el("div", { class: "muted small", text: s.count ? `${s.count} fish logged` : "No fish yet" }),
           lead && (st === "live" || st === "closing") ? el("span", { class: "badge pb", text: "Leading" }) : null,
           s.fish.length ? el("div", { class: "h2h-fish" }, ...s.fish.slice(0, 6).map(c => el("a", { href: `#/c/${c.id}` },
-            el("img", { class: "thumb sm", src: c.thumb, alt: c.species, loading: "lazy" })))) : null);
+            el("img", { class: "thumb sm", src: c.thumb, alt: c.species, loading: "lazy", style: focusStyle(c) })))) : null);
       })),
       st === "closing" ? el("p", { class: "hint", text: `Fishing time is over. Catches made during it can still sync until ${fmtDate(closesAt(ch))}, so this can change.` }) : null,
       st === "vetoed" ? el("p", { class: "entry-problem", text: "🚫 The league owner vetoed this challenge, so no points move." }) : null,

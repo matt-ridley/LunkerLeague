@@ -473,6 +473,8 @@ export function updateMe(fields) {
 }
 
 /* ---------- Admin ---------- */
+/* Where the square thumbnail sits on a catch photo ({ x, y } 0–100, or null for the middle). */
+export const setCatchFocus = (id, focus) => write(cloud.api.updateDoc(ref("catches", id), { focus: focus || null }));
 export const setLeagueName = name => write(cloud.api.updateDoc(ref("config", "league"), { name: cleanName(name) || "Lunker League" }));
 export const setLeagueStart = ms => write(cloud.api.updateDoc(ref("config", "league"), { startAt: Math.round(ms) }));
 /* The home water ({ lat, lng, name }), or null to clear it. */

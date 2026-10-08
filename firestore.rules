@@ -84,11 +84,17 @@ service cloud.firestore {
     // Times are epoch milliseconds from the phone. A catch can't be dated in the future (10 minutes' leeway for clocks).
     function catchPath(id) { return /databases/$(database)/documents/catches/$(id); }
     function optNum(d, f, max) { return !(f in d) || d[f] == null || (d[f] is number && d[f] > 0 && d[f] <= max); }
+    // Where the square thumbnail sits on the photo: { x, y }, each a whole number 0-100, or none (the middle).
+    function validFocus(f) {
+      return f == null || (f is map && f.keys().hasOnly(["x", "y"]) && f.keys().hasAll(["x", "y"])
+        && f.x is int && f.y is int && f.x >= 0 && f.x <= 100 && f.y >= 0 && f.y <= 100);
+    }
     function validCatch(d) {
       return d.keys().hasOnly(["uid", "species", "weightOz", "lengthIn", "caughtAt", "createdAt", "thumb", "photoTakenAt",
                                "notes", "released", "hasSpot", "locShared", "spotName",
                                "derbyId", "captain", "netman", "dq", "dqReason", "enteredBy", "fishCount", "limit", "past",
-                               "approved", "approvedAt", "hasTackle", "tackleShared", "boatId"])
+                               "approved", "approvedAt", "hasTackle", "tackleShared", "boatId", "focus"])
+        && validFocus(d.get("focus", null))
         // The saved boat it was caught from (fleet/{id}), if any.
         && (d.get("boatId", null) == null || (d.boatId is string && d.boatId.size() <= 40))
         && (!("past" in d) || d.past is bool)
@@ -199,6 +205,10 @@ service cloud.firestore {
           && approvalOk(request.resource.data, resource.data)
           && (resource.data.get("derbyId", null) == null || !exists(derbyPath(resource.data.derbyId))
               || derbyOpen(get(derbyPath(resource.data.derbyId)).data)))
+        // The angler (or the organiser who entered it) can move the thumbnail any time, even on a closed derby entry:
+        // it's only how the photo is cropped in lists, so it isn't proof and keeps any approval.
+        || (isMember() && (resource.data.uid == me() || resource.data.get("enteredBy", null) == me())
+            && changed().hasOnly(["focus"]) && validFocus(request.resource.data.get("focus", null)))
         // The derby's organiser (or an admin) can disqualify, reinstate or approve an entry, and change nothing else.
         || (isMember() && resource.data.get("derbyId", null) != null
             && (get(derbyPath(resource.data.derbyId)).data.organiserUid == me() || isAdmin())

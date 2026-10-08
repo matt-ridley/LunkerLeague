@@ -1,6 +1,6 @@
 /* Catches: logging and editing, the feed, a catch's own page, and the personal-best wall. */
 import { el, field, avatar, fmtDate, fmtDay, fmtAgo, fmtWeight, fmtLength, toast, confirmButton, icon, openSheet, closeSheet, fill } from "./ui.js";
-import { store, uid, memberName, isAdmin, clearWeather, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
+import { store, uid, memberName, isAdmin, clearWeather, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, setCatchFocus, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
 import { pickOnMap } from "./mappick.js";
@@ -19,6 +19,8 @@ import { weatherText, moonText } from "./weather.js";
 import { pickerItems, lastTackle } from "./tacklebox.js";
 import { myBoats, defaultBoat } from "./fleet.js";
 import { itemSheet, itemThumb } from "./tackleboxpage.js";
+import { focusStyle } from "./thumbfocus.js";
+import { pickFocus } from "./focuspick.js";
 import { TECHNIQUES, cleanLure, parseDepth, hasTackle, tackleText, lureSuggestions } from "./tackle.js";
 
 const allCatches = () => [...store.catches.values()];
@@ -39,7 +41,7 @@ export function catchCard(c, all = allCatches(), news = []) {
   const pb = isPersonalBest(c, all), rec = recordKinds(c, all);
   const m = store.members.get(c.uid) || { id: c.uid, displayName: memberName(c.uid) };
   return el("a", { class: "catch-card", href: `#/c/${c.id}` },
-    el("img", { class: "thumb", src: c.thumb, alt: `${c.species} photo`, loading: "lazy" }),
+    el("img", { class: "thumb", src: c.thumb, alt: `${c.species} photo`, loading: "lazy", style: focusStyle(c) }),
     el("div", { class: "catch-info" },
       // Record and PB flair sits top right, beside the species.
       el("div", { class: "catch-top" },
@@ -305,6 +307,9 @@ export function renderCatch(main, id) {
   if (mine || isAdmin() || c.enteredBy === uid()) {
     parts.push(el("div", { class: "row" },
       (mine || c.enteredBy === uid()) && !lockedEntry(c) ? el("a", { class: "btn", href: `#/log/${c.id}`, text: "Edit" }) : null,
+      // Allowed any time, even on a closed derby entry: it only moves the thumbnail.
+      mine || c.enteredBy === uid() ? el("button", { class: "btn", type: "button", text: "🎯 Thumbnail",
+        onclick: () => pickFocus(c.thumb, c.focus, f => { setCatchFocus(c.id, f); toast("Thumbnail updated."); }) }) : null,
       confirmButton("Delete", "Tap again to delete", () => { deleteCatch(c); location.hash = "#/feed"; toast("Catch deleted."); })));
   }
   fill(main, ...parts);
@@ -423,7 +428,7 @@ function wallParts(memberId, choose) {
     parts.push(el("section", { class: "stack" },
       el("h3", { text: "Personal bests" }),
       pbs.length ? el("div", { class: "pb-wall" }, ...pbs.map(c => el("a", { class: "pb-tile", href: `#/c/${c.id}` },
-        el("img", { src: c.thumb, alt: "", loading: "lazy" }),
+        el("img", { src: c.thumb, alt: "", loading: "lazy", style: focusStyle(c) }),
         el("div", { class: "pb-text" }, el("b", { text: c.species }), el("span", { text: shownSize(c) })))))
         : el("p", { class: "muted", text: "No catches yet." })),
     recent.length ? el("section", { class: "stack" }, el("h3", { text: "Recent catches" }),
@@ -448,6 +453,7 @@ export function renderLog(main, editId, derbyArg) {
   const tackleHidden = !!(editing && editing.hasTackle && !oldTackle);
   const st = {
     full: null, thumb: editing ? editing.thumb : null, takenAt: editing ? editing.photoTakenAt || null : null,
+    focus: editing ? editing.focus || null : null, // where the square thumbnail sits on the photo
     spot: oldSpot ? { lat: oldSpot.lat, lng: oldSpot.lng, acc: oldSpot.acc } : null,
     share: editing ? !!editing.locShared : false,
     // "one" fish, or a "stringer": one photo of many fish, with a yes/no on whether it was a limit.
@@ -459,7 +465,15 @@ export function renderLog(main, editId, derbyArg) {
   // The photo area itself opens the camera too (the same as the Camera button), or retakes the photo.
   const preview = el("button", { type: "button", class: "photo-pick", onclick: () => takePhoto(true) });
   const photoMsg = el("p", { class: "msg" });
+  // The square the feed shows, and the way to move it along the photo.
+  const thumbRow = el("div", { class: "row focus-preview" });
+  const drawThumbRow = () => fill(thumbRow, st.thumb ? [
+    el("img", { class: "thumb", src: st.thumb, alt: "Thumbnail", style: focusStyle(st) }),
+    el("div", { class: "grow stack-tight" }, el("span", { class: "muted small", text: "How it shows in the feed" }),
+      el("button", { class: "btn small", type: "button", text: "🎯 Adjust thumbnail",
+        onclick: () => pickFocus(st.thumb, st.focus, f => { st.focus = f; drawThumbRow(); }) }))] : []);
   const drawPreview = () => {
+    drawThumbRow();
     preview.setAttribute("aria-label", st.thumb ? "Retake the photo with the camera" : "Take a photo with the camera");
     fill(preview, st.thumb
     ? el("img", { src: st.thumb, alt: "Catch photo" })
@@ -472,7 +486,7 @@ export function renderLog(main, editId, derbyArg) {
     photoMsg.className = "msg ok"; photoMsg.textContent = "Preparing photo…";
     try {
       const [p, t] = await Promise.all([catchPhoto(file), photoTakenAt(file)]);
-      st.full = p.full; st.thumb = p.thumb;
+      st.full = p.full; st.thumb = p.thumb; st.focus = null;
       st.takenAt = t || (file.inAppCamera ? file.lastModified : null); // in-app photos are taken right now
       photoMsg.textContent = "";
       drawPreview(); drawTimeHint();
@@ -746,6 +760,7 @@ export function renderLog(main, editId, derbyArg) {
       el("div", { class: "row" },
         el("button", { class: "btn", type: "button", html: icon.camera, onclick: () => takePhoto(true) }, "Camera"),
         el("button", { class: "btn", type: "button", html: icon.image, onclick: () => takePhoto(false) }, "Gallery")),
+      thumbRow,
       photoMsg,
       photoHint,
       el("p", { class: "hint", text: "Camera opens right here in the app. You can also take the photo with your phone's camera app and pick it with Gallery." })),
@@ -792,6 +807,8 @@ export function renderLog(main, editId, derbyArg) {
       notes: notes.value.trim().slice(0, 500), released: !stringer && released.checked,
       hasSpot: !!st.spot, locShared: !!st.spot && st.share, spotName: st.spot && st.share ? spotName.value.trim().slice(0, 60) : "",
     };
+    // Only sent when there is one (or one to clear), so catches still save if the rules allowing it aren't published yet.
+    if (st.focus || (editing && editing.focus)) data.focus = st.focus || null;
     data.boatId = boatSel.value || null;
     const t = { lure: cleanLure(lure.value), depthFt, technique: technique.value };
     if (st.itemId && boxItem(st.itemId) && t.lure) t.itemId = st.itemId;
