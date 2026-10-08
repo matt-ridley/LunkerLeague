@@ -2,13 +2,17 @@
    stakes are an optional buy-in in dollars (the pot) and/or a prize in words. Pure functions on plain data.
    Times are epoch milliseconds.
 
-   A bet: { id, title, organiserUid, kind: "contest", rule, open, invited: [uid], start, end, buyIn, roundTo, prize, note,
-   createdAt, cancelled }
+   A bet: { id, title, organiserUid, kind: "contest" | "sides", rule, sides, open, invited: [uid], start, end, buyIn, roundTo,
+   prize, note, createdAt, cancelled }
+   - kind "contest": everyone for themselves. kind "sides": players pick one of `sides` (2 to 6 labels), and everyone on
+     the winning side splits the pot. A sides bet is either "over" (over/under on catches, settled by the app: does
+     rule.subject, an angler or the whole league, reach rule.line in fish, biggest weight or biggest length?) or "called".
    - rule: { win: "heaviest" | "longest" | "most" | "first" | "called", species: [], minWeightOz, minLengthIn }. "called": the
      organiser decides (anything the catches can't settle, like "first boat to the launch"), from proof photos.
-   - result (called bets, once the organiser settles it): { winners: [uid], wash, at, by }
+   - result (called bets, once the organiser settles it): { winners: [uid], wash, at, by }, plus `side` (its index) on a
+     sides bet
    - open: anyone can join until it starts; otherwise only the organiser and the anglers invited.
-   Players: Map(uid -> { at, in }); `in: false` is an invite turned down. */
+   Players: Map(uid -> { at, in, side }); `in: false` is an invite turned down; `side` is the index of their side. */
 import { isStringer, fishIn } from "./stats.js";
 import { roundAmt } from "./payout.js";
 import { fmtWeight, fmtLength } from "./ui.js";
@@ -20,7 +24,30 @@ export const RULES = {
   first: { label: "First to catch one" },
   called: { label: "The organiser decides (with proof photos)" },
 };
+export const MEASURES = { fish: "Fish caught", weight: "Biggest fish by weight", length: "Biggest fish by length" };
 export const isCalled = b => b.rule.win === "called";
+export const isSides = b => b.kind === "sides";
+/* The two sides of an over/under: index 0 is "over" (reaches the line), 1 is "under". */
+export function overUnderSides(r) {
+  const line = r.measure === "weight" ? fmtWeight(r.line) : r.measure === "length" ? fmtLength(r.line) : `${r.line} fish`;
+  return r.measure === "fish" ? [`${line} or more`, `Fewer than ${line}`] : [`${line} or bigger`, `Smaller than ${line}`];
+}
+/* Who's on each side: [[uid], [uid], …] by side index. */
+export function sideTeams(b, players) {
+  const teams = (b.sides || []).map(() => []);
+  for (const [u, p] of players || new Map()) if (p.in !== false && teams[p.side]) teams[p.side].push(u);
+  return teams;
+}
+/* Over/under: the subject's number so far (fish caught, or their biggest by weight or length). The whole league counts
+   every member's catches. Same window, late syncing and exclusions as any bet. */
+export function overValue(b, catches) {
+  const r = b.rule, sp = r.species || [], close = b.end + LATE_HOURS * HOUR;
+  const list = catches.filter(c => (r.subject === "league" || c.uid === r.subject) && !c.dq && !(c.pastStored ?? c.past)
+    && c.caughtAt >= b.start && c.caughtAt <= b.end && (c.createdAt || c.caughtAt) <= close && (!sp.length || sp.includes(c.species)));
+  if (r.measure === "fish") return list.reduce((n, c) => n + fishIn(c), 0);
+  const f = r.measure === "length" ? "lengthIn" : "weightOz";
+  return list.filter(c => !isStringer(c) && c[f] > 0).reduce((m, c) => Math.max(m, c[f]), 0);
+}
 export const LATE_HOURS = 12; // catches made during it can still sync this long after (no-signal spots)
 export const MAX_DAYS = 366;
 const HOUR = 3600 * 1000;
@@ -58,12 +85,13 @@ export function finalAt(b, catches, players) {
   return b.end + LATE_HOURS * HOUR;
 }
 
-/* open (joining) → live → closing (late catches syncing) → done; or cancelled, or off (fewer than 2 joined). A "first to
-   catch" bet stops being live once someone has caught one. */
+/* open (joining) → live → closing (late catches syncing) → done; or cancelled, or off (fewer than 2 joined, or on a sides
+   bet, fewer than 2 sides taken). A "first to catch" bet stops being live once someone has caught one. */
 export function betStatus(b, catches, players, now = Date.now()) {
   if (b.cancelled) return "cancelled";
   if (now < b.start) return "open";
   if (playersIn(players).length < 2) return "off";
+  if (isSides(b) && sideTeams(b, players).filter(t => t.length).length < 2) return "off";
   // The organiser settles it whenever they can (even before the end, e.g. once someone's at the launch).
   if (isCalled(b)) return b.result ? "done" : now <= b.end ? "live" : "deciding";
   const fin = finalAt(b, catches, players);
@@ -101,6 +129,16 @@ export function betBoard(b, catches, players) {
    coming off) the first winner on the board. */
 export function betResult(b, catches, players) {
   const pot = Math.round((b.buyIn || 0) * playersIn(players).length * 100) / 100;
+  if (isSides(b)) {
+    // The winning side: the organiser's call, or over/under from the catches. Everyone on it splits the pot; nobody on
+    // it (or a wash) and nobody wins.
+    const teams = sideTeams(b, players);
+    const side = isCalled(b) ? (b.result && !b.result.wash ? b.result.side : -1) : (overValue(b, catches) >= b.rule.line ? 0 : 1);
+    const winners = teams[side] || [];
+    const rows = teams.flatMap((t, i) => t.map(u => ({ uid: u, score: i === side ? 1 : 0, fish: [], count: 0, side: i }))).sort((a, c) => c.score - a.score);
+    if (!winners.length) return { winners: [], wash: true, pot, shares: new Map(), rows, side };
+    return { winners, wash: false, pot, shares: splitPot(pot, winners, b.roundTo || 0), rows, side };
+  }
   if (isCalled(b)) {
     // The organiser's call, kept to anglers who are in it (in the order they were picked).
     const ins = new Set(playersIn(players)), winners = ((b.result && b.result.winners) || []).filter(u => ins.has(u));
@@ -127,9 +165,17 @@ export function splitPot(pot, winners, roundTo = 0) {
 /* Why these settings can't be saved, or "" if they can. `editing`: the start may stay where it was. */
 export function betProblem(b, now = Date.now(), editing = false) {
   if (!String(b.title || "").trim()) return "Give the bet a name.";
-  if (!RULES[b.rule.win]) return "Pick how it's won.";
+  if (isSides(b) ? !["over", "called"].includes(b.rule.win) : !RULES[b.rule.win]) return "Pick how it's won.";
   if ((b.rule.species || []).length > 10) return "Pick up to 10 species, or any species.";
   if (isCalled(b) && !String(b.note || "").trim()) return "Say what wins in the details, so everyone knows what the proof has to show.";
+  if (isSides(b)) {
+    if (b.rule.win === "over" && !b.rule.subject) return "Pick who the over/under is on.";
+    if (b.rule.win === "over" && !(b.rule.line > 0)) return "Set the line: the number to beat.";
+    const labels = (b.sides || []).map(x => String(x || "").trim());
+    if (labels.length < 2 || labels.length > 6) return "A sides bet needs 2 to 6 sides.";
+    if (labels.some(x => !x)) return "Give every side a name.";
+    if (new Set(labels.map(x => x.toLowerCase())).size !== labels.length) return "Each side needs a different name.";
+  }
   if (!isFinite(b.start) || !isFinite(b.end)) return "Set when it starts and ends.";
   if (!editing && b.start <= now) return "It has to start in the future, so people can join first.";
   if (b.end <= b.start) return "It has to end after it starts.";
@@ -140,7 +186,14 @@ export function betProblem(b, now = Date.now(), editing = false) {
 }
 
 /* Words for the screens, the feed and the bell. */
+/* An over/under in words: "Andy: 10 fish or more? (any species)". */
+export function overText(r, name) {
+  const sp = r.species && r.species.length ? r.species.join(", ") : "any species";
+  const who = r.subject === "league" ? "The whole league" : name(r.subject);
+  return `${who}: ${overUnderSides(r)[0]}? (${MEASURES[r.measure].toLowerCase()}, ${sp})`;
+}
 export function ruleText(r) {
+  if (r.win === "over") return "Over/under, settled by the catches";
   if (r.win === "called") return "The organiser decides, from proof photos";
   const sp = r.species && r.species.length ? r.species.join(", ") : r.win === "first" ? "any fish" : "any species";
   if (r.win !== "first") return `${RULES[r.win].label} · ${sp}`;

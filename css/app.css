@@ -551,6 +551,13 @@ textarea { resize: vertical; line-height: 1.4; }
 /* Bet proof photos */
 .proof-thumb { padding: 0; border: 0; background: none; cursor: pointer; }
 .proof-full { width: 100%; border-radius: 14px; }
+/* Sides bets */
+.side-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.side-pick .btn { flex: 1 1 40%; }
+.sides { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.side-col { display: grid; gap: 4px; align-content: start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; min-width: 0; overflow-wrap: anywhere; }
+.side-col.lead { border: 2px solid var(--gold); }
+.bet-question { font-weight: 800; }
 .badge.derby { background: var(--primary-soft); color: var(--primary); }
 .badge.dq { background: var(--danger-soft); color: var(--danger); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
