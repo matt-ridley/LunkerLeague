@@ -107,6 +107,7 @@ export function renderProfile(main, id) {
 
     parts.push(el("section", { class: "stack" },
       isAdmin() ? el("a", { class: "btn block", href: "#/admin", html: icon.shield }, "League admin") : null,
+      el("a", { class: "btn block", href: "#/system", html: icon.fish }, "System info"),
       el("button", { class: "btn quiet block", type: "button", text: "Sign out", onclick: confirmSignOut })));
   }
 
@@ -174,11 +175,11 @@ function editSheet() {
 
 function confirmSignOut() {
   const s = syncStatus();
-  const waiting = s.label.includes("waiting") || s.kind === "busy";
+  const waiting = !!s.pending;
   openSheet(box => box.append(el("div", { class: "stack" },
     el("h2", { text: "Sign out?" }),
     el("p", { text: waiting
-      ? "Some changes on this phone haven't reached the league yet. Signing out now could lose them. Wait until you have signal and the status shows Live."
+      ? "Some changes on this phone haven't reached the league yet. Signing out now could lose them. Wait until you have signal and the fish at the top turns green."
       : "You'll need your email, password and signal to sign back in." }),
     el("div", { class: "row" },
       el("button", { class: "btn", type: "button", text: "Cancel", onclick: closeSheet }),

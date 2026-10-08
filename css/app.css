@@ -7,6 +7,8 @@
   --gold: #F2B705; --silver: #A9B4BE; --bronze: #C97A3D;
   --danger: #B42318; --danger-soft: #FDE4E1; --ok: #0F6B38; --ok-soft: #DDF3E5;
   --head-bg: #0B4F5C; --head-ink: #FFFFFF;
+  /* The fish icon's connection colours. The header is dark in every theme, so one set works for all. */
+  --offline: #5AB8FF; --offline-ink: #062038; --problem: #FF6B5E; --problem-ink: #2A0806;
   --scrim: rgba(6, 20, 26, .5); --shadow: 0 6px 24px rgba(12, 26, 20, .12);
   --f-display: "Baloo 2", "Segoe UI", system-ui, sans-serif;
   --f-body: "Figtree", -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
@@ -75,12 +77,19 @@ button { cursor: pointer; touch-action: manipulation; }
 .brand-mark { background: var(--lime); color: var(--lime-ink); }
 .brand-mark svg, .icon-btn svg { width: 24px; height: 24px; }
 .icon-btn { color: var(--head-ink); background: rgba(255, 255, 255, .12); text-decoration: none; }
-.sync { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 99px; white-space: nowrap; background: rgba(255, 255, 255, .14); }
-.sync:empty { display: none; }
-.sync::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: currentColor; vertical-align: 1px; }
-.sync.live::before { background: #6BE29A; }
-.sync.offline::before, .sync.busy::before { background: #FFC24B; }
-.sync.bad::before { background: #FF6B5E; }
+/* Connection status: the fish (green connected, pulsing syncing, blue offline, red a problem), or a dot on Back. */
+a.brand-mark { text-decoration: none; transition: background-color .3s, color .3s; }
+.brand-mark.status-offline { background: var(--offline); color: var(--offline-ink); }
+.brand-mark.status-bad { background: var(--problem); color: var(--problem-ink); }
+.brand-mark.status-busy { animation: sync-pulse 1.4s ease-in-out infinite; }
+@keyframes sync-pulse { 50% { box-shadow: 0 0 0 6px rgba(197, 242, 58, .35); opacity: .75; } }
+.icon-btn.back { position: relative; }
+.icon-btn.back > span { display: grid; }
+.status-dot { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--head-bg); background: var(--lime); }
+.status-offline .status-dot { background: var(--offline); }
+.status-bad .status-dot { background: var(--problem); }
+.status-busy .status-dot { animation: sync-pulse 1.4s ease-in-out infinite; }
+.status-off .status-dot { display: none; }
 .me-btn { flex: none; border-radius: 50%; display: block; }
 
 /* ---------- Main and nav ---------- */

@@ -11,6 +11,8 @@ import { renderBox, renderItem } from "./tackleboxpage.js";
 import { renderHof } from "./hofpage.js";
 import { renderFleet, renderBoat } from "./fleetpage.js";
 import { renderAwards } from "./awardspage.js";
+import { renderSystem } from "./systempage.js";
+import { statusText } from "./sysinfo.js";
 import { renderAdmin } from "./admin.js";
 import { renderFeed, renderCatch, renderLog, maybeShowRejected } from "./catches.js";
 import { renderLeaders } from "./leaders.js";
@@ -52,6 +54,7 @@ const ROUTES = {
   boat: { tab: null, live: true, render: renderBoat },
   awards: { tab: "leaders", live: true, render: renderAwards },
   admin: { tab: null, live: true, render: renderAdmin },
+  system: { tab: null, live: true, render: main => renderSystem(main) },
   scoring: { tab: "leaders", live: false, render: renderScoring },
   t: { tab: "derbies", live: true, render: renderTrip },
   tnew: { tab: "derbies", live: false, render: main => renderTripForm(main) },
@@ -110,12 +113,15 @@ function renderHeader(inApp) {
   head.hidden = !inApp;
   if (!inApp) return;
   const s = syncStatus(), r = parseRoute();
-  const sub = r.tab ? null : el("a", { class: "icon-btn", href: "#/feed", "aria-label": "Back", html: icon.back });
+  // The fish shows the connection: green connected, pulsing syncing, blue offline, red a problem. Tap it for System info.
+  // Inner pages swap it for Back, which carries a dot in the same colour.
+  const said = statusText(s.kind).title;
+  const sub = r.tab ? null : el("a", { class: `icon-btn back status-${s.kind}`, href: "#/feed", "aria-label": `Back. ${said}` },
+    el("span", { html: icon.back }), el("i", { class: "status-dot", "aria-hidden": "true" }));
   fill(head,
-    sub || el("span", { class: "brand-mark", html: icon.fish }),
+    sub || el("a", { class: `brand-mark status-${s.kind}`, href: "#/system", "aria-label": `${s.label || said}. System info`, html: icon.fish }),
     el("div", { class: "brand" },
       el("div", { class: "brand-name", text: (store.league && store.league.name) || "Lunker League" })),
-    el("span", { class: `sync ${s.kind}`, role: "status", text: s.label }),
     bell(r.name === "alerts"),
     el("a", { class: "me-btn", href: "#/me", "aria-label": "Your profile" }, avatar({ ...store.me, id: uid() }, "sm")));
 }
