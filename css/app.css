@@ -692,6 +692,17 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .map-legend .spot-dot { width: 14px; height: 14px; border-width: 1px; vertical-align: -2px; }
 .spot-pop ul { margin: 6px 0 0; padding-left: 18px; }
 .spot-pop li { margin: 4px 0; }
+/* Season awards */
+.podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 8px; text-align: center; }
+.podium-step { display: grid; justify-items: center; gap: 4px; padding: 10px 4px; border-radius: 14px; background: var(--surface-2); color: inherit; text-decoration: none; min-width: 0; }
+.podium-step b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.podium-step.p1 { padding-top: 18px; padding-bottom: 26px; background: var(--primary-soft); outline: 2px solid var(--gold); }
+.podium-step.p3 { padding-bottom: 6px; }
+.podium-medal { font-size: 30px; line-height: 1; }
+.award-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.award-card { display: grid; gap: 2px; padding: 12px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); color: inherit; text-decoration: none; }
+.award-icon { font-size: 28px; line-height: 1.1; }
+
 /* Goals */
 .goal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .goal { display: grid; gap: 4px; }

@@ -10,6 +10,7 @@ import { renderBite } from "./bitepage.js";
 import { renderBox, renderItem } from "./tackleboxpage.js";
 import { renderHof } from "./hofpage.js";
 import { renderFleet, renderBoat } from "./fleetpage.js";
+import { renderAwards } from "./awardspage.js";
 import { renderAdmin } from "./admin.js";
 import { renderFeed, renderCatch, renderLog, maybeShowRejected } from "./catches.js";
 import { renderLeaders } from "./leaders.js";
@@ -49,6 +50,7 @@ const ROUTES = {
   hof: { tab: "leaders", live: true, render: main => renderHof(main) },
   boats: { tab: null, live: true, render: main => renderFleet(main) },
   boat: { tab: null, live: true, render: renderBoat },
+  awards: { tab: "leaders", live: true, render: renderAwards },
   admin: { tab: null, live: true, render: renderAdmin },
   scoring: { tab: "leaders", live: false, render: renderScoring },
   t: { tab: "derbies", live: true, render: renderTrip },
