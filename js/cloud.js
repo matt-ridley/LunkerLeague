@@ -696,6 +696,10 @@ export async function deleteDerby(d, { withEntries }) {
   }
 }
 
+/* Derbies with approval on: the organiser (or an admin) approves an entry, or takes the approval back. */
+export function setApproved(catchId, on) {
+  write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "catches", catchId), on ? { approved: true, approvedAt: Date.now() } : { approved: false }));
+}
 export function setDisqualified(catchId, dq, reason = "") {
   write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "catches", catchId), dq ? { dq: true, dqReason: cleanText(reason, 200) } : { dq: false, dqReason: "" }));
 }

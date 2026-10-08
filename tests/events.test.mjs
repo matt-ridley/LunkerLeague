@@ -122,3 +122,20 @@ test("news a catch caused names that catch, so the feed can show it on the card"
   assert.equal(first.short, "Earned the First Fish badge");
   assert.equal(ev.find(e => e.id === "badge:amy:first").cid, catches[0].id);
 });
+
+test("approval alerts: the organiser hears about entries to approve; the angler hears when theirs is approved", () => {
+  const d = { ...DEFAULTS, id: "d1", name: "Walleye Weekend", organiserUid: "org", start: T0, end: T0 + DAY, approval: true, createdAt: T0 - DAY };
+  const waiting = fish("amy", "Walleye", 40, T0 + H, { derbyId: "d1" });
+  const ok = fish("amy", "Walleye", 50, T0 + 2 * H, { derbyId: "d1", approved: true, approvedAt: T0 + 3 * H });
+  const own = fish("org", "Walleye", 30, T0 + 2 * H, { derbyId: "d1", approved: true, approvedAt: T0 + 2 * H });
+  const data = base({ catches: [waiting, ok, own], derbies: [d] });
+  const org = alertsFor("org", data).filter(a => a.id.startsWith("approve"));
+  assert.deepEqual(org.map(a => a.id), [`approve:${waiting.id}`]);
+  assert.match(org[0].text, /AMY entered a .*Walleye.* in Walleye Weekend\. Approve it\?/);
+  const amy = alertsFor("amy", data).filter(a => a.id.startsWith("approve"));
+  assert.deepEqual(amy.map(a => a.id), [`approved:${ok.id}:${T0 + 3 * H}`]);
+  // The organiser approving their own entry isn't news to them.
+  assert.equal(alertsFor("org", data).some(a => a.id.startsWith("approved:")), false);
+  // Approval off: no alerts either way.
+  assert.equal(alertsFor("org", base({ catches: [waiting], derbies: [{ ...d, approval: false }] })).some(a => a.id.startsWith("approve")), false);
+});

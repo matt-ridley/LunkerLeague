@@ -1,12 +1,12 @@
 /* Catches: logging and editing, the feed, a catch's own page, and the personal-best wall. */
 import { el, field, avatar, fmtDate, fmtDay, fmtAgo, fmtWeight, fmtLength, toast, confirmButton, icon, openSheet, closeSheet, fill } from "./ui.js";
-import { store, uid, memberName, isAdmin, setDisqualified, newCatchId, saveCatch, deleteCatch, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
+import { store, uid, memberName, isAdmin, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
 import { pickOnMap } from "./mappick.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { reactionBar, commentsSection, reactionSummary } from "./social.js";
-import { derbyStatus, entryProblem, PROOF } from "./derby.js";
+import { derbyStatus, entryProblem, awaitingApproval, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
 import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer, pastCatch, loggedLate, leagueStartOf, DEFAULT_GRACE_DAYS } from "./stats.js";
 import { leagueEvents, postedAt } from "./events.js";
@@ -46,6 +46,7 @@ export function catchCard(c, all = allCatches(), news = []) {
         isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limit" }) : null,
         c.derbyId && store.derbies.get(c.derbyId) ? el("span", { class: "badge derby", text: `🏁 ${store.derbies.get(c.derbyId).name}` }) : null,
         c.dq ? el("span", { class: "badge dq", text: "Disqualified" }) : null,
+        awaitingApproval(c, store.derbies.get(c.derbyId)) ? el("span", { class: "badge wait", text: "⏳ Needs approval" }) : null,
         store.pending.has(c.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null),
       cardNews(news),
       metaLine(c)));
@@ -294,6 +295,10 @@ export function renderCatch(main, id) {
   fill(main, ...parts);
 }
 
+/* What the organiser approved: changing any of it on an approved entry takes the approval away (the rules check the same). */
+const PROOF_FIELDS = ["species", "weightOz", "lengthIn", "caughtAt", "thumb", "photoTakenAt", "derbyId", "fishCount"];
+const proofChanged = (old, data) => PROOF_FIELDS.some(f => f in data && (data[f] ?? null) !== (old[f] ?? null));
+
 /* A derby entry can't be changed once that derby's final entries have closed. */
 function lockedEntry(c) {
   const d = c.derbyId && store.derbies.get(c.derbyId);
@@ -308,10 +313,15 @@ function derbyBox(c) {
   return el("section", { class: "card stack derby-entry" + (c.dq ? " out" : "") },
     el("a", { href: `#/d/${d.id}`, class: "derby-link" }, el("span", { text: "🏁 Derby entry" }), el("b", { text: d.name })),
     c.dq ? el("p", { class: "entry-problem", text: `Disqualified${c.dqReason ? ": " + c.dqReason : ""}` }) : null,
+    awaitingApproval(c, d) ? el("p", { class: "entry-wait", text: "⏳ Waiting for the organiser's approval. It counts once it's approved." }) : null,
+    d.approval && c.approved && !c.dq ? el("p", { class: "hint", text: "✅ Approved by the organiser" }) : null,
+    d.approval && c.approved && !c.dq && c.uid === uid() && !lockedEntry(c) ? el("p", { class: "hint", text: "Changing the fish, photo or time means it needs approving again." }) : null,
     lockedEntry(c) && c.uid === uid() ? el("p", { class: "hint", text: "🔒 The derby is over, so this entry can't be changed." }) : null,
-    organiser ? (c.dq
-      ? el("button", { class: "btn small", type: "button", text: "Reinstate entry", onclick: () => setDisqualified(c.id, false) })
-      : el("a", { class: "btn small", href: `#/d/${d.id}`, text: "Organiser: review entries" })) : null);
+    organiser ? el("div", { class: "row" },
+      awaitingApproval(c, d) ? el("button", { class: "btn small lime", type: "button", text: "✓ Approve", onclick: () => { setApproved(c.id, true); toast("Entry approved."); } }) : null,
+      c.dq
+        ? el("button", { class: "btn small", type: "button", text: "Reinstate entry", onclick: () => setDisqualified(c.id, false) })
+        : el("a", { class: "btn small", href: `#/d/${d.id}`, text: "Organiser: review entries" })) : null);
 }
 
 const fact = (k, v) => el("div", { class: "fact" }, el("dt", { text: k }), el("dd", {}, v));
@@ -579,6 +589,9 @@ export function renderLog(main, editId, derbyArg) {
     fill(derbyInfo, anglerField,
       el("ul", { class: "derby-rules" },
         el("li", { text: `📸 ${PROOF[d.proof]}` }),
+        d.codeWord ? el("li", { class: "code-word-rule" }, "🔤 Show the code word ", el("b", { class: "code-word", text: d.codeWord }),
+          " in your photo: write it on paper, your hand or the cooler lid.") : null,
+        d.approval ? el("li", { text: "✅ The organiser checks each entry. It counts once it's approved." }) : null,
         d.species.length ? el("li", { text: `🐟 Counts: ${d.species.join(", ")}` }) : null,
         d.minWeightOz ? el("li", { text: `⚖️ At least ${fmtWeight(d.minWeightOz)}` }) : null,
         d.minLengthIn ? el("li", { text: `📏 At least ${fmtLength(d.minLengthIn)}` }) : null,
@@ -626,7 +639,9 @@ export function renderLog(main, editId, derbyArg) {
     const sp = normalizeSpecies(species.value);
     const weightOz = Math.round((num(lb.value) * 16 + num(oz.value)) * 10) / 10;
     const lengthIn = Math.round((num(inches.value) + num(frac.value)) * 4) / 4;
-    const caughtAt = new Date(when.value).getTime();
+    let caughtAt = new Date(when.value).getTime();
+    // The time box only shows minutes: an unchanged time keeps its seconds, so the catch isn't changed by saving it.
+    if (editing && Math.floor(editing.caughtAt / 60000) * 60000 === caughtAt) caughtAt = editing.caughtAt;
     const stringer = st.mode === "stringer" && !derbyOnly;
     const count = Number(fishCount.value.trim());
     if (!st.thumb) return fail(stringer ? "Add a photo of your stringer." : "Add a photo of your catch.");
@@ -659,10 +674,14 @@ export function renderLog(main, editId, derbyArg) {
         data.locShared = !!st.spot; data.spotName = st.spot ? spotName.value.trim().slice(0, 60) : "";
       }
       if (captain.value() === undefined || netman.value() === undefined) return fail("Type the guest's name, or pick someone else.");
-      const problem = entryProblem({ ...data, released: released.checked }, d);
+      const problem = entryProblem({ ...data, released: released.checked, approved: true }, d);
       if (problem) return fail(`This entry doesn't meet the derby rules: ${problem}.`);
+      // Approval: the organiser's own saves are approved; anyone else's changes to an approved fish need approving again.
+      if (d.approval && d.organiserUid === uid()) Object.assign(data, { approved: true, approvedAt: editing && editing.approved ? editing.approvedAt || Date.now() : Date.now() });
+      else if (editing && editing.approved && proofChanged(editing, data)) data.approved = false;
     } else if (editing && editing.derbyId) {
       Object.assign(data, { derbyId: null, captain: null, netman: null });
+      if (editing.approved) data.approved = false;
     }
     const spot = st.spot ? { ...st.spot, name: spotName.value.trim().slice(0, 60), shared: st.share } : (oldSpot ? null : undefined);
     const mineNow = data.uid === uid();
