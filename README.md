@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.43.0 (beta)
+**Current version:** 0.43.1 (beta)
 
 ## Features
 
@@ -135,15 +135,15 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 - ✅ **Copy a derby** (S): start a new derby from an old one's settings (done in 0.30.0).
 
 ### Milestone E: Logbook and stats
-- **Bait or lure, depth and technique on each catch** (S–M), with "what's working" stats such as the best lures by species.
-- **Automatic weather on each catch** (M): air temperature, wind, pressure and moon phase, from a free weather service, filled in once the phone has signal.
-- **Personal stats page** (M): catches by month, species, time of day and lure.
-- **Map of catches** (M): your spots and the league's shared spots on a free OpenStreetMap map.
-- **Best-bite times forecast** (M): solunar times.
-- **Estimated weight from length** (S): standard species formulas, for fish that were only measured.
-- **Skunk tracker** (S): log outings with no fish, to show fish per outing.
-- **Export or backup your catches** (S) as a spreadsheet file.
-- **AI fish identification from the photo** (L): only if a free option exists, because it costs money per photo.
+Built in this order, one release each. Tackle, weather and estimated weights never change points, records, derbies or bets.
+- **Tackle on each catch** (S–M), 0.44.0: optional bait or lure (suggesting the ones you've used before), depth and technique (casting, trolling, jigging, live bait, fly, ice, drift or bottom). Shared with the league unless you tick **Keep my tackle secret**, like a secret spot.
+- **Estimated weight from length** (S), 0.45.0: standard formulas for each species, shown as "~4 lb 2 oz (est.)" on fish that were only measured. For show only: never a personal best, a record, a derby weight or a bet result. Species without a formula get no estimate.
+- **Personal stats page** (M), 0.46.0: catches by month, species, time of day and lure, plus **what's working**: the best lures and techniques by species, for you and for the league (the league's only uses tackle that isn't secret).
+- **Skunk tracker** (S), 0.47.0: a **Got skunked** button logs a day out with no fish, and anyone marked In on an outing who logged no fish during it counts as skunked too. Shows fish per day out and your longest skunk streak on the stats page.
+- **Export your catches** (S), 0.48.0: download your catches as a spreadsheet (CSV) file.
+- **Automatic weather and moon** (M), 0.49.0: air temperature, wind, pressure and sky at the time of the catch, from the free Open-Meteo service (no account needed), filled in once the phone has signal. Old logbook catches get weather too. The spot's location is rounded to about 1 km before it's sent, and catches without a spot use the league's **home water**, set by an admin. The moon phase is worked out on the phone. Saved in metric, shown in °F, mph and inHg.
+- **Map of catches** (M), 0.50.0: your spots (private ones too, only you see them) and the league's shared spots on a free OpenStreetMap map.
+- **Best-bite times** (M), 0.51.0: solunar major and minor feeding times for the home water, worked out on the phone (so they work offline), on a Fish Finder card and on outings.
 
 ### Milestone F: Fun extras
 - **End-of-season awards page** (M): a podium, the season's records, badge winners and a shareable recap.
@@ -156,6 +156,7 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 Not planned yet, but worth keeping in mind.
 - **Fish of the Week vote** (S): the league votes, and the winner gets a badge.
 - **Guess bets** (M): everyone enters a number and the closest wins, for example how many fish the league catches at a derby, or what Matt's biggest muskie weighs this year (a tie splits the pot). Could also pick a person ("who wins the club derby?").
+- **AI fish identification from the photo** (L): moved from Milestone E. There's no free option that works without a key, and a key in the app's public code could be used up by anyone. Worth another look if a free on-phone model turns up.
 
 ### Backlog
 - **Head-to-head disputes** (S–M): let league members dispute a head-to-head result (beyond the owner's veto). To be worked out once challenges are built and the league has used them: who can dispute (including the two anglers themselves), what happens next (a vote, or the owner decides), and any time limit.
@@ -279,6 +280,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.43.1 | 2026-Oct-08 09:19:55 AM | Roadmap: the **Milestone E** plan in release order (tackle on each catch with an option to keep it secret, estimated weight from length for show only, a personal stats page with what's working, a skunk tracker, catch export, automatic weather and moon, a map of catches, and best-bite times). AI fish identification moved to Possible ideas. No app changes. |
 | 0.43.0 | 2026-Oct-07 10:34:14 PM | **Bets**, part 3: **sides bets**. When starting a bet, pick **Contest** or **Sides**. Everyone in a sides bet picks a side (and can switch until it starts), and everyone on the winning side splits the pot. Sides bets are an **over/under** on catches that the app settles (an angler or the whole league, fish caught or biggest by weight or length, against a line, with the number so far on the bet page), or **the organiser decides** between 2 to 6 named sides, with proof photos. Fewer than 2 sides taken at the start calls it off; nobody on the winning side is a wash. The feed and the bell name the winning side. Milestone B is complete. **New security rules: publish firestore.rules.** |
 | 0.42.0 | 2026-Oct-07 10:24:05 PM | **Bets**, part 2: **bets the organiser decides**, for anything the catches can't settle ("first boat to the launch"). The organiser says what wins in the details. Once it starts, each angler in it can send one proof photo with a note (replaceable), shown with the time it was taken and viewable full size. The organiser (or the league owner) picks the winner, several to split the pot, or a wash, any time after it starts, and can change their call. The bell reminds the organiser to settle a bet once it ends. **New security rules: publish firestore.rules.** |
 | 0.41.0 | 2026-Oct-07 10:14:20 PM | **Bets**, part 1. The Events page's H2H tab is now **🎲 Bets**, with bets above head-to-head challenges. Start a bet: how it's won (biggest fish by weight or length, most fish, or first to catch a species and/or size), species, start and end, open to anyone or invite only, an optional buy-in (the pot) with rounding, and an optional prize. Never league points. Anglers join until it starts (invites in the bell, with I'm in / No thanks); fewer than 2 and it's called off. The app settles it from the catches: the winner takes the pot, a tie splits it, nobody scoring is a wash. The feed and the bell announce bets, joins and results. **New security rules: publish firestore.rules.** |
