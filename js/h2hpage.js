@@ -4,7 +4,7 @@ import { el, field, avatar, fill, fmtDate, fmtDay, toast, confirmButton } from "
 import { store, uid, isOwner, memberName, sendChallenge, acceptChallenge, declineChallenge, withdrawChallenge, counterChallenge,
   vetoChallenge, subscribe } from "./cloud.js";
 import { WIN, MAX_DAYS, LATE_HOURS, challengeStatus, STATUS_LABEL, challengeBoard, stakeRoom, termsProblem, termsShort, winLabel,
-  scoreText, stakesText, otherSide, involves, closesAt, changedTerms } from "./h2h.js";
+  scoreText, stakesText, otherSide, involves, closesAt, changedTerms, h2hResults, h2hRecord, recordText, rematchTerms } from "./h2h.js";
 import { rankings, scoringTimeline, currentScoring } from "./rank.js";
 import { rankInput } from "./leaders.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
@@ -70,7 +70,36 @@ export function challengesSection() {
       el("a", { class: "btn small lime", href: "#/hnew", text: "Challenge someone" })),
     !all.length ? el("div", { class: "card empty" },
       el("p", { text: "Think you can outfish someone? Challenge them: pick the fish, the time and what's at stake, and let the catches settle it." })) : null,
-    group("Your move", yourMove), group("Live now", live), group("Coming up", upcoming), group("Waiting for an answer", waiting), group("Finished", done));
+    group("Your move", yourMove), group("Live now", live), group("Coming up", upcoming), group("Waiting for an answer", waiting), group("Finished", done),
+    recordsBoard());
+}
+
+/* Everyone's head-to-head record, most wins first. */
+function recordsBoard() {
+  const results = h2hResults(challenges(), allCatches());
+  const rows = [...new Set(results.flatMap(r => [r.ch.from, r.ch.to]))].map(u => ({ uid: u, rec: h2hRecord(u, results) }))
+    .sort((a, b) => b.rec.w - a.rec.w || a.rec.l - b.rec.l || who(a.uid).displayName.localeCompare(who(b.uid).displayName));
+  if (!rows.length) return null;
+  return el("section", { class: "stack" }, el("h3", { text: "Records" }),
+    el("ul", { class: "member-list card" }, ...rows.map(({ uid: u, rec }) => el("li", { class: "member-row" },
+      avatar(who(u), "sm"),
+      el("a", { class: "grow name", href: `#/u/${u}`, text: who(u).displayName }),
+      rec.streak >= 2 ? el("span", { class: "muted small", text: `🔥 ${rec.streak} in a row` }) : null,
+      el("b", { text: recordText(rec) })))),
+    el("p", { class: "hint", text: "Wins–losses(–ties) in finished challenges. Vetoed ones don't count." }));
+}
+
+/* A profile's head-to-head line: their record, and yours against them. Null until they've finished one. */
+export function profileRecord(u) {
+  const results = h2hResults(challenges(), allCatches()), rec = h2hRecord(u, results);
+  if (!rec.played) return null;
+  const me = uid(), mine = u !== me ? rec.vs.get(me) : null;
+  return el("a", { class: "h2h-record", href: "#/derbies", onclick: () => { try { sessionStorage.setItem("lunker-events-tab", "h2h"); } catch {} } },
+    el("span", { class: "eyebrow", text: "⚔️ Head-to-head" }),
+    el("b", { text: `${recordText(rec)}` }),
+    el("span", { class: "muted small", text: [`${rec.w} won · ${rec.l} lost${rec.t ? ` · ${rec.t} tied` : ""}`,
+      rec.streak >= 2 ? `🔥 ${rec.streak} wins in a row` : "",
+      mine ? `vs you: ${recordText({ w: mine.l, l: mine.w, t: mine.t })}` : ""].filter(Boolean).join(" · ") }));
 }
 
 /* ---------- One challenge ---------- */
@@ -138,6 +167,10 @@ export function renderChallenge(main, id) {
       confirmButton("Take back the challenge", "Tap again to take it back", () => { withdrawChallenge(ch.id); toast("Challenge taken back."); }, "btn quiet block"));
   }
 
+  // Run it back: same terms, new times. "Challenge again" when it never got going.
+  if (mine && (st === "done" || st === "vetoed")) actions = el("a", { class: "btn lime block", href: `#/hrematch/${ch.id}`, text: "🔁 Rematch" });
+  else if (mine && ["expired", "declined", "withdrawn"].includes(st)) actions = el("a", { class: "btn block", href: `#/hrematch/${ch.id}`, text: "⚔️ Challenge again" });
+
   const owner = isOwner() && ch.status === "accepted" ? el("section", { class: "card stack" },
     el("h3", { text: "League owner" }),
     ch.vetoed
@@ -166,16 +199,22 @@ function waitFor(main, ready, draw) {
   stopWaiting = () => { off(); stopWaiting = () => {}; };
 }
 
-/* `opponent`: a member to challenge (new). `counterId`: the challenge being countered. */
-export function renderChallengeForm(main, opponent, counterId) {
-  const loaded = () => store.catchesLoaded && store.members.size > 0 && (!counterId || store.challenges.has(counterId));
-  if (!loaded()) return waitFor(main, loaded, () => renderChallengeForm(main, opponent, counterId));
+/* `opponent`: a member to challenge (new). `counterId`: the challenge being countered. `rematchId`: a challenge to run
+   again (same terms, new times). */
+export function renderChallengeForm(main, opponent, counterId, rematchId) {
+  // Ready once the challenge (when countering or rematching) and the angler being challenged have loaded.
+  const rivalId = () => { const ch = store.challenges.get(counterId || rematchId); return ch ? otherSide(ch, uid()) : opponent; };
+  const loaded = () => store.catchesLoaded && store.members.size > 0 && (!counterId || store.challenges.has(counterId))
+    && (!rematchId || store.challenges.has(rematchId)) && (!rivalId() || store.members.has(rivalId()));
+  if (!loaded()) return waitFor(main, loaded, () => renderChallengeForm(main, opponent, counterId, rematchId));
+  const source = rematchId ? store.challenges.get(rematchId) : null;
+  if (source) opponent = otherSide(source, uid());
   const me = uid(), countering = counterId ? store.challenges.get(counterId) : null;
   if (countering && !(challengeStatus(countering) === "open" && countering.turn === me)) {
     return fill(main, el("div", { class: "card" }, el("p", { text: "You can only counter a challenge when it's your move." })));
   }
   const start0 = new Date(); start0.setMinutes(0, 0, 0); start0.setHours(start0.getHours() + 1);
-  const t = countering ? { ...countering.terms } : { win: "heaviest", bagSize: 5, species: [], start: start0.getTime(), end: start0.getTime() + 48 * 3600e3, stake: 0, money: "", note: "" };
+  const t = countering ? { ...countering.terms } : source ? rematchTerms(source.terms) : { win: "heaviest", bagSize: 5, species: [], start: start0.getTime(), end: start0.getTime() + 48 * 3600e3, stake: 0, money: "", note: "" };
   const room = roomFor(me, countering ? countering.id : null), maxStake = scoring().h2hMaxStake;
 
   const others = [...store.members.values()].filter(m => m.id !== me && !m.suspended).sort((a, b) => a.displayName.localeCompare(b.displayName));
@@ -209,7 +248,8 @@ export function renderChallengeForm(main, opponent, counterId) {
   const was = countering ? countering.terms : null;
 
   const form = el("form", { class: "stack", novalidate: true },
-    el("h2", { class: "page-title", text: countering ? "Counter the challenge" : "Challenge someone" }),
+    el("h2", { class: "page-title", text: countering ? "Counter the challenge" : source ? (challengeStatus(source) === "done" || source.vetoed ? "Rematch" : "Challenge again") : "Challenge someone" }),
+    source ? el("p", { class: "hint", text: `Same terms as last time, starting ${fmtDate(t.start)}. Change anything before you send it.` }) : null,
     countering ? el("p", { class: "hint", text: `${who(otherSide(countering, me)).displayName} offered: ${termsShort(was)}, ${fmtDate(was.start)} to ${fmtDate(was.end)}, ${stakesText(was)}. Change anything, and it's their move.` }) : null,
     el("section", { class: "card stack" }, field("Who", rival)),
     el("section", { class: "card stack" }, el("h3", { text: "How it's won" }), field("Winner", win), bagField,
