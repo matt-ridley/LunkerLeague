@@ -28,6 +28,7 @@ export const store = {
   spots: new Map(),       // catch id -> GPS spot (shared ones, plus all of this user's own)
   tackle: new Map(),      // catch id -> { lure, depthFt, technique } (shared ones, plus all of this user's own)
   skunks: new Map(),      // "{uid}_{day}" -> { uid, day, notes, createdAt }: days out with no fish
+  fleet: new Map(),       // saved boat id -> { uid (owner), name, crew, notes, thumb, retired, createdAt }
   goals: new Map(),       // goal id -> { uid, kind, target, species, field, value, from, to, createdAt }
   box: new Map(),         // tackle box item id -> { uid, name, type, technique, depthFt, notes, thumb, retired, createdAt }
   weather: new Map(),     // catch id -> { tempC, windKph, windDir, gustKph, pressureHpa, cloud, code, forAt, src }
@@ -228,6 +229,11 @@ function refreshMemberListeners() {
     store.betPlayers = by;
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "fleet"), OPTS, snap => {
+    seen("fleet", snap);
+    store.fleet = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "goals"), OPTS, snap => {
     seen("goals", snap);
     store.goals = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -360,7 +366,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
-  store.skunks = new Map(); store.weather = new Map(); store.box = new Map(); store.goals = new Map();
+  store.skunks = new Map(); store.weather = new Map(); store.box = new Map(); store.goals = new Map(); store.fleet = new Map();
   store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
 }
 
@@ -515,6 +521,36 @@ export function deleteCatch(c) {
   b.commit().catch(syncError);
 }
 
+/* ---------- Saved boats (the fleet) ---------- */
+export const newFleetId = () => cloud.api.doc(cloud.api.collection(cloud.db, "fleet")).id;
+/* photo: { full, thumb } for a new photo, null to remove it, undefined to leave it alone. */
+export function saveFleetBoat(id, data, photo) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db), me = uid(), old = store.fleet.get(id);
+  b.set(doc(cloud.db, "fleet", id), { ...data, uid: me, createdAt: old ? old.createdAt : Date.now(),
+    thumb: photo ? photo.thumb : photo === null ? null : old ? old.thumb ?? null : null });
+  if (photo) { b.set(doc(cloud.db, "fleetPhotos", id), { uid: me, src: photo.full, bytes: photo.full.length }); fleetPhotos.set(id, photo.full); }
+  else if (photo === null && old && old.thumb) { b.delete(doc(cloud.db, "fleetPhotos", id)); fleetPhotos.delete(id); }
+  b.commit().catch(syncError);
+}
+export function deleteFleetBoat(boat) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db);
+  b.delete(doc(cloud.db, "fleet", boat.id));
+  if (boat.thumb) b.delete(doc(cloud.db, "fleetPhotos", boat.id));
+  fleetPhotos.delete(boat.id);
+  b.commit().catch(syncError);
+}
+const fleetPhotos = new Map();
+export const cachedFleetPhoto = id => fleetPhotos.get(id) || "";
+export async function loadFleetPhoto(id) {
+  if (fleetPhotos.has(id)) return fleetPhotos.get(id);
+  const snap = await cloud.api.getDoc(cloud.api.doc(cloud.db, "fleetPhotos", id));
+  const src = snap.exists() ? String(snap.data().src || "") : "";
+  if (src) fleetPhotos.set(id, src);
+  return src;
+}
+
 /* ---------- Personal goals ---------- */
 export function saveGoal(id, data) {
   const { doc, collection, setDoc } = cloud.api;
@@ -658,12 +694,13 @@ export async function photoStorage() {
     getAggregateFromServer(query(photos, where("bytes", ">", 0)), { n: count(), bytes: sum("bytes") }),
   ]);
   // Tackle box photos (each saves its size too) are counted on top.
-  const [box, covers] = await Promise.all([
+  const [box, covers, boats] = await Promise.all([
     getAggregateFromServer(collection(cloud.db, "tackleBoxPhotos"), { n: count(), bytes: sum("bytes") }),
     getAggregateFromServer(collection(cloud.db, "covers"), { n: count(), bytes: sum("bytes") }),
+    getAggregateFromServer(collection(cloud.db, "fleetPhotos"), { n: count(), bytes: sum("bytes") }),
   ]);
   return { total: all.data().n, sized: sized.data().n, sizedBytes: sized.data().bytes || 0,
-    tackleN: box.data().n, tackleBytes: box.data().bytes || 0, coverN: covers.data().n, coverBytes: covers.data().bytes || 0 };
+    tackleN: box.data().n, tackleBytes: (box.data().bytes || 0) + (boats.data().bytes || 0), coverN: covers.data().n, coverBytes: covers.data().bytes || 0 };
 }
 
 /* ---------- Comments, reactions and chat ---------- */
@@ -751,12 +788,12 @@ export function setSeat(tripId, boatOwner) {
     boatOwner ? { answer: "in", at: Date.now(), boat: boatOwner, seatAt: Date.now() } : { answer: "in", at: Date.now() }));
 }
 /* Offers your boat (spare seats, not counting you) and puts you In, on it; or takes it off (seats 0). */
-export function setBoat(tripId, seats, name = "") {
+export function setBoat(tripId, seats, name = "", boatId = null) {
   const { setDoc, deleteDoc, doc } = cloud.api;
   const ref = doc(cloud.db, "trips", tripId, "boats", uid());
   if (!seats) return write(deleteDoc(ref));
   const prev = (store.boats.get(tripId) || new Map()).get(uid());
-  write(setDoc(ref, { seats, name: String(name).trim().slice(0, 40), at: prev ? prev.at : Date.now() }));
+  write(setDoc(ref, { seats, name: String(name).trim().slice(0, 40), at: prev ? prev.at : Date.now(), boatId: boatId || null }));
   setSeat(tripId, null); // In, and not in anyone else's seat
 }
 /* Deletes a trip, its boats and everyone's answers in one go. */

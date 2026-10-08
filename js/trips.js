@@ -8,6 +8,7 @@ import { outingEnd, isBoatOuting, seating, outingRecap } from "./outings.js";
 import { isPersonalBest, recordKinds } from "./stats.js";
 import { biteTimes } from "./solunar.js";
 import { biteDay } from "./bitepage.js";
+import { myBoats } from "./fleet.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const ANSWERS = [["in", "In"], ["maybe", "Maybe"], ["out", "Out"]];
@@ -122,6 +123,7 @@ function boatsSection(t, past, me) {
   const mine = answersOf(t.id).get(me) || {};
   const imIn = mine.answer === "in", iOwn = boatsOf(t.id).has(me);
   const chip = u => el("a", { class: "person", href: `#/u/${u}` }, avatar(who(u), "xs"), el("span", { text: who(u).displayName }));
+  const saved = b => { const id = (boatsOf(t.id).get(b.owner) || {}).boatId; return id && store.fleet.get(id); };
   const boatCard = b => {
     const onIt = b.riders.includes(me), waiting = b.waitlist.includes(me), full = b.riders.length >= b.seats, owner = b.owner === me;
     let action = null;
@@ -132,7 +134,7 @@ function boatsSection(t, past, me) {
     }
     return el("div", { class: "boat-card" + (onIt || owner ? " mine" : "") },
       el("div", { class: "row spread" },
-        el("b", { text: `🚤 ${boatName(b)}` }),
+        saved(b) ? el("a", { href: `#/boat/${saved(b).id}` }, el("b", { text: `🚤 ${boatName(b)}` })) : el("b", { text: `🚤 ${boatName(b)}` }),
         el("span", { class: "muted small", text: `${b.riders.length} of ${b.seats} ${b.seats === 1 ? "seat" : "seats"} taken` })),
       el("div", { class: "people" }, el("span", { class: "muted small", text: "Captain" }), chip(b.owner)),
       b.riders.length ? el("div", { class: "people" }, ...b.riders.map(chip)) : el("p", { class: "muted small", text: "No riders yet." }),
@@ -160,10 +162,19 @@ function boatSheet(t, b) {
   openSheet(box => {
     const seats = el("input", { type: "text", inputmode: "numeric", value: b ? String(b.seats) : "3", "data-focus": "" });
     const name = el("input", { type: "text", maxlength: 40, value: b ? b.name : "", placeholder: `e.g. ${who(uid()).displayName}'s Lund` });
+    // One of your saved boats (its name fills in), so catches on the outing are counted for it.
+    const own = myBoats(uid(), store.fleet).filter(x => x.uid === uid());
+    const prevId = b ? (boatsOf(t.id).get(uid()) || {}).boatId || "" : "";
+    const pick = el("select", { "aria-label": "Saved boat" }, el("option", { value: "", text: "Not a saved boat" }),
+      ...own.map(x => el("option", { value: x.id, text: x.name })));
+    pick.value = prevId && own.some(x => x.id === prevId) ? prevId : own.length === 1 && !b ? own[0].id : "";
+    if (pick.value && !name.value) name.value = store.fleet.get(pick.value).name;
+    pick.addEventListener("change", () => { if (pick.value) name.value = store.fleet.get(pick.value).name; });
     const msg = el("p", { class: "msg" });
     const form = el("form", { class: "stack" },
       el("h2", { text: b ? "Change your boat" : "Bring your boat" }),
       field("Spare seats", seats, "How many others can come (not counting you). Seats go to whoever grabs them first."),
+      own.length ? field("Your boat", pick, "Catches made during the outing can be counted for it.") : null,
       field("Boat name (optional)", name),
       msg,
       el("div", { class: "row" },
@@ -173,7 +184,7 @@ function boatSheet(t, b) {
       e.preventDefault();
       const n = Math.round(Number(seats.value));
       if (!(n >= 1 && n <= 12)) { msg.className = "msg err"; msg.textContent = "Between 1 and 12 spare seats."; return; }
-      setBoat(t.id, n, name.value);
+      setBoat(t.id, n, name.value, pick.value || null);
       closeSheet(); toast(b ? "Boat updated." : "Boat added. You're In, as its captain.");
     });
     box.append(form);

@@ -85,7 +85,7 @@ function storageMeter() {
         el("p", {}, el("b", { text: `About ${fmtBytes(e.used)} of ${fmtBytes(FREE_BYTES)} used (${e.pct}%)` })),
         el("p", { text: e.catchesLeft ? `Room for about ${e.catchesLeft.toLocaleString()} more catches at about ${fmtBytes(e.perCatch)} each (photo included).` : "Full. New catches will be refused until space is freed." }),
         level !== "ok" ? el("p", { class: "msg err", text: "Getting full. Options: delete old test catches, or move to Firebase's Blaze plan (pennies a month at this size)." }) : null,
-        el("p", { class: "hint", text: `${photoTotals.total.toLocaleString()} catch photos${photoTotals.tackleN ? `, ${photoTotals.tackleN.toLocaleString()} tackle box photos (${fmtBytes(photoTotals.tackleBytes)})` : ""}${photoTotals.coverN ? `, ${photoTotals.coverN.toLocaleString()} profile covers (${fmtBytes(photoTotals.coverBytes)})` : ""}. Firebase's free plan holds 1 GB. This is an estimate; the exact figure is in the Firebase console under Firestore → Usage.` }));
+        el("p", { class: "hint", text: `${photoTotals.total.toLocaleString()} catch photos${photoTotals.tackleBytes ? `, tackle box and boat photos (${fmtBytes(photoTotals.tackleBytes)})` : ""}${photoTotals.coverN ? `, ${photoTotals.coverN.toLocaleString()} profile covers (${fmtBytes(photoTotals.coverBytes)})` : ""}. Firebase's free plan holds 1 GB. This is an estimate; the exact figure is in the Firebase console under Firestore → Usage.` }));
     }
     kids.push(el("button", { class: "btn small", type: "button", text: "Refresh", onclick: () => { photoTotals = null; draw(); load(); } }));
     fill(box, ...kids);

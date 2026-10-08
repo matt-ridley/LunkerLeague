@@ -17,6 +17,7 @@ import { estimatedWeight, estimateWeightOz } from "./estimate.js";
 import { skunkSheet } from "./statspage.js";
 import { weatherText, moonText } from "./weather.js";
 import { pickerItems, lastTackle } from "./tacklebox.js";
+import { myBoats, defaultBoat } from "./fleet.js";
 import { itemSheet, itemThumb } from "./tackleboxpage.js";
 import { TECHNIQUES, cleanLure, parseDepth, hasTackle, tackleText, lureSuggestions } from "./tackle.js";
 
@@ -294,6 +295,7 @@ export function renderCatch(main, id) {
         fact("Released", c.released ? "Yes" : "No"),
       ]),
       c.hasTackle ? fact("Tackle", tackleView(c, mine)) : null,
+      c.boatId ? fact("Boat", store.fleet.has(c.boatId) ? el("a", { href: `#/boat/${c.boatId}`, text: `🚤 ${store.fleet.get(c.boatId).name}` }) : "🚤 A boat that's been deleted") : null,
       c.notes ? fact("Notes", c.notes) : null,
       c.captain || c.netman ? fact("Boat crew", crewText(c)) : null,
       c.enteredBy ? fact("Entered by", `${memberName(c.enteredBy)} (organiser)`) : null,
@@ -629,6 +631,15 @@ export function renderLog(main, editId, derbyArg) {
     el("p", { class: "hint", text: "Shared tackle shows on the catch and in the league's what's-working stats. Secret tackle is only for you." }));
   tackleSection.hidden = tackleHidden;
 
+  // Boat: your boats and ones you crew on (a new catch starts with your outing boat or the last one you used).
+  const boatChoices = myBoats(uid(), store.fleet);
+  const startBoat = editing ? editing.boatId || "" : defaultBoat(uid(), { fleet: store.fleet, catches: [...store.catches.values()],
+    trips: store.trips, rsvps: store.rsvps, tripBoats: store.boats }) || "";
+  if (startBoat && store.fleet.has(startBoat) && !boatChoices.some(b => b.id === startBoat)) boatChoices.push(store.fleet.get(startBoat));
+  const boatSel = el("select", { "aria-label": "Boat" }, el("option", { value: "", text: "No boat (or not saved)" }),
+    ...boatChoices.map(b => el("option", { value: b.id, text: `🚤 ${b.name}${b.uid === uid() ? "" : ` (${memberName(b.uid)}'s)`}` })));
+  boatSel.value = startBoat && boatChoices.some(b => b.id === startBoat) ? startBoat : "";
+
   // Spot
   const spotName = el("input", { type: "text", maxlength: 60, autocapitalize: "words", placeholder: "e.g. North bay, by the reeds",
     value: editing ? editing.spotName || (oldSpot && oldSpot.name) || "" : "" });
@@ -745,7 +756,9 @@ export function renderLog(main, editId, derbyArg) {
       releasedRow,
       field("Notes (optional)", notes)),
     tackleSection,
-    el("section", { class: "card stack" }, el("h3", { text: "Where" }), spotBox),
+    el("section", { class: "card stack" }, el("h3", { text: "Where" }),
+      boatChoices.length ? field("Boat", boatSel) : el("p", { class: "hint" }, "Fishing from a boat? ", el("a", { href: "#/boats", text: "Add it" }), " and pick it here."),
+      spotBox),
     derbySection,
     msg,
     el("button", { class: "btn lime block big", type: "submit", text: editing ? "Save changes" : "Save catch" }),
@@ -779,6 +792,7 @@ export function renderLog(main, editId, derbyArg) {
       notes: notes.value.trim().slice(0, 500), released: !stringer && released.checked,
       hasSpot: !!st.spot, locShared: !!st.spot && st.share, spotName: st.spot && st.share ? spotName.value.trim().slice(0, 60) : "",
     };
+    data.boatId = boatSel.value || null;
     const t = { lure: cleanLure(lure.value), depthFt, technique: technique.value };
     if (st.itemId && boxItem(st.itemId) && t.lure) t.itemId = st.itemId;
     if (!tackleHidden) Object.assign(data, { hasTackle: hasTackle(t), tackleShared: hasTackle(t) && !tackleSecret.checked });
