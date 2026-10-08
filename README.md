@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.37.0 (beta)
+**Current version:** 0.38.0 (beta)
 
 ## Features
 
@@ -25,7 +25,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Reactions and comments.** React to any catch with 🎣 🔥 🐟 😂 👏 🤥 (fish story!) or any emoji from the picker, and see who reacted. Comment on catches; the comment's author, the catch's angler or an admin can remove one. Catch cards show the top reactions and the comment count.
 - **League chat.** One group chat for the league, with day separators, an emoji picker and an unread badge on the Chat tab. Tap your own message to delete it (admins can delete any).
 - **@mentions.** Type `@` in chat or a comment to pick someone from the league. Their name is highlighted, and they get an alert.
-- **What's new (the bell).** The bell at the top shows what's new for you since you last looked: mentions, comments and reactions on your catches, records taken from you, badges you earned, your derbies going live and finishing (with your place), new derbies and outings, answers to your outings, and a count of new catches. There are no phone notifications; you see these when you open the app. Tap **×** to clear one alert or **Clear all** to clear the list (with Undo); cleared alerts stay cleared on that phone.
+- **What's new (the bell).** The bell at the top shows what's new for you since you last looked: mentions, comments and reactions on your catches, records taken from you, badges you earned, your derbies going live and finishing (with your place), derby entries waiting for your approval (organisers) and your entries being approved, new derbies and outings, answers to your outings, and a count of new catches. There are no phone notifications; you see these when you open the app. Tap **×** to clear one alert or **Clear all** to clear the list (with Undo); cleared alerts stay cleared on that phone.
 - **League news in the feed.** The feed also announces records changing hands, badges earned and derby results.
 - **Outings.** "Who's out Saturday?" Plan one on **Events → Outings** (what, when, an optional "back by" time, where, notes, and whether it's a **boat** or **shore, fly or ice** outing), and everyone answers **In**, **Maybe** or **Out**. On a boat outing, anyone can say **I'm bringing a boat** with how many spare seats, and people who are In **grab a seat**: first come, first seated, with a waitlist when a boat is full and a "needs a seat" list when there aren't enough boats. Once it starts, the outing shows what the people who were In caught during it (fish, species, the biggest, photos, PBs and records), and when it's over the feed gets a one-line recap.
 - **Derbies.** Any member can set one up and is its organiser:
@@ -38,6 +38,9 @@ A private fishing league for a group of friends. Log personal bests with a photo
     - the photo proof needed (scale, measuring board or both)
     - spot required (shared), catch and release only
     - boat crew required (captain and net man, members or guests)
+  - **Fair play (optional):**
+    - a **photo code word** (a random fishy word and number, such as PIKE 47, or your own) that every entry photo has to show. Anglers see it on the derby page and when entering a catch, once the derby starts.
+    - **approve each entry**: entries wait for the organiser (or an admin) to approve them before they count on the board, in the money, for team and series points, and for rankings. The organiser sees what's waiting on the derby page, on the Entries tab and in the bell, and the angler hears when theirs is approved. Changing an approved fish, its photo or its time sends it back for approval.
   - **Prize:** a note for the prize or bragging rights.
 
   Members join, then enter catches. The live leaderboard follows the scoring, with ties going to whoever got there first, and a podium appears when the derby finishes. The organiser can disqualify an entry with a reason (and reinstate it). Each derby has its own chat. The security rules enforce:
@@ -77,11 +80,17 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 ✅ 16 crowns that move to whoever has the most of something, announced in the feed and the bell, and worth admin-set points while held. Built as planned, with these changes: the night crown is called **Night Stalker** (the Night Owl badge stays), **Explorer** counts spots shared with the league (private spots stay private), **Grinder** counts a stringer as one catch, and **Stringer Filler** (most limits) was added.
 
 ### Milestone B: Fair play and the bet
-- **Photo code word** (S): the derby shows a random word or number that must appear in each entry photo, the anti-cheating trick tournament apps use.
-- **Organiser approval queue** (S–M): entries show as pending until the organiser approves them.
-- **Bet tracker** (M): make a wager in the app ("biggest pike by Sunday, loser buys"). The app settles it from the catches and announces the winner in the chat.
-- **Head-to-head challenges** (S–M): one-on-one weekend matchups, biggest fish wins.
-- **Fish of the Week vote** (S): the league votes, and the winner gets a badge.
+- ✅ **Photo code word** (S): optional per derby. A random word and number that must show in each entry photo, the anti-cheating trick tournament apps use (done in 0.38.0).
+- ✅ **Organiser approval queue** (S–M): optional per derby. Entries wait until the organiser approves them (done in 0.38.0).
+- **Head-to-head challenges** (L), next up:
+  - **Challenging:** any angler challenges any other. The challenger picks how it's won (biggest fish by weight or by length, most fish, or the best total of the top N; more ways can come later), the species (one, a few or any), the start and end, and the stakes. The other angler accepts, declines, or **counters** with changed terms, back and forth until one of them accepts or declines. A challenge nobody has accepted by its start time expires.
+  - **Stakes:** bragging rights, money and league points, in any mix. Money is only written down (for example "loser buys lunch"); the app doesn't track paying it. Both anglers stake the same points, up to a maximum set by admins, and you can't stake more than you have (your points less what's already staked in your other open challenges). The loser's staked points go to the winner.
+  - **Points:** admins set points for taking part, earned by logging at least one fish during the challenge (skunked means none), and a bonus for the winner. A tie has no winner, so nobody gets the bonus and no staked points move.
+  - **Catches:** only catches made during the challenge count, and each needs a photo. For most fish, a stringer counts as its number of fish. Stringers have no size for each fish, so they don't count for biggest fish or top N. Challenges can overlap: one catch counts in every challenge you have running.
+  - **The league sees it all:** challenges sent, accepted, live and decided show in the feed and the bell.
+  - **Overturning a result:** the league owner can veto a result at any time, and any staked points go back.
+  - **Extras:** a head-to-head win/loss record on profiles, a **Rematch** button, a crown for most head-to-head wins, and head-to-head badges.
+- **Bet tracker** (M), last in this milestone: make a wager in the app ("biggest pike by Sunday, loser buys"). The app settles it from the catches and announces the winner. To brainstorm first: what bets can be about, who can see and join them, and how they differ from head-to-head challenges.
 
 ### Milestone C: Notifications and social (done in 0.12.0, except as noted)
 - ✅ **In-app alerts (the bell)** instead of push notifications. Push would need the Firebase Blaze plan (a card on file) or a separate server, so the league stays on the free plan with alerts you see when you open the app.
@@ -115,7 +124,12 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 - **Personal goals** (S): for example "10 species this year", with progress bars.
 - **Profile flair** (S): a cover photo, favourite species and lucky lure.
 
+### Possible ideas
+Not planned yet, but worth keeping in mind.
+- **Fish of the Week vote** (S): the league votes, and the winner gets a badge.
+
 ### Backlog
+- **Head-to-head disputes** (S–M): let league members dispute a head-to-head result (beyond the owner's veto). To be worked out once challenges are built and the league has used them: who can dispute (including the two anglers themselves), what happens next (a vote, or the owner decides), and any time limit.
 - **Accepted measurements per species** (S–M): set whether a species counts by weight, by length, or both (some fish are only weighed, some only measured). Until then, record points count on both the weight and length boards of every species.
 
 ## Installing on a phone
@@ -235,6 +249,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.38.0 | 2026-Oct-07 08:51:49 PM | **Derby fair play**, both optional when setting up a derby. **Photo code word:** a random word and number (or your own) that every entry photo has to show, on a card on the derby page and in the entry rules once the derby starts (the organiser sees it early). **Approve each entry:** entries wait for the organiser (or an admin) to approve them before they count on the board, in the money, for teams, series and rankings. Waiting entries are marked in the feed, on the catch and on the Entries tab (listed first, with **Approve**). The organiser's card and bell show what's waiting, and the angler hears when an entry is approved. Changing an approved fish, its photo or its time sends it back for approval. Editing a catch without changing its time no longer changes the saved time. Roadmap: Milestone B now has the head-to-head challenge plan, Fish of the Week moved to a new **Possible ideas** section, and head-to-head disputes are in the backlog. **New security rules: publish firestore.rules.** |
 | 0.37.0 | 2026-Oct-06 09:40:05 AM | **Feed filter: current catches.** Filters → Show has a new **Current catches (no past ones)** option: league catches only, leaving out past catches (throwbacks) and news. |
 | 0.36.0 | 2026-Oct-05 11:37:30 PM | **Outings** (trips, reworked): the Events page has **Derbies** (with season series) and **Outings** tabs. An outing is a **boat** or **shore, fly or ice** outing with an optional "back by" time. On boat outings, anglers bring boats (spare seats, not counting the owner) and grab seats first come, first seated, with a waitlist when a boat is full and a "needs a seat" list. Once it starts, the outing shows what the people who were In caught during it, and when it's over the feed gets a one-line recap. **New security rules: publish firestore.rules.** |
 | 0.35.1 | 2026-Oct-05 11:13:54 PM | **Fix:** team name boxes on the derby form are full width again (they were squeezed to a few letters), and the Teams hint no longer says scores are always added up, since the Team score setting decides. |

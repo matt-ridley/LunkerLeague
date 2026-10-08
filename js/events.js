@@ -5,7 +5,7 @@
    Pure functions on plain data. `name(uid)` turns a user id into a display name. */
 import { measured, fishIn } from "./stats.js";
 import { badgeTimeline } from "./rank.js";
-import { derbyStatus, closesAt, standings } from "./derby.js";
+import { derbyStatus, closesAt, standings, awaitingApproval } from "./derby.js";
 import { crownSteals } from "./crowns.js";
 import { seriesStatus, seriesStandings, seriesFinalAt } from "./series.js";
 import { outingEnd, outingRecap } from "./outings.js";
@@ -187,6 +187,13 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     const ent = entrants.get(d.id) || new Map(), joined = ent.has(me);
     if (d.organiserUid !== me && d.createdAt) {
       add({ id: `dnew:${d.id}`, at: d.createdAt, icon: "📣", href: `#/d/${d.id}`, text: `${name(d.organiserUid)} set up a derby: ${d.name}` });
+    }
+    // Approval: entries waiting for the organiser, and your entries they approved.
+    if (d.approval) for (const c of catches) if (c.derbyId === d.id) {
+      if (d.organiserUid === me && awaitingApproval(c, d)) add({ id: `approve:${c.id}`, at: c.createdAt || c.caughtAt, icon: "⏳", href: `#/c/${c.id}`,
+        text: `${name(c.uid)} entered a ${catchName(c)} in ${d.name}. Approve it?` });
+      else if (c.uid === me && d.organiserUid !== me && c.approved && !c.dq && c.approvedAt) add({ id: `approved:${c.id}:${c.approvedAt}`, at: c.approvedAt, icon: "✅",
+        href: `#/c/${c.id}`, text: `Your ${catchName(c)} in ${d.name} was approved` });
     }
     if (!joined) continue;
     if (now >= d.start) add({ id: `dlive:${d.id}`, at: d.start, icon: "🏁", href: `#/d/${d.id}`, text: `${d.name} is live. Go get 'em!` });

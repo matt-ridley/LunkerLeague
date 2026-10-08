@@ -277,3 +277,38 @@ test("team scoring is either added up or as one boat", async () => {
   await assertSucceeds(setDoc(doc(db, "derbies/d9"), derbyData("member", { teamScoring: "boat" })));
   await assertFails(setDoc(doc(db, "derbies/d8"), derbyData("member", { teamScoring: "best" })));
 });
+
+test("fair play settings: a short photo code word and an approval switch", async () => {
+  const db = as(env, "member");
+  await assertSucceeds(setDoc(doc(db, "derbies/f1"), derbyData("member", { codeWord: "PIKE 47", approval: true })));
+  await assertSucceeds(setDoc(doc(db, "derbies/f2"), derbyData("member", { codeWord: "", approval: false })));
+  await assertFails(setDoc(doc(db, "derbies/f3"), derbyData("member", { codeWord: "X".repeat(21) })));
+  await assertFails(setDoc(doc(db, "derbies/f4"), derbyData("member", { codeWord: 47 })));
+  await assertFails(setDoc(doc(db, "derbies/f5"), derbyData("member", { approval: "yes" })));
+});
+
+test("approval: only the organiser (or an admin) approves; changing an approved fish takes the approval away", async () => {
+  await seedDerby({ approval: true }, ["member", "admin2"]);             // admin2 organises
+  const me = as(env, "member"), org = as(env, "admin2");
+  await assertFails(putCatch(me, "a0", entry("member", { approved: true, approvedAt: Date.now() })));  // can't approve your own
+  await assertSucceeds(putCatch(me, "a1", entry("member")));
+  await assertFails(updateDoc(doc(me, "catches/a1"), { approved: true, approvedAt: Date.now() }));
+  await assertFails(updateDoc(doc(org, "catches/a1"), { approved: true, approvedAt: Date.now(), weightOz: 200 })); // nothing else
+  await assertFails(updateDoc(doc(org, "catches/a1"), { approved: "yes" }));
+  await assertSucceeds(updateDoc(doc(org, "catches/a1"), { approved: true, approvedAt: Date.now() }));
+  // The angler can still fix the notes or crew without losing the approval...
+  await assertSucceeds(updateDoc(doc(me, "catches/a1"), { notes: "Caught on a jig" }));
+  await assertFails(updateDoc(doc(me, "catches/a1"), { approvedAt: Date.now() + 1 }));
+  // ...but a new weight, photo, time or species needs approving again.
+  await assertFails(updateDoc(doc(me, "catches/a1"), { weightOz: 120 }));
+  await assertFails(updateDoc(doc(me, "catches/a1"), { thumb: THUMB + "B" }));
+  await assertFails(updateDoc(doc(me, "catches/a1"), { caughtAt: Date.now() - 2 * H + 60000 }));
+  await assertSucceeds(updateDoc(doc(me, "catches/a1"), { weightOz: 120, approved: false }));
+  await assertFails(updateDoc(doc(me, "catches/a1"), { approved: true }));
+  // An admin who isn't the organiser can approve too.
+  await assertSucceeds(updateDoc(doc(as(env, "owner"), "catches/a1"), { approved: true, approvedAt: Date.now() }));
+  // The organiser's own saves are approved: their own entry, and one they enter for an angler.
+  await assertSucceeds(putCatch(org, "a2", entry("admin2", { approved: true, approvedAt: Date.now() })));
+  await assertSucceeds(putCatch(org, "a3", entry("member", { enteredBy: "admin2", approved: true, approvedAt: Date.now() })));
+  await assertSucceeds(updateDoc(doc(org, "catches/a3"), { weightOz: 95 }));
+});

@@ -1,7 +1,7 @@
 // Unit tests for derby status, entry rules and standings. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, derbyStatus, entryProblem, derbyEntries, standings, closesAt, nextDates, mysteryBoard, categoryBoards, derbySpecies, teamBoard } from "../js/derby.js";
+import { DEFAULTS, derbyStatus, entryProblem, derbyEntries, standings, closesAt, nextDates, mysteryBoard, categoryBoards, derbySpecies, teamBoard, awaitingApproval, randomCodeWord, cleanCodeWord } from "../js/derby.js";
 
 const H = 3600 * 1000;
 const derby = (extra = {}) => ({ ...DEFAULTS, id: "d1", name: "Test", start: 10 * H, end: 20 * H, ...extra });
@@ -153,4 +153,35 @@ test("team derbies scored as one boat: a bag is the boat's best fish together, w
   const long = teamBoard(derby({ scoring: "longest", teams, teamScoring: "boat" }),
     [fish("ann", "Pike", null, 30, 12), fish("cy", "Pike", null, 34, 12), fish("bo", "Pike", null, 32, 12)], ent);
   assert.deepEqual(long.map(t => [t.team.id, t.score]), [["red", 34], ["blue", 32]]);
+});
+
+test("approval: entries wait for the organiser before they count, then count like any other", () => {
+  const d = derby({ approval: true });
+  const a = fish("a", "Walleye", 40, 18, 12), b = fish("b", "Walleye", 50, 18, 13, { approved: true });
+  assert.equal(awaitingApproval(a, d), true);
+  assert.equal(awaitingApproval(b, d), false);
+  assert.match(entryProblem(a, d), /approval/);
+  assert.equal(entryProblem(b, d), "");
+  assert.deepEqual(standings(d, [a, b], null).map(r => r.uid), ["b"]);
+  // A disqualified entry isn't waiting; it's out.
+  assert.equal(awaitingApproval({ ...a, dq: true }, d), false);
+  assert.match(entryProblem({ ...a, dq: true }, d), /Disqualified/);
+  // Approval off: everything counts, approved or not.
+  assert.equal(awaitingApproval(a, derby()), false);
+  assert.deepEqual(standings(derby(), [a, b], null).map(r => r.uid), ["b", "a"]);
+});
+
+test("approval: a waiting entry doesn't use up one of the angler's entries", () => {
+  const d = derby({ approval: true, maxEntries: 1 });
+  const first = fish("a", "Walleye", 40, 18, 11), second = fish("a", "Walleye", 60, 18, 12, { approved: true });
+  const rows = derbyEntries(d, [first, second], null);
+  assert.match(rows[0].problem, /approval/);
+  assert.equal(rows[1].problem, "");
+});
+
+test("code words: a fishy word and a two-digit number, cleaned to capitals", () => {
+  assert.match(randomCodeWord(), /^[A-Z]+ \d\d$/);
+  assert.equal(randomCodeWord(() => 0), "PIKE 10");
+  assert.equal(cleanCodeWord("  big   bass 7 "), "BIG BASS 7");
+  assert.equal(cleanCodeWord("x".repeat(30)).length, 20);
 });

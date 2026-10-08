@@ -1,10 +1,10 @@
 /* Derbies: the list, a derby's page (leaderboard, rules, entries, anglers) and the create/edit form. */
 import { el, field, avatar, fill, fmtDate, fmtDay, fmtWeight, fmtLength, toast, icon, openSheet, closeSheet, confirmButton, copyText } from "./ui.js";
 import { store, uid, isAdmin, isOwner, memberName, endDerbyNow, deleteDerby, saveDerby, setDerbyCancelled, joinDerby, leaveDerby, setDisqualified,
-  setPaid, setSettled, watchSettlements, watchMystery, setMystery, subscribe, setTeam } from "./cloud.js";
+  setPaid, setSettled, watchSettlements, watchMystery, setMystery, subscribe, setTeam, setApproved } from "./cloud.js";
 import { derbyMoney, hasMoney, fmtMoney, ordinal, roundAmt, PAYOUT_PRESETS } from "./payout.js";
 import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEntries, standings, nextDates, mysteryBoard,
-  categoryBoards, categoriesOf, derbySpecies, teamBoard } from "./derby.js";
+  categoryBoards, categoriesOf, derbySpecies, teamBoard, awaitingApproval, randomCodeWord, cleanCodeWord } from "./derby.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { tripsSection } from "./trips.js";
 import { seriesSection } from "./seriespage.js";
@@ -81,6 +81,8 @@ function derbyCard(d) {
       el("span", { text: categoriesOf(d) ? `🏁 ${categoriesOf(d).length} categories` : `🏁 ${(SCORING[d.scoring] || {}).label || ""}${d.scoring === "bag" ? ` (${d.bagSize})` : ""}` }),
       el("span", { text: `👥 ${ent.size}` }),
       d.mystery ? el("span", { text: "🎯 Mystery weight" }) : null,
+      d.codeWord ? el("span", { text: "🔤 Code word" }) : null,
+      d.approval ? el("span", { text: "✅ Approved entries" }) : null,
       teamsOf(d) ? el("span", { text: `👥 ${teamsOf(d).length} teams` }) : null,
       ent.has(uid()) ? el("span", { class: "badge pb", text: "You're in" }) : null),
     top ? el("div", { class: "derby-leader" }, el("span", { text: st === "ended" ? "🏆 Winner" : "👑 Leading" }), avatar(who(top.uid), "xs"),
@@ -98,6 +100,7 @@ export function renderDerby(main, id) {
   const all = catches();
   const boards = categoryBoards(d, all, ent);
   const entries = derbyEntries(d, all, ent);
+  const waiting = d.approval ? entries.filter(e => awaitingApproval(e, d)).length : 0;
   const open = st === "active" || st === "closing";
   const canEnter = joined && open;
   const organiserHere = d.organiserUid === uid(); // the person who created it
@@ -111,6 +114,14 @@ export function renderDerby(main, id) {
     d.prizeNote ? el("p", { class: "prize", text: `🏆 ${d.prizeNote}` }) : null,
     store.series.get(d.seriesId) ? el("a", { class: "series-link", href: `#/s/${d.seriesId}`, text: `🏆 Counts toward ${store.series.get(d.seriesId).name}` }) : null,
     el("p", { class: "small", text: `Organised by ${who(d.organiserUid).displayName} · ${ent.size} ${ent.size === 1 ? "angler" : "anglers"}` }));
+
+  // The photo code word: shown once the derby starts (the organiser sees it early, to check it).
+  const codeCard = d.codeWord && st !== "cancelled" ? el("section", { class: "card code-card" },
+    st === "upcoming" && !isOrganiser(d)
+      ? el("p", { text: "🔤 This derby has a photo code word. It shows up here when the derby starts." })
+      : [el("div", { class: "code-label", text: "🔤 Photo code word" + (st === "upcoming" ? " (only you see it until the derby starts)" : "") }),
+        el("div", { class: "code-word big", text: d.codeWord }),
+        el("p", { class: "hint", text: "Every entry photo has to show it: write it on paper, your hand or the cooler lid." })]) : null;
 
   const actions = el("div", { class: "row" },
     canEnter ? el("a", { class: "btn lime", href: `#/enter/${id}`, html: icon.plus }, "Enter a catch") : null,
@@ -151,13 +162,16 @@ export function renderDerby(main, id) {
         onclick: () => { boardPick.set(id, i); renderDerby(main, id); } }))) : null;
     const won = money ? (money.parts.length ? new Map((money.parts[at] || { places: [] }).places.map(p => [p.uid, roundAmt(p.net, d.roundTo || 0)])) : null) : null;
     body = el("div", { class: "stack" }, d.mystery ? mysteryCard(d, entries, st) : null, pick,
+      waiting ? el("p", { class: "entry-wait", text: `⏳ ${waiting} ${waiting === 1 ? "entry is" : "entries are"} waiting for the organiser's approval. ${waiting === 1 ? "It goes" : "They go"} on the board once approved.` }) : null,
       onTeams ? teamsView(d, boards[0].d, all, ent, st)
-        : [b.cat ? el("p", { class: "muted small", text: categoryText(b.cat) }) : null, boardView(b.d, b.rows, st, money, won)]);
+        : [b.cat ? el("p", { class: "muted small", text: categoryText(b.cat) }) : null, waiting && !b.rows.length ? null : boardView(b.d, b.rows, st, money, won)]);
   }
 
   const canDelete = isOwner() || (organiserHere && d.testing);
   const organiser = isOrganiser(d) ? el("section", { class: "card stack" },
     el("h3", { text: "Organiser" }),
+    waiting ? el("div", { class: "row spread approve-line" }, el("span", { text: `⏳ ${waiting} ${waiting === 1 ? "entry needs" : "entries need"} your approval` }),
+      el("button", { class: "btn small lime", type: "button", text: "Review", onclick: () => { derbyTab = "entries"; renderDerby(main, id); } })) : null,
     el("div", { class: "row" },
       el("a", { class: "btn", href: `#/dedit/${id}`, text: "Edit derby" }),
       st === "active" ? confirmButton("End derby now", "Tap again to end it", () => { endDerbyNow(id); toast("Derby ended. Late entries can still arrive."); }, "btn") : null),
@@ -168,14 +182,14 @@ export function renderDerby(main, id) {
       canDelete ? el("button", { class: "btn danger", type: "button", text: "Delete derby", onclick: () => deleteSheet(d) }) : null),
     el("p", { class: "hint", text: st === "ended"
       ? "This derby has finished. Editing it now (for example its times) can change the results, so only fix real mistakes."
-      : "You can disqualify entries on the Entries tab." + (canDelete ? "" : " Only test derbies can be deleted (or any derby, by the league owner), so real results stay in the league's history.") })) : null;
+      : (d.approval ? "Approve or disqualify entries on the Entries tab." : "You can disqualify entries on the Entries tab.") + (canDelete ? "" : " Only test derbies can be deleted (or any derby, by the league owner), so real results stay in the league's history.") })) : null;
 
   const leave = joined && st !== "ended" && st !== "cancelled"
     ? confirmButton("Leave this derby", "Tap again to leave", () => { leaveDerby(id); toast("You left the derby."); }, "btn quiet block") : null;
 
   // Anyone can start a new derby from this one's settings.
   const copy = el("a", { class: "btn quiet block", href: `#/dcopy/${id}`, text: "📋 Copy this derby" });
-  fill(main, head, actions, teamLine, tabs, body, organiser, copy, leave);
+  fill(main, head, codeCard, actions, teamLine, tabs, body, organiser, copy, leave);
 }
 
 function deleteSheet(d) {
@@ -307,17 +321,21 @@ function podium(d, rows) {
 function entriesView(d, entries) {
   if (!entries.length) return el("p", { class: "muted", text: "No entries yet." });
   const org = isOrganiser(d);
-  return el("ul", { class: "entry-list" }, ...[...entries].reverse().map(e => el("li", { class: "entry" + (e.problem ? " out" : "") },
+  // Waiting for approval first (oldest first, so they're checked in order), then the rest, newest first.
+  const waiting = entries.filter(e => awaitingApproval(e, d)), rest = entries.filter(e => !awaitingApproval(e, d)).reverse();
+  return el("ul", { class: "entry-list" }, ...[...waiting, ...rest].map(e => el("li", { class: "entry" + (awaitingApproval(e, d) ? " waiting" : e.problem ? " out" : "") },
     el("a", { href: `#/c/${e.id}` }, el("img", { class: "thumb sm", src: e.thumb, alt: "", loading: "lazy" })),
     el("div", { class: "grow" },
       el("div", {}, el("b", { text: who(e.uid).displayName }), el("span", { class: "muted small", text: ` · ${fmtDate(e.caughtAt)}` })),
       el("div", { text: `${e.species} · ${[fmtWeight(e.weightOz), fmtLength(e.lengthIn)].filter(Boolean).join(" · ")}` }),
       e.captain || e.netman ? el("div", { class: "muted small", text: crewText(e) }) : null,
-      e.problem ? el("div", { class: "entry-problem", text: e.problem }) : null,
+      e.problem ? el("div", { class: awaitingApproval(e, d) ? "entry-wait" : "entry-problem", text: awaitingApproval(e, d) ? "⏳ Waiting for approval" : e.problem }) : null,
       store.pending.has(e.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null),
-    org ? (e.dq
-      ? el("button", { class: "btn small", type: "button", text: "Reinstate", onclick: () => setDisqualified(e.id, false) })
-      : el("button", { class: "btn small danger", type: "button", text: "DQ", onclick: () => dqSheet(e) })) : null)));
+    org ? el("div", { class: "entry-actions" },
+      awaitingApproval(e, d) ? el("button", { class: "btn small lime", type: "button", text: "✓ Approve", onclick: () => setApproved(e.id, true) }) : null,
+      e.dq
+        ? el("button", { class: "btn small", type: "button", text: "Reinstate", onclick: () => setDisqualified(e.id, false) })
+        : el("button", { class: "btn small danger", type: "button", text: "DQ", onclick: () => dqSheet(e) })) : null)));
 }
 
 export function crewText(c) {
@@ -353,6 +371,9 @@ function rulesView(d) {
     d.minLengthIn ? rule("Minimum length", fmtLength(d.minLengthIn)) : null,
     rule("Entries per angler", d.maxEntries ? `Up to ${d.maxEntries}` : "No limit"),
     rule("Photo proof", PROOF[d.proof]),
+    d.codeWord ? rule("Code word", derbyStatus(d) === "upcoming" && !isOrganiser(d) ? "Every entry photo must show the code word, shown when the derby starts"
+      : `Every entry photo must show ${d.codeWord}`) : null,
+    d.approval ? rule("Approval", "The organiser checks each entry. It only counts once it's approved") : null,
     rule("Spot", d.requireLocation ? "GPS spot required and shared with the league" : "Optional"),
     rule("Release", d.catchRelease ? "Catch and release only" : "Keep or release"),
     rule("Boat crew", d.requireCrew ? "Captain and net man must be named on every entry" : "Optional"),
@@ -526,6 +547,16 @@ export function renderDerbyForm(main, id, copyId) {
     canSetTesting ? "For trying things out. You can delete a test derby (and its entries) when you're done. Can't be changed later." : null);
   testing.disabled = !canSetTesting;
   const prize = el("input", { type: "text", maxlength: 300, value: d.prizeNote, placeholder: "e.g. Loser buys breakfast" });
+  // Fair play: a photo code word (a copied derby gets a new one) and approving entries.
+  const [codeOn, codeRow, codeHint] = check("🔤 Photo code word", !!d.codeWord,
+    "Every entry photo has to show this word, so nobody can enter a fish from another day. Anglers see it when the derby starts.");
+  const code = el("input", { type: "text", maxlength: 20, autocapitalize: "characters", value: d.codeWord && !source ? d.codeWord : randomCodeWord(), "aria-label": "Code word" });
+  const codeBox = el("div", { class: "unit-row code-row" }, code,
+    el("button", { class: "btn small", type: "button", text: "🎲 New word", onclick: () => { code.value = randomCodeWord(); } }));
+  const syncCode = () => { codeBox.hidden = !codeOn.checked; };
+  codeOn.addEventListener("change", syncCode); syncCode();
+  const [approval, approvalRow, approvalHint] = check("✅ Approve each entry", !!d.approval,
+    "Entries wait for you (or an admin) to approve them before they count on the board, in the money and for points. Changing an approved fish, its photo or time needs approving again.");
   // Mystery weight: kept apart from the derby so only the organiser can see it, and locked once the derby starts.
   const mysteryLocked = !!(editing && editing.mystery && Date.now() >= editing.start);
   const [myst, mystRow] = check("🎯 Mystery weight prize", !!d.mystery);
@@ -682,6 +713,7 @@ export function renderDerbyForm(main, id, copyId) {
       field("Photo proof", proof),
       reqLocRow, reqLocHint, crRow, crewRow, crewHint,
       field("Late entries", grace, "Lets catches made during the derby sync afterwards, for anglers who had no signal on the water.")),
+    el("section", { class: "card stack" }, el("h3", { text: "🛡️ Fair play" }), codeRow, codeHint, codeBox, approvalRow, approvalHint),
     el("section", { class: "card stack" }, testingRow, testingHint,
       editing && !canSetTesting ? el("p", { class: "hint", text: d.testing ? "This is a test derby." : "This is a real derby." }) : null),
     el("section", { class: "card stack" }, el("h3", { text: "💵 Entry fee and prizes" }),
@@ -714,6 +746,7 @@ export function renderDerbyForm(main, id, copyId) {
       if (hasPot() && Math.round(cats.reduce((n, c) => n + (c.pct || 0), 0) + mysteryShare) !== 100) return fail("The categories' shares of the pot (and the mystery weight's) have to add up to 100%.");
     } else if (hasPot() && Math.round(pcts.reduce((a, b) => a + b, 0)) !== 100) return fail("The payout split has to add up to 100%.");
     if (num(capPct.value) + num(netPct.value) > 50) return fail("Crew cuts can't add up to more than 50%.");
+    if (codeOn.checked && !cleanCodeWord(code.value)) return fail("Type a code word, or tap New word.");
     const mysteryOz = Math.round((num(mLb.value) * 16 + num(mOz.value)) * 10) / 10;
     if (myst.checked && !mysteryLocked && !(mysteryOz > 0) && !mysteryNow) return fail("Set the secret weight for the mystery prize.");
     if (myst.checked && !mysteryLocked && s <= Date.now() && !(editing && editing.mystery)) return fail("A mystery weight has to be set before the derby starts.");
@@ -730,6 +763,7 @@ export function renderDerbyForm(main, id, copyId) {
       unpaidCanWin: unpaidWin.checked, captainPct: Math.min(50, Math.max(0, num(capPct.value))), netmanPct: Math.min(50, Math.max(0, num(netPct.value))),
       roundTo: +roundTo.value, sidePotFee: Math.max(0, num(side.value)),
       mystery: mysteryLocked ? true : myst.checked, mysteryNote: mNote.value.trim().slice(0, 100),
+      codeWord: codeOn.checked ? cleanCodeWord(code.value) : "", approval: approval.checked,
       categories: [], mysteryPct: mysteryShare, seriesId: seriesSel.value, teamScoring: teamOn.checked ? teamScoring.value : "sum",
       // Teams keep their ids (anglers' picks point at them); new ones get the next free one.
       teams: teamOn.checked ? (() => { const used = new Set(teams.map(t => t.id).filter(Boolean)); let n = 1;

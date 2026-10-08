@@ -74,8 +74,10 @@ service cloud.firestore {
     function validCatch(d) {
       return d.keys().hasOnly(["uid", "species", "weightOz", "lengthIn", "caughtAt", "createdAt", "thumb", "photoTakenAt",
                                "notes", "released", "hasSpot", "locShared", "spotName",
-                               "derbyId", "captain", "netman", "dq", "dqReason", "enteredBy", "fishCount", "limit", "past"])
+                               "derbyId", "captain", "netman", "dq", "dqReason", "enteredBy", "fishCount", "limit", "past",
+                               "approved", "approvedAt"])
         && (!("past" in d) || d.past is bool)
+        && d.get("approved", false) is bool && (d.get("approvedAt", null) == null || d.approvedAt is number)
         && d.uid is string
         && d.species is string && d.species.size() > 0 && d.species.size() <= 40
         && optNum(d, "weightOz", 16000) && optNum(d, "lengthIn", 200)
@@ -147,11 +149,21 @@ service cloud.firestore {
         || (d.get("enteredBy", null) == me() && d.uid != me() && isOrganiserOf(d) && exists(memberPath(d.uid)));
     }
     function sameDq(a, b) { return a.get("dq", false) == b.get("dq", false) && a.get("dqReason", "") == b.get("dqReason", ""); }
+    // Derbies with approval on: an entry counts once the organiser approves it. Only the organiser (or an admin) can
+    // approve, so an angler's own save is never approved, except one the organiser makes (their own entry or one they
+    // entered for an angler). Changing what was approved (the fish, the photo, the time, the derby) takes the approval away.
+    function proofChanged() { return changed().hasAny(["species", "weightOz", "lengthIn", "caughtAt", "thumb", "photoTakenAt", "derbyId", "fishCount"]); }
+    function approvalOk(d, old) {
+      return d.get("approved", false) == false
+        || isOrganiserOf(d)
+        || (old != null && old.get("approved", false) == true && d.get("approvedAt", null) == old.get("approvedAt", null) && !proofChanged());
+    }
     match /catches/{id} {
       allow read: if isMember();
       // Weight and length are optional, but every catch needs its photo as proof (saved in the same batch).
       allow create: if isMember() && validCatch(request.resource.data) && writesFor(request.resource.data)
         && pastOk(request.resource.data, false)
+        && approvalOk(request.resource.data, null)
         && existsAfter(/databases/$(database)/documents/photos/$(id))
         && request.resource.data.get("dq", false) == false
         && !request.resource.data.keys().hasAny(["dqReason"]);
@@ -166,13 +178,16 @@ service cloud.firestore {
           && request.resource.data.get("enteredBy", null) == resource.data.get("enteredBy", null)
           && request.resource.data.createdAt == resource.data.createdAt
           && sameDq(request.resource.data, resource.data)
+          && approvalOk(request.resource.data, resource.data)
           && (resource.data.get("derbyId", null) == null || !exists(derbyPath(resource.data.derbyId))
               || derbyOpen(get(derbyPath(resource.data.derbyId)).data)))
-        // The derby's organiser (or an admin) can disqualify or reinstate an entry, and change nothing else.
+        // The derby's organiser (or an admin) can disqualify, reinstate or approve an entry, and change nothing else.
         || (isMember() && resource.data.get("derbyId", null) != null
             && (get(derbyPath(resource.data.derbyId)).data.organiserUid == me() || isAdmin())
-            && changed().hasOnly(["dq", "dqReason"])
-            && request.resource.data.dq is bool
+            && changed().hasOnly(["dq", "dqReason", "approved", "approvedAt"])
+            && request.resource.data.get("approved", false) is bool
+            && (request.resource.data.get("approvedAt", null) == null || request.resource.data.approvedAt is number)
+            && request.resource.data.get("dq", false) is bool
             && request.resource.data.get("dqReason", "") is string && request.resource.data.get("dqReason", "").size() <= 200);
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin()
         || resource.data.get("enteredBy", null) == me() || testingOrganiserOf(resource.data));
@@ -256,7 +271,8 @@ service cloud.firestore {
                                "bagSize", "minWeightOz", "minLengthIn", "maxEntries", "proof", "requireLocation", "catchRelease",
                                "requireCrew", "prizeNote", "cancelled", "createdAt",
                                "entryFee", "addedMoney", "payoutPcts", "unpaidCanWin", "captainPct", "netmanPct", "roundTo", "sidePotFee",
-                               "testing", "mystery", "mysteryNote", "categories", "mysteryPct", "teams", "teamScoring", "seriesId"])
+                               "testing", "mystery", "mysteryNote", "categories", "mysteryPct", "teams", "teamScoring", "seriesId",
+                               "codeWord", "approval"])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.description is string && d.description.size() <= 500
         && d.start is number && d.end is number && d.end > d.start
@@ -280,6 +296,9 @@ service cloud.firestore {
         && d.get("teamScoring", "sum") in ["sum", "boat"]
         // The season series it counts toward ("" for none).
         && d.get("seriesId", "") is string && d.get("seriesId", "").size() <= 40
+        // Fair play: a photo code word ("" for none) and whether entries need the organiser's approval.
+        && d.get("codeWord", "") is string && d.get("codeWord", "").size() <= 20
+        && d.get("approval", false) is bool
         && validMoney(d);
     }
     // Entry fees and payouts (the app only keeps track; nobody pays through it). Older derbies have none of these.

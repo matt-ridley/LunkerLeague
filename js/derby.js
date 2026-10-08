@@ -19,10 +19,22 @@ export const DEFAULTS = {
   name: "", description: "", start: 0, end: 0, syncGraceHours: 24, species: [], scoring: "heaviest", bagSize: 5,
   minWeightOz: 0, minLengthIn: 0, maxEntries: 0, proof: "any", requireLocation: false, catchRelease: false,
   requireCrew: false, prizeNote: "", cancelled: false, mystery: false, mysteryNote: "", categories: [], mysteryPct: 0, teams: [], teamScoring: "sum", seriesId: "",
+  codeWord: "", approval: false,
   testing: false, entryFee: 0, addedMoney: 0, payoutPcts: [100], unpaidCanWin: false, captainPct: 0, netmanPct: 0, roundTo: 1, sidePotFee: 0,
 };
 
 const HOUR = 3600 * 1000;
+
+/* Fair play. A code word the angler shows in each entry photo (written on paper or a hand), so a photo can't be from
+   another day. Shown once the derby starts. A random fishy word and a number, e.g. "PIKE 47". */
+const CODE_WORDS = ["PIKE", "BASS", "PERCH", "WALLEYE", "MUSKY", "TROUT", "CRAPPIE", "CARP", "CATFISH", "SUNFISH", "JIG", "SPOON",
+  "CRANK", "BOBBER", "SINKER", "LURE", "MINNOW", "LEECH", "NET", "REEL", "HOOK", "TACKLE", "LUNKER", "HAWG", "BUCKET", "DOCK"];
+export function randomCodeWord(rand = Math.random) {
+  return `${CODE_WORDS[Math.floor(rand() * CODE_WORDS.length)]} ${10 + Math.floor(rand() * 90)}`;
+}
+export const cleanCodeWord = s => String(s || "").toUpperCase().replace(/\s+/g, " ").trim().slice(0, 20);
+/* An entry waiting for the organiser's OK (derbies with approval on). Disqualified entries aren't waiting. */
+export const awaitingApproval = (c, d) => !!(d && d.approval && !c.dq && !c.approved);
 export const closesAt = d => d.end + (d.syncGraceHours || 0) * HOUR;
 
 /* Where a copied derby goes: the same weekday, time of day and length, moved on a whole number of weeks (at least
@@ -62,6 +74,7 @@ export function derbySpecies(d) {
    because derby settings can change after a catch was entered. */
 export function entryProblem(c, d) {
   if (c.dq) return `Disqualified${c.dqReason ? ": " + c.dqReason : ""}`;
+  if (awaitingApproval(c, d)) return "Waiting for the organiser's approval";
   if (c.fishCount != null) return "Stringers can't be entered in a derby";
   // The saved flag (logged too late): catches from before a later league start keep their derby results.
   if (c.pastStored ?? c.past) return "Past catches can't be entered in a derby";
