@@ -43,6 +43,7 @@ const ROUTES = {
   h: { tab: "derbies", live: true, render: renderChallenge },
   hnew: { tab: "derbies", live: false, render: (main, who) => renderChallengeForm(main, who) },
   hcounter: { tab: "derbies", live: false, render: (main, id) => renderChallengeForm(main, null, id) },
+  hrematch: { tab: "derbies", live: false, render: (main, id) => renderChallengeForm(main, null, null, id) },
   alerts: { tab: null, live: true, render: renderAlerts },
 };
 

@@ -140,3 +140,36 @@ export function scoreText(t, score) {
 export function stakesText(t) {
   return [t.stake ? `${t.stake} ${t.stake === 1 ? "point" : "points"}` : "", t.money || ""].filter(Boolean).join(" + ") || "Bragging rights";
 }
+
+/* Finished challenges (not vetoed) and how they ended: [{ ch, at, winner, loser, tie, sides }], oldest first.
+   `at` is when the result became final (late catches closed). */
+export function h2hResults(challenges, catches, now = Date.now()) {
+  return [...challenges].filter(ch => challengeStatus(ch, now) === "done")
+    .map(ch => ({ ch, at: closesAt(ch), ...challengeBoard(ch, catches) }))
+    .sort((a, b) => a.at - b.at);
+}
+
+/* One angler's head-to-head record: { w, l, t, played, streak, vs: Map(opponent -> { w, l, t }) }. `streak` is the
+   current run: positive for wins in a row, negative for losses (a tie ends it). */
+export function h2hRecord(u, results) {
+  const rec = { w: 0, l: 0, t: 0, played: 0, streak: 0, vs: new Map() };
+  for (const r of results) {
+    if (!involves(r.ch, u)) continue;
+    const opp = otherSide(r.ch, u), vs = rec.vs.get(opp) || { w: 0, l: 0, t: 0 };
+    rec.vs.set(opp, vs);
+    rec.played++;
+    if (r.tie) { rec.t++; vs.t++; rec.streak = 0; }
+    else if (r.winner === u) { rec.w++; vs.w++; rec.streak = rec.streak > 0 ? rec.streak + 1 : 1; }
+    else { rec.l++; vs.l++; rec.streak = rec.streak < 0 ? rec.streak - 1 : -1; }
+  }
+  return rec;
+}
+export const recordText = r => `${r.w}–${r.l}${r.t ? `–${r.t}` : ""}`;
+
+/* A rematch: the same terms, between the same two anglers, starting at the next whole hour (at least an hour away)
+   and running as long as the original. */
+export function rematchTerms(t, now = Date.now()) {
+  const start = new Date(now + 3600e3); start.setMinutes(0, 0, 0);
+  if (start.getTime() <= now + 1800e3) start.setHours(start.getHours() + 1);
+  return { ...t, species: [...(t.species || [])], start: start.getTime(), end: start.getTime() + (t.end - t.start) };
+}

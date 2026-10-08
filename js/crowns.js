@@ -4,6 +4,7 @@
    Pure functions on plain data. */
 import { fishIn } from "./stats.js";
 import { derbyStatus, closesAt, standings } from "./derby.js";
+import { h2hResults } from "./h2h.js";
 
 export const CROWNS = [
   { id: "derbyKing", icon: "🏁", name: "Derby King", desc: "Most derby wins", unit: ["win", "wins"] },
@@ -22,6 +23,7 @@ export const CROWNS = [
   { id: "fishStory", icon: "🤥", name: "Fish Story King", desc: "Most 🤥 reactions received", unit: ["🤥", "🤥"] },
   { id: "hypeMan", icon: "📣", name: "Hype Man", desc: "Most reactions and comments given on other people's catches", unit: ["hype", "hype"] },
   { id: "skunkMaster", icon: "🦨", name: "Skunk Master", desc: "Most derbies finished without a fish", unit: ["skunk", "skunks"] },
+  { id: "duelKing", icon: "🤺", name: "Duel King", desc: "Most head-to-head challenges won", unit: ["win", "wins"] },
 ];
 export const crownById = id => CROWNS.find(c => c.id === id);
 export const crownScore = (crown, n) => `${n} ${crown.unit[n === 1 ? 0 : 1]}`;
@@ -49,7 +51,7 @@ const dayKey = ms => { const d = new Date(ms); return `${d.getFullYear()}-${d.ge
 const asMap = x => (x instanceof Map ? x : new Map((x || []).map(d => [d.id, d])));
 
 /* Every score change, per crown: Map(crownId -> [{ at, uid, delta }]). */
-export function crownChanges({ catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), spots = new Map(), leagueStart = 0, now = Date.now() }) {
+export function crownChanges({ catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), spots = new Map(), challenges = new Map(), leagueStart = 0, now = Date.now() }) {
   const derbyMap = asMap(derbies);
   const ch = new Map(CROWNS.map(c => [c.id, []]));
   const add = (id, at, uid, delta = 1) => { if (uid && delta) ch.get(id).push({ at, uid, delta }); };
@@ -116,6 +118,8 @@ export function crownChanges({ catches, derbies, entrants = new Map(), comments 
     if (!c) continue;
     for (const cm of list) if (cm.uid !== c.uid) add("hypeMan", cm.at || 0, cm.uid);
   }
+  // Head-to-head wins (vetoed challenges and ties don't count), from when the result is final.
+  for (const r of h2hResults([...asMap(challenges).values()], catches, now)) if (!r.tie) add("duelKing", r.at, r.winner);
   for (const list of ch.values()) list.sort((a, b) => a.at - b.at);
   return ch;
 }

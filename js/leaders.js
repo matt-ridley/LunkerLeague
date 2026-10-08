@@ -6,6 +6,8 @@ import { speciesRecords, speciesBoard, leagueStartOf } from "./stats.js";
 import { rankings, badgesFor, scoringTimeline, currentScoring, TITLES } from "./rank.js";
 import { crownStandings, crownScore } from "./crowns.js";
 import { badgeTimeline, BADGES } from "./badges.js";
+import { closesAt as derbyClosesAt } from "./derby.js";
+import { closesAt as h2hClosesAt } from "./h2h.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -27,10 +29,19 @@ export function rankInput() {
   return input;
 }
 
+/* Derbies and challenges finish with time, not with a change of data, so the caches below also redo their work when
+   another one has finished (its results, crowns and badges then count). */
+function finishedSoFar(now = Date.now()) {
+  let n = 0;
+  for (const d of store.derbies.values()) if (derbyClosesAt(d) <= now) n++;
+  for (const ch of store.challenges.values()) if (ch.status === "accepted" && h2hClosesAt(ch) <= now) n++;
+  return n;
+}
+
 /* Badges are replayed from all the data too (some depend on crowns), so cache them the same way. */
 let badgeCache = { key: null, value: null };
 function badgesNow(input) {
-  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps, leagueStartOf(store.league)];
+  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps, store.challenges, leagueStartOf(store.league), finishedSoFar()];
   if (!badgeCache.key || key.some((k, i) => k !== badgeCache.key[i])) badgeCache = { key, value: badgeTimeline(input) };
   return badgeCache.value;
 }
@@ -38,7 +49,7 @@ function badgesNow(input) {
 /* Crowns are replayed from all the data, so work them out once per change of data, not on every redraw. */
 let crownCache = { key: null, value: null };
 export function crownsNow(input) {
-  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, leagueStartOf(store.league)];
+  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.challenges, leagueStartOf(store.league), finishedSoFar()];
   if (!crownCache.key || key.some((k, i) => k !== crownCache.key[i])) {
     if (!input) return rankInput().crowns; // builds the input, which works the crowns out and caches them
     crownCache = { key, value: crownStandings(input) };

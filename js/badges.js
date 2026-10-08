@@ -5,6 +5,7 @@ import { fishIn, measured, better } from "./stats.js";
 import { derbyStatus, closesAt, standings } from "./derby.js";
 import { newSpots } from "./crowns.js";
 import { derbyMoney, hasMoney } from "./payout.js";
+import { h2hResults, involves, otherSide } from "./h2h.js";
 
 const DAY = 24 * 3600 * 1000;
 const lb = n => n * 16;
@@ -65,6 +66,14 @@ export const BADGES = [
   { id: "money", icon: "💵", name: "In the Money", desc: "Win money in a derby", at: x => x.moneyAt[0] ?? null },
   { id: "organiser", icon: "📋", name: "Organiser", desc: "Run a derby that finishes with 4 or more anglers", at: x => x.organised[0] ?? null },
   { id: "skunked", icon: "🦨", name: "Skunked", desc: "Finish a derby without a fish", at: x => x.skunks[0] ?? null },
+  // Head-to-head
+  { id: "duelist", icon: "⚔️", name: "Duelist", desc: "Finish your first head-to-head challenge", at: x => x.h2h[0] ? x.h2h[0].at : null },
+  { id: "gunslinger", icon: "🤠", name: "Gunslinger", desc: "Win a head-to-head challenge", at: x => x.h2hWins[0] ?? null },
+  { id: "sharpshooter", icon: "🎯", name: "Sharpshooter", desc: "Win 5 head-to-head challenges", at: x => x.h2hWins[4] ?? null },
+  { id: "onARoll", icon: "🎳", name: "On a Roll", desc: "Win 3 head-to-head challenges in a row", at: x => x.h2hStreak3 },
+  { id: "shutout", icon: "🧹", name: "Shutout", desc: "Win a head-to-head challenge where the other angler didn't log a fish", at: x => x.h2hShutouts[0] ?? null },
+  { id: "highRoller", icon: "🎲", name: "High Roller", desc: "Win 10 or more staked points in one head-to-head challenge", at: x => x.h2hHighRoll[0] ?? null },
+  { id: "rivalry", icon: "🥊", name: "Rivalry", desc: "Finish 5 head-to-head challenges against the same angler", at: x => x.h2hRivalAt },
   // Social
   { id: "trashTalker", icon: "🗣️", name: "Trash Talker", desc: "50 comments on other people's catches", at: x => nth(x.commentsGiven, 50) },
   { id: "hypeSquad", icon: "🙌", name: "Hype Squad", desc: "100 reactions given", at: x => nth(x.reactionsGiven, 100, r => r.n) },
@@ -154,7 +163,7 @@ function recordPeriods(counted) {
 /* Everything shared by all anglers, worked out once. */
 function leagueContext(input) {
   const { catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), spots = new Map(),
-    trips = new Map(), rsvps = new Map(), crowns = [], leagueStart = 0, now = Date.now() } = input;
+    trips = new Map(), rsvps = new Map(), crowns = [], challenges = new Map(), leagueStart = 0, now = Date.now() } = input;
   const derbyMap = asMap(derbies);
   // Past catches (logbook) never earn badges; records here are of league catches only.
   const valid = catches.filter(c => !c.dq && !(c.derbyId && derbyMap.get(c.derbyId) && derbyMap.get(c.derbyId).testing))
@@ -200,7 +209,7 @@ function leagueContext(input) {
     if (p.to != null && p.to <= p.from) p.gone = true;
   }
   return { counted, valid, finished, reactionList, commentList, records: recordPeriods(counted), crownPeriods: crownPeriods.filter(p => !p.gone && p.from !== Infinity), crownSteals,
-    spotsList: newSpots(counted, spots), trips, rsvps, now, catches };
+    spotsList: newSpots(counted, spots), trips, rsvps, now, catches, h2h: h2hResults([...asMap(challenges).values()], catches, now) };
 }
 
 /* Per-angler data for the badge rules. */
@@ -274,8 +283,25 @@ function anglerContext(u, L) {
     const held = myCrowns.filter(q => q.from <= p.from && (q.to ?? Infinity) > p.from).length;
     if (held >= 5 && (royaltyAt == null || p.from < royaltyAt)) royaltyAt = p.from;
   }
+  // Head-to-head: finished challenges (oldest first), wins, streaks, shutouts, big stakes and rivals.
+  const h2h = L.h2h.filter(r => involves(r.ch, u)), h2hWins = [], h2hShutouts = [], h2hHighRoll = [];
+  let run = 0, h2hStreak3 = null, h2hRivalAt = null;
+  const perRival = new Map();
+  for (const r of h2h) {
+    const won = !r.tie && r.winner === u;
+    run = won ? run + 1 : 0;
+    if (run === 3 && h2hStreak3 == null) h2hStreak3 = r.at;
+    if (won) {
+      h2hWins.push(r.at);
+      if (!r.sides.find(s => s.uid !== u).fished) h2hShutouts.push(r.at);
+      if ((r.ch.terms.stake || 0) >= 10) h2hHighRoll.push(r.at);
+    }
+    const opp = otherSide(r.ch, u), n = (perRival.get(opp) || 0) + 1;
+    perRival.set(opp, n);
+    if (n === 5 && h2hRivalAt == null) h2hRivalAt = r.at;
+  }
   return {
-    mine, now: L.now, wins, podiums, fished, skunks, luckyNets, captainWins, organised, moneyAt, pbBeats,
+    mine, now: L.now, wins, h2h, h2hWins, h2hShutouts, h2hHighRoll, h2hStreak3, h2hRivalAt, podiums, fished, skunks, luckyNets, captainWins, organised, moneyAt, pbBeats,
     speciesAt: distinctAt(mine, c => c.species),
     limits: mine.filter(c => c.fishCount > 1 && c.limit),
     recordTakes: myRecords.map(p => p.from), recordSteals: myRecords.filter(p => p.stolen).map(p => p.from),
@@ -293,7 +319,7 @@ export function badgeTimeline(input) {
   const L = leagueContext(input);
   const people = new Set([...L.counted.map(c => c.uid), ...L.finished.flatMap(f => [...f.ent.keys(), f.d.organiserUid]),
     ...L.commentList.map(c => c.uid), ...L.reactionList.map(r => r.uid), ...[...L.trips.values()].map(t => t.uid),
-    ...[...L.rsvps.values()].flatMap(m => [...m.keys()]), ...L.crownPeriods.map(p => p.uid), ...L.crownSteals.map(s => s.uid)]);
+    ...[...L.rsvps.values()].flatMap(m => [...m.keys()]), ...L.crownPeriods.map(p => p.uid), ...L.crownSteals.map(s => s.uid), ...L.h2h.flatMap(r => [r.ch.from, r.ch.to])]);
   const out = [];
   for (const u of people) {
     if (!u) continue;

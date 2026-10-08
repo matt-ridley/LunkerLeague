@@ -9,6 +9,7 @@ import { rankings, badgesFor } from "./rank.js";
 import { rankInput, howPointsSheet } from "./leaders.js";
 import { crownScore } from "./crowns.js";
 import { BADGES } from "./badges.js";
+import { profileRecord } from "./h2hpage.js";
 
 /* Every badge: the ones earned (with when), then the rest with how to get them. */
 function badgeSheet(m, input) {
@@ -60,7 +61,7 @@ export function renderProfile(main, id) {
       el("span", { text: s.crown.icon }), el("small", { text: s.crown.name }))))) : null;
   // Someone else's profile: challenge them head-to-head.
   const challenge = !mine && !m.suspended ? el("a", { class: "btn block", href: `#/hnew/${m.id}`, text: `⚔️ Challenge ${m.displayName}` }) : null;
-  const parts = [head, challenge, rankCard, crownRow, badgeRow, ...pbWall(m.id)];
+  const parts = [head, challenge, rankCard, profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id)];
 
   if (mine) {
     parts.push(el("section", { class: "card stack" },

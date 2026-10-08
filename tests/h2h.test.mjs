@@ -1,7 +1,10 @@
 // Unit tests for head-to-head challenges: status, scoring, points and stakes. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { challengeStatus, challengeBoard, h2hPointEvents, stakeRoom, termsProblem, sideCatches, closesAt, LATE_HOURS } from "../js/h2h.js";
+import { challengeStatus, challengeBoard, h2hPointEvents, stakeRoom, termsProblem, sideCatches, closesAt, LATE_HOURS,
+  h2hResults, h2hRecord, recordText, rematchTerms } from "../js/h2h.js";
+import { crownStandings } from "../js/crowns.js";
+import { badgeTimeline } from "../js/badges.js";
 import { rankings, DEFAULT_SCORING } from "../js/rank.js";
 import { alertsFor, leagueEvents } from "../js/events.js";
 
@@ -139,4 +142,63 @@ test("feed and bell: challenges made, answered and decided", () => {
   // Someone else hears about it too.
   const cy = alertsFor("cy", { ...base, challenges });
   assert.ok(cy.some(a => a.id === "h2h:h1") && cy.some(a => a.id === "h2hend:h1"));
+});
+
+/* A run of finished challenges between amy, bo and cy, each a day apart. `who` wins each ("tie" for a tie). */
+function season(list) {
+  const challenges = [], catches = [];
+  list.forEach(([from, to, winner, extra = {}], i) => {
+    const day = i * 48;
+    const ch = challenge({ id: `s${i}`, from, to }, { start: T0 + day * H, end: T0 + (day + 24) * H, ...extra });
+    challenges.push(ch);
+    const loser = winner === from ? to : from;
+    if (winner === "tie") { catches.push(fish(from, "Walleye", 30, day + 1), fish(to, "Walleye", 30, day + 2)); }
+    else { catches.push(fish(winner, "Walleye", 50, day + 1)); if (!extra.shutout) catches.push(fish(loser, "Walleye", 20, day + 2)); }
+  });
+  return { challenges, catches, now: T0 + list.length * 48 * H + 48 * H };
+}
+
+test("records: wins, losses, ties, the current streak and how you've done against each angler", () => {
+  const s = season([["amy", "bo", "amy"], ["bo", "amy", "bo"], ["amy", "cy", "amy"], ["cy", "amy", "amy"], ["amy", "bo", "tie"], ["amy", "bo", "amy"]]);
+  const results = h2hResults(s.challenges, s.catches, s.now);
+  assert.equal(results.length, 6);
+  const amy = h2hRecord("amy", results);
+  assert.deepEqual([amy.w, amy.l, amy.t, amy.played, amy.streak], [4, 1, 1, 6, 1]);
+  assert.deepEqual(amy.vs.get("bo"), { w: 2, l: 1, t: 1 });
+  assert.equal(recordText(amy), "4–1–1");
+  assert.equal(recordText(h2hRecord("cy", results)), "0–2");
+  assert.equal(h2hRecord("cy", results).streak, -2);
+  // Vetoed challenges aren't results.
+  s.challenges[0].vetoed = true;
+  assert.equal(h2hResults(s.challenges, s.catches, s.now).length, 5);
+});
+
+test("rematch: same terms, starting at a whole hour at least half an hour away, just as long", () => {
+  const t = terms({ species: ["Pike"], stake: 4, start: T0, end: T0 + 6 * H });
+  const now = new Date(2026, 6, 1, 21, 10).getTime();
+  const r = rematchTerms(t, now);
+  assert.equal(new Date(r.start).getHours(), 22); assert.equal(new Date(r.start).getMinutes(), 0);
+  assert.equal(r.end - r.start, 6 * H);
+  assert.deepEqual([r.win, r.stake, r.species], ["heaviest", 4, ["Pike"]]);
+  const late = rematchTerms(t, new Date(2026, 6, 1, 21, 50).getTime());
+  assert.equal(new Date(late.start).getHours(), 23);
+});
+
+test("the Duel King crown goes to the most head-to-head wins", () => {
+  const s = season([["amy", "bo", "bo"], ["amy", "cy", "amy"], ["bo", "cy", "bo"], ["amy", "bo", "tie"]]);
+  const king = crownStandings({ catches: s.catches, derbies: [], challenges: new Map(s.challenges.map(c => [c.id, c])), now: s.now })
+    .find(x => x.crown.id === "duelKing");
+  assert.equal(king.holder, "bo");
+  assert.equal(king.score, 2);
+});
+
+test("head-to-head badges: first finish, first win, 5 wins, 3 in a row, shutout, high roller and a rivalry", () => {
+  const s = season([["amy", "bo", "amy", { stake: 10 }], ["amy", "bo", "amy"], ["bo", "amy", "amy", { shutout: true }], ["amy", "bo", "bo"],
+    ["amy", "bo", "amy"], ["amy", "bo", "amy"]]);
+  const got = u => new Set(badgeTimeline({ catches: s.catches, derbies: [], challenges: new Map(s.challenges.map(c => [c.id, c])), now: s.now })
+    .filter(b => b.uid === u).map(b => b.badge.id));
+  const amy = got("amy"), bo = got("bo");
+  for (const id of ["duelist", "gunslinger", "sharpshooter", "onARoll", "shutout", "highRoller", "rivalry"]) assert.ok(amy.has(id), id);
+  assert.ok(bo.has("duelist") && bo.has("gunslinger") && bo.has("rivalry"));
+  assert.ok(!bo.has("sharpshooter") && !bo.has("onARoll") && !bo.has("shutout") && !bo.has("highRoller"));
 });
