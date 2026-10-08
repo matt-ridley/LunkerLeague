@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.40.0 (beta)
+**Current version:** 0.40.1 (beta)
 
 ## Features
 
@@ -98,7 +98,16 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
   - **The league sees it all:** challenges sent, accepted, live and decided show in the feed and the bell.
   - **Overturning a result:** the league owner can veto a result at any time, and any staked points go back.
   - **Extras (0.40.0):** a head-to-head win/loss record on profiles, a **Rematch** button, a crown for most head-to-head wins, and head-to-head badges.
-- **Bet tracker** (M), next up, last in this milestone: make a wager in the app ("biggest pike by Sunday, loser buys"). The app settles it from the catches and announces the winner. To brainstorm first: what bets can be about, who can see and join them, and how they differ from head-to-head challenges.
+- **Bets** (L), next up, last in this milestone. Any number of anglers bet on something; the app settles it from the catches when it can, and the organiser settles the rest.
+  - **Setting one up:** anyone can start a bet and is its organiser (and can be in it too). They pick what it's about, who can join (**open** to anyone, or **invite only**: the people named get an invite in the bell and accept or decline), when joining closes, and when it ends (a deadline, or the first one to do it).
+  - **Stakes:** an optional buy-in in dollars per person, which makes the pot, and/or a prize in words ("loser buys pizza"). **Never league points.** The app works out who wins what; nobody pays through it.
+  - **Contest bets** (everyone for themselves): biggest fish by weight or length, most fish, or the first to catch something (a species, a minimum size), settled by the app; or anything else ("first boat to the launch"), settled by the organiser. The winner takes the pot, and a tie splits it.
+  - **Sides bets** (yes/no, over/under, or a few choices): people join a side. Settled by the app when it's about catches ("Andy catches 10+ fish on Saturday") or by the organiser ("Bully falls in the lake this season"). Everyone on the winning side splits the pot: 5 people at $5 each, 3 on the winning side, each gets a third of $25. At least 2 sides need someone on them, or the bet is called off.
+  - **Proof:** for bets the organiser settles, anyone in the bet can submit one photo with a note (they can replace it). Everyone in the bet can see the proof, and the organiser picks the winner or winning side.
+  - **No winner** (nobody catches a 5 lb walleye by the deadline): it's a wash, called off with nothing owed and the buy-ins back.
+  - **The league sees it:** bets made, joined and decided show in the feed and the bell.
+  - **Where:** the Events tab's **⚔️ H2H** becomes **🎲 Bets**, holding head-to-head challenges and bets together.
+  - **Planned releases:** (1) the Bets tab and contest bets the app settles; (2) organiser-settled contests with proof photos; (3) sides bets.
 
 ### Milestone C: Notifications and social (done in 0.12.0, except as noted)
 - ✅ **In-app alerts (the bell)** instead of push notifications. Push would need the Firebase Blaze plan (a card on file) or a separate server, so the league stays on the free plan with alerts you see when you open the app.
@@ -135,6 +144,7 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 ### Possible ideas
 Not planned yet, but worth keeping in mind.
 - **Fish of the Week vote** (S): the league votes, and the winner gets a badge.
+- **Guess bets** (M): everyone enters a number and the closest wins, for example how many fish the league catches at a derby, or what Matt's biggest muskie weighs this year (a tie splits the pot). Could also pick a person ("who wins the club derby?").
 
 ### Backlog
 - **Head-to-head disputes** (S–M): let league members dispute a head-to-head result (beyond the owner's veto). To be worked out once challenges are built and the league has used them: who can dispute (including the two anglers themselves), what happens next (a vote, or the owner decides), and any time limit.
@@ -257,6 +267,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.40.1 | 2026-Oct-07 09:54:41 PM | Roadmap: the **Bets** plan for the rest of Milestone B (contest and sides bets, open or invite only, buy-ins and prizes but never league points, proof photos for bets the organiser settles, the H2H tab renamed Bets). Guess bets added to Possible ideas. No app changes. |
 | 0.40.0 | 2026-Oct-07 09:20:01 PM | **Head-to-head extras.** Profiles show the angler's head-to-head record (wins–losses–ties, a winning streak, and how they've done against you), and **Events → H2H** has a records board for everyone. Finished challenges have a **Rematch** button (same terms, starting at the next hour, just as long); expired, declined or taken-back ones have **Challenge again**. New crown: **🤺 Duel King** (most head-to-head wins). 7 new badges: Duelist, Gunslinger, Sharpshooter, On a Roll, Shutout, High Roller and Rivalry (63 in all). Fixes: crowns and badges from a derby or challenge that has just finished now appear without waiting for other league activity, and the challenge form waits for the other angler's profile to load. No new security rules. |
 | 0.39.0 | 2026-Oct-07 09:09:25 PM | **Head-to-head challenges.** Challenge any angler from their profile or the new **Events → H2H** tab: pick how it's won (heaviest, longest, most fish or top-fish total), the species, the start and end, points staked, a written bet and trash talk. The other angler accepts, declines or counters, back and forth; an offer expires if nobody accepts it by the start. Catches made during it decide it (sent within 12 hours of the end), with a live score on the challenge page. Points: for taking part (at least one fish), a winner's bonus, and the loser's stake goes to the winner (only what you have, up to an admin-set maximum); a tie moves nothing. Admins set the values on the points page. The feed and the bell announce challenges, answers, starts and results. The league owner can veto a challenge, voiding its points. Also: the bell now refreshes when names load, so alerts no longer say "Former member" right after opening the app. **New security rules: publish firestore.rules.** |
 | 0.38.0 | 2026-Oct-07 08:51:49 PM | **Derby fair play**, both optional when setting up a derby. **Photo code word:** a random word and number (or your own) that every entry photo has to show, on a card on the derby page and in the entry rules once the derby starts (the organiser sees it early). **Approve each entry:** entries wait for the organiser (or an admin) to approve them before they count on the board, in the money, for teams, series and rankings. Waiting entries are marked in the feed, on the catch and on the Entries tab (listed first, with **Approve**). The organiser's card and bell show what's waiting, and the angler hears when an entry is approved. Changing an approved fish, its photo or its time sends it back for approval. Editing a catch without changing its time no longer changes the saved time. Roadmap: Milestone B now has the head-to-head challenge plan, Fish of the Week moved to a new **Possible ideas** section, and head-to-head disputes are in the backlog. **New security rules: publish firestore.rules.** |
