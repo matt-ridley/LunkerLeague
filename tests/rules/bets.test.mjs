@@ -101,3 +101,31 @@ test("proof: one photo each from anglers in the bet, while it's being decided", 
   await seed(bet("member", { ...called, result: { winners: [], wash: true, at: Date.now(), by: "member" } }));
   await assertFails(setDoc(doc(as(env, "admin2"), "bets/b1/proofs/admin2"), proof));
 });
+
+test("sides bets: 2 to 6 sides, an over/under needs its line, and players join a real side", async () => {
+  const db = as(env, "member");
+  const called = { kind: "sides", sides: ["Yes", "No"], rule: { win: "called", species: [], minWeightOz: 0, minLengthIn: 0 }, note: "Bully falls in" };
+  const over = { kind: "sides", sides: ["10 fish or more", "Fewer than 10 fish"],
+    rule: { win: "over", species: [], minWeightOz: 0, minLengthIn: 0, subject: "admin2", measure: "fish", line: 10 } };
+  await assertSucceeds(setDoc(doc(db, "bets/s1"), bet("member", called)));
+  await assertSucceeds(setDoc(doc(db, "bets/s2"), bet("member", over)));
+  await assertFails(setDoc(doc(db, "bets/s3"), bet("member", { ...called, sides: ["Yes"] })));
+  await assertFails(setDoc(doc(db, "bets/s4"), bet("member", { ...called, sides: ["a", "b", "c", "d", "e", "f", "g"] })));
+  await assertFails(setDoc(doc(db, "bets/s5"), bet("member", { ...over, rule: { ...over.rule, line: 0 } })));
+  await assertFails(setDoc(doc(db, "bets/s6"), bet("member", { ...over, rule: { ...over.rule, measure: "luck" } })));
+  await assertFails(setDoc(doc(db, "bets/s7"), bet("member", { ...called, rule: { ...called.rule, win: "heaviest" } })));  // sides are over or called
+  await assertFails(setDoc(doc(db, "bets/s8"), bet("member", { sides: ["Yes", "No"] })));                                 // a contest has no sides
+  await seed(bet("member", called));
+  await assertSucceeds(setDoc(doc(as(env, "admin2"), "bets/b1/players/admin2"), { at: Date.now(), in: true, side: 1 }));
+  await assertSucceeds(setDoc(doc(as(env, "admin2"), "bets/b1/players/admin2"), { at: Date.now(), in: true, side: 0 }));   // switching
+  await assertFails(setDoc(doc(as(env, "owner"), "bets/b1/players/owner"), { at: Date.now(), in: true, side: 2 }));        // no such side
+  await assertFails(setDoc(doc(as(env, "owner"), "bets/b1/players/owner"), { at: Date.now(), in: true }));                 // must pick one
+  await assertSucceeds(setDoc(doc(as(env, "owner"), "bets/b1/players/owner"), { at: Date.now(), in: false }));            // or say no thanks
+  // A contest has no sides to pick.
+  await seed(bet("member"));
+  await assertFails(setDoc(doc(as(env, "admin2"), "bets/b1/players/admin2"), { at: Date.now(), in: true, side: 0 }));
+  // Settling a sides bet names the side.
+  await seed(bet("member", { ...called, start: Date.now() - 3600000 }));
+  await assertSucceeds(updateDoc(doc(db, "bets/b1"), { result: { winners: ["admin2"], wash: false, side: 1, at: Date.now(), by: "member" } }));
+  await assertFails(updateDoc(doc(db, "bets/b1"), { result: { winners: [], wash: false, side: "No", at: Date.now(), by: "member" } }));
+});

@@ -1,10 +1,10 @@
 /* Bets: the list (with head-to-head challenges on the Events page's Bets tab), one bet's page (who's in, the live
    board, the result and the pot) and the form for setting one up. */
-import { el, field, avatar, fill, fmtDate, fmtDay, toast, confirmButton, openSheet, closeSheet, icon } from "./ui.js";
+import { el, field, avatar, fill, fmtDate, fmtDay, fmtWeight, fmtLength, toast, confirmButton, openSheet, closeSheet, icon } from "./ui.js";
 import { store, uid, isOwner, memberName, saveBet, setBetCancelled, joinBet, leaveBet, deleteBet, subscribe,
   watchProofs, sendProof, removeProof, settleBet } from "./cloud.js";
 import { RULES, MAX_DAYS, LATE_HOURS, betStatus, STATUS_LABEL, betBoard, betResult, finalAt, playersIn, canJoin, betProblem,
-  ruleText, betScoreText, isCalled } from "./bets.js";
+  ruleText, betScoreText, isCalled, isSides, MEASURES, overUnderSides, overText, overValue, sideTeams } from "./bets.js";
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
 import { fmtMoney } from "./payout.js";
@@ -42,10 +42,11 @@ function betCard(b) {
   const pill = st === "open" && !players.has(me) && canJoin(b, me) ? "Join?" : STATUS_LABEL[st];
   return el("a", { class: "h2h-card", href: `#/b/${b.id}` },
     el("div", { class: "row spread" }, el("b", { text: `🎲 ${b.title}` }), el("span", { class: `pill ${PILL[st]}`, text: pill })),
-    el("div", { class: "muted small", text: ruleText(b.rule) }),
+    el("div", { class: "muted small", text: isSides(b) && !isCalled(b) ? overText(b.rule, u => who(u).displayName) : isSides(b) ? `Sides: ${b.sides.join(" / ")}` : ruleText(b.rule) }),
     el("div", { class: "trip-meta" }, el("span", { text: `👥 ${n} in${b.open ? "" : " · invite only"}` }), el("span", { text: stakesText(b) })),
-    r ? el("div", { class: "trip-recap-line", text: r.wash ? "🫧 A wash: nobody won" : `🏆 ${r.winners.map(u => who(u).displayName).join(" and ")}` }) : null,
-    leader && leader.score ? el("div", { class: "trip-recap-line", text: `👑 ${who(leader.uid).displayName} · ${betScoreText(b.rule, leader.score)}` }) : null,
+    r ? el("div", { class: "trip-recap-line", text: r.wash ? "🫧 A wash: nobody won" : isSides(b) ? `🏆 “${b.sides[r.side]}” wins` : `🏆 ${r.winners.map(u => who(u).displayName).join(" and ")}` }) : null,
+    leader && leader.score && !isSides(b) ? el("div", { class: "trip-recap-line", text: `👑 ${who(leader.uid).displayName} · ${betScoreText(b.rule, leader.score)}` }) : null,
+    isSides(b) ? el("div", { class: "muted small", text: sideTeams(b, players).map((t, i) => `${b.sides[i]}: ${t.length}`).join(" · ") }) : null,
     el("div", { class: "muted small", text: when(b, st) }));
 }
 
@@ -79,13 +80,24 @@ export function renderBet(main, id) {
       b.open ? null : el("span", { class: "pill", text: "Invite only" })),
     el("h2", { text: `🎲 ${b.title}` }),
     el("p", { class: "derby-when", text: when(b, st) }),
+    isSides(b) && !isCalled(b) ? el("p", { class: "bet-question", text: overText(b.rule, u => who(u).displayName) }) : null,
     b.note ? el("p", { text: b.note }) : null,
     el("p", { class: "prize", text: `🏆 ${stakesText(b)}${pot ? ` · pot ${fmtMoney(pot)}` : ""}` }),
     el("p", { class: "small", text: `Organised by ${who(b.organiserUid).displayName} · ${ins.length} in` }));
 
   // Joining (until it starts): in, out, or turning an invite down.
   let join = null;
-  if (st === "open" && canJoin(b, me)) {
+  if (st === "open" && canJoin(b, me) && isSides(b)) {
+    const mySide = inIt ? mineP.side : null;
+    join = el("section", { class: "card stack" },
+      el("p", { text: inIt ? `✅ You're on “${b.sides[mySide]}”. Tap another side to switch until it starts.` : "Pick your side. You can switch until it starts." }),
+      el("div", { class: "side-pick" }, ...b.sides.map((label, i) => el("button", { type: "button", class: "btn" + (mySide === i ? " lime" : ""),
+        "aria-pressed": String(mySide === i), text: label, onclick: () => { joinBet(id, true, i); toast(`You're on “${label}”.`); } }))),
+      el("div", { class: "row" },
+        inIt ? confirmButton("Leave the bet", "Tap again to leave", () => { leaveBet(id); toast("You left the bet."); }, "btn quiet") : null,
+        !inIt && !b.open && !mineP && !org ? el("button", { class: "btn quiet", type: "button", text: "No thanks", onclick: () => { joinBet(id, false); toast("Maybe next time."); } }) : null),
+      b.buyIn ? el("p", { class: "hint", text: `Buy-in ${fmtMoney(b.buyIn)}. Everyone on the winning side splits the pot.` }) : null);
+  } else if (st === "open" && canJoin(b, me)) {
     join = el("section", { class: "card stack" },
       inIt ? el("p", { text: `✅ You're in.${b.buyIn ? ` Your buy-in is ${fmtMoney(b.buyIn)}.` : ""}` })
         : el("p", { text: b.open ? "Anyone in the league can join until it starts." : `${who(b.organiserUid).displayName} invited you.` }),
@@ -97,7 +109,8 @@ export function renderBet(main, id) {
 
   // The board: live scores, then the result and the pot.
   let board = null;
-  if (["live", "closing", "done"].includes(st) && !(isCalled(b) && st !== "done")) {
+  if (isSides(b)) board = ["live", "closing", "deciding", "done"].includes(st) || st === "open" ? sidesView(b, st, players) : null;
+  else if (["live", "closing", "done"].includes(st) && !(isCalled(b) && st !== "done")) {
     const r = st === "done" ? betResult(b, allCatches(), players) : null, rows = r ? r.rows : betBoard(b, allCatches(), players);
     board = el("section", { class: "card stack" },
       el("h3", { text: r ? (r.wash ? "🫧 A wash" : `🏆 ${r.winners.map(u => who(u).displayName).join(" and ")} ${r.winners.length > 1 ? "split it" : "won"}`) : "Standings" }),
@@ -116,18 +129,22 @@ export function renderBet(main, id) {
   const people = el("section", { class: "card stack" }, el("h3", { text: `Who's in (${ins.length})` }),
     ins.length ? el("ul", { class: "member-list" }, ...ins.map(u => el("li", { class: "member-row" }, avatar(who(u), "sm"),
       el("span", { class: "grow name", text: who(u).displayName }),
+      isSides(b) && b.sides[players.get(u).side] != null ? el("span", { class: "muted small", text: b.sides[players.get(u).side] }) : null,
       org && st === "open" && u !== me ? confirmButton("Remove", "Sure?", () => leaveBet(id, u), "btn small quiet") : null)))
       : el("p", { class: "muted", text: "Nobody yet." }),
     !b.open ? el("p", { class: "muted small", text: `Invited: ${(b.invited || []).map(u => who(u).displayName + (players.get(u) && players.get(u).in === false ? " (no thanks)" : "")).join(", ")}` }) : null);
 
   const facts = el("dl", { class: "facts card" },
-    fact("How it's won", ruleText(b.rule)),
+    fact("How it's won", isSides(b) ? `Sides: ${b.sides.join(" / ")}. ${isCalled(b) ? "The organiser picks the winning side" : "The catches settle it"}; everyone on it splits the pot`
+      : ruleText(b.rule)),
     fact("Starts", fmtDate(b.start)), fact("Ends", fmtDate(b.end)),
     fact("Stakes", `${stakesText(b)}. Never league points`),
     b.buyIn ? fact("The pot", `The winner takes it; a tie splits it${b.roundTo ? `, rounded to the nearest $${b.roundTo}` : ""}`) : null,
-    isCalled(b) ? fact("Who decides", `${who(b.organiserUid).displayName} picks the winner from the proof photos (several can split it). Nobody: a wash`)
+    isSides(b) && !isCalled(b) ? fact("What counts", `${b.rule.subject === "league" ? "Every league member's" : `${who(b.rule.subject).displayName}'s`} catches made during it, sent within ${LATE_HOURS} h of the end`)
+      : isSides(b) ? fact("Who decides", `${who(b.organiserUid).displayName} picks the winning side, with proof photos if needed. Nobody on the winning side: a wash`)
+      : isCalled(b) ? fact("Who decides", `${who(b.organiserUid).displayName} picks the winner from the proof photos (several can split it). Nobody: a wash`)
       : fact("What counts", `Catches made during it by the anglers in it, sent within ${LATE_HOURS} h${b.rule.win === "first" ? " of the first one" : " of the end"}. Nobody scoring is a wash`),
-    fact("Fewer than 2", "If fewer than 2 anglers are in when it starts, it's called off"));
+    fact("Fewer than 2", isSides(b) ? "If fewer than 2 sides have someone on them when it starts, it's called off" : "If fewer than 2 anglers are in when it starts, it's called off"));
 
   const canDelete = isOwner() || (org && st === "open");
   const organiser = org || isOwner() ? el("section", { class: "card stack" }, el("h3", { text: "Organiser" }),
@@ -140,6 +157,25 @@ export function renderBet(main, id) {
     el("p", { class: "hint", text: "You can change the bet until it starts. After that, only cancel it." })) : null;
 
   fill(main, head, join, board, isCalled(b) ? proofSection(b, st, ins) : null, isCalled(b) ? settleSection(b, st, ins) : null, people, facts, organiser);
+}
+
+/* ---------- Sides ---------- */
+function sidesView(b, st, players) {
+  const teams = sideTeams(b, players), r = st === "done" ? betResult(b, allCatches(), players) : null;
+  const value = !isCalled(b) && st !== "open" ? overValue(b, allCatches()) : null;
+  const shown = v => b.rule.measure === "weight" ? (fmtWeight(v) || "0 oz") : b.rule.measure === "length" ? (fmtLength(v) || '0"') : `${v} fish`;
+  const leading = value == null ? -1 : value >= b.rule.line ? 0 : 1;
+  return el("section", { class: "card stack" },
+    el("h3", { text: r ? (r.wash ? "🫧 A wash" : `🏆 “${b.sides[r.side]}” wins`) : st === "open" ? "Sides so far" : "Sides" }),
+    value != null ? el("p", { class: "bet-question", text: `${st === "done" ? "Final" : "So far"}: ${shown(value)} (the line is ${shown(b.rule.line)})` }) : null,
+    r && r.wash ? el("p", { class: "hint", text: teams[r.side] && !teams[r.side].length ? "Nobody was on the winning side, so nobody owes anything." : "Nobody won, so nobody owes anything." }) : null,
+    el("div", { class: "sides" }, ...b.sides.map((label, i) => el("div", { class: "side-col" + ((r ? r.side === i && !r.wash : leading === i && st !== "open") ? " lead" : "") },
+      el("b", { text: label }),
+      el("div", { class: "muted small", text: `${teams[i].length} ${teams[i].length === 1 ? "angler" : "anglers"}` }),
+      el("div", { class: "small", text: teams[i].map(u => who(u).displayName).join(", ") || "Nobody yet" }),
+      r && r.side === i && !r.wash && r.shares.size ? el("span", { class: "money-chip", text: `💵 ${fmtMoney(r.shares.get(teams[i][0]))}${teams[i].length > 1 ? " each" : ""}` }) : null))),
+    st === "closing" ? el("p", { class: "hint", text: "Fishing's over, but catches from no-signal spots can still sync, so this can change." }) : null,
+    r && !r.wash && r.pot ? el("p", { class: "hint", text: `Pot ${fmtMoney(r.pot)}. The app only keeps track: settle up by e-transfer or cash.` }) : null);
 }
 
 /* ---------- Proof and settling (bets the organiser decides) ---------- */
@@ -193,6 +229,26 @@ function settleSection(b, st, ins) {
     return el("section", { class: "card stack" }, el("h3", { text: "Organiser" }),
       confirmButton("Change the result", "Tap again to take it back", () => { settleBet(b.id, null); toast("Result taken back. Pick again."); }, "btn"),
       el("p", { class: "hint", text: `Settled ${fmtDate(b.result.at)} by ${who(b.result.by).displayName}.` }));
+  }
+  if (isSides(b)) {
+    const teams = sideTeams(b, playersOf(b.id));
+    let side = null;
+    const radios = b.sides.map((label, i) => {
+      const r = el("input", { type: "radio", name: `side-${b.id}`, onchange: () => { side = i; } });
+      return el("label", { class: "check" }, r, el("span", { text: `${label} (${teams[i].length})` }));
+    });
+    const msg = el("p", { class: "msg" });
+    return el("section", { class: "card stack" },
+      el("h3", { text: "🏁 Settle the bet" }),
+      el("p", { class: "hint", text: st === "live" ? "You can settle it now if it's already decided, or wait until it ends." : "It's over: pick the side that won." }),
+      ...radios, msg,
+      el("div", { class: "row" },
+        el("button", { class: "btn lime", type: "button", text: "Pick the winning side", onclick: () => {
+          if (side == null) { msg.className = "msg err"; msg.textContent = "Pick the side that won, or call it a wash."; return; }
+          settleBet(b.id, teams[side], side); toast(`“${b.sides[side]}” wins!`);
+        } }),
+        confirmButton("Nobody won (a wash)", "Tap again: a wash", () => { settleBet(b.id, []); toast("A wash: nobody owes anything."); }, "btn quiet")),
+      el("p", { class: "hint", text: "Everyone on the winning side splits the pot. The league owner can settle it too." }));
   }
   const picked = new Set();
   const boxes = ins.map(u => {
@@ -256,8 +312,53 @@ export function renderBetForm(main, id) {
     el("p", { class: "hint", text: "The first angler in the bet to catch one wins. Nobody by the end: it's a wash." }));
   const calledHint = el("p", { class: "hint", text: "For anything the catches can't settle, like “first boat to the launch”. Say what wins in the details. Anyone in the bet can send a photo as proof, and you pick the winner (you can be in it too)." });
   let speciesField = null;
-  const syncWin = () => { sizeBox.hidden = win.value !== "first"; calledHint.hidden = win.value !== "called"; if (speciesField) speciesField.hidden = win.value === "called"; };
-  win.addEventListener("change", syncWin);
+
+  // Contest (everyone for themselves) or sides (pick a side; the winning side splits the pot).
+  let kind = b.kind === "sides" ? "sides" : "contest";
+  const kindSeg = el("div", { class: "seg" });
+  const sidesWin = el("select", {}, el("option", { value: "over", text: "Over/under on catches (the app settles it)" }),
+    el("option", { value: "called", text: "The organiser decides (with proof photos)" }));
+  sidesWin.value = kind === "sides" && b.rule.win === "called" ? "called" : "over";
+  const subject = el("select", {}, el("option", { value: "league", text: "The whole league" }),
+    ...[...store.members.values()].filter(m => !m.suspended).sort((a, c) => a.displayName.localeCompare(c.displayName))
+      .map(m => el("option", { value: m.id, text: m.id === me ? `${m.displayName} (me)` : m.displayName })));
+  subject.value = (kind === "sides" && b.rule.subject) || "league";
+  const measure = el("select", {}, ...Object.entries(MEASURES).map(([k, v]) => el("option", { value: k, text: v })));
+  measure.value = (kind === "sides" && b.rule.measure) || "fish";
+  const lineUnit = el("span");
+  const line0 = kind === "sides" && b.rule.line ? (b.rule.measure === "weight" ? b.rule.line / 16 : b.rule.line) : "";
+  const line = el("input", { type: "text", inputmode: "decimal", placeholder: "e.g. 10", value: line0 ? String(line0) : "" });
+  const lineHint = el("p", { class: "hint" });
+  const syncLine = () => {
+    lineUnit.textContent = measure.value === "weight" ? "lb" : measure.value === "length" ? "inches" : "fish";
+    const r = { measure: measure.value, line: lineValue() || 0 };
+    lineHint.textContent = r.line ? `The sides: “${overUnderSides(r)[0]}” and “${overUnderSides(r)[1]}”.` : "Set the number to beat. The two sides are reaching it, or not.";
+  };
+  const lineValue = () => { const n = num(line.value); return measure.value === "weight" ? Math.round(n * 16 * 10) / 10 : measure.value === "length" ? Math.round(n * 4) / 4 : Math.round(n); };
+  measure.addEventListener("change", syncLine); line.addEventListener("input", syncLine);
+  const overBox = el("div", { class: "stack" }, field("On", subject), field("What counts", measure),
+    el("div", { class: "field" }, el("span", { class: "field-label", text: "The line" }), el("div", { class: "unit-row" }, line, lineUnit)), lineHint);
+  let labels = kind === "sides" && b.rule.win === "called" ? [...(b.sides || [])] : ["Yes", "No"];
+  const labelList = el("div", { class: "stack" });
+  const drawLabels = () => fill(labelList, ...labels.map((t, i) => {
+    const inp = el("input", { type: "text", maxlength: 40, value: t, placeholder: `Side ${i + 1}`, oninput: () => { labels[i] = inp.value; } });
+    return el("div", { class: "unit-row name-row" }, inp, labels.length > 2 ? el("button", { class: "btn small quiet", type: "button", text: "✕", "aria-label": "Remove side",
+      onclick: () => { labels.splice(i, 1); drawLabels(); } }) : null);
+  }), labels.length < 6 ? el("button", { class: "btn block", type: "button", text: "+ Add a side", onclick: () => { labels.push(""); drawLabels(); } }) : null,
+    el("p", { class: "hint", text: "E.g. Yes / No, or Fri / Sat / Sun. Say what decides it in the details. Anyone in the bet can send a photo as proof, and you pick the winning side." }));
+  drawLabels();
+  const sidesBox = el("div", { class: "stack" }, field("Settled by", sidesWin), overBox, labelList);
+  const contestBox = el("div", { class: "stack" }, field("Winner", win), sizeBox, calledHint);
+  const syncWin = () => {
+    sizeBox.hidden = win.value !== "first"; calledHint.hidden = win.value !== "called";
+    contestBox.hidden = kind !== "contest"; sidesBox.hidden = kind !== "sides"; imInBox.hidden = kind === "sides";
+    overBox.hidden = sidesWin.value !== "over"; labelList.hidden = sidesWin.value !== "called";
+    if (speciesField) speciesField.hidden = kind === "contest" ? win.value === "called" : sidesWin.value === "called";
+    fill(kindSeg, ...[["contest", "🏆 Contest"], ["sides", "⚖️ Sides"]].map(([k, label]) =>
+      el("button", { type: "button", "aria-pressed": String(kind === k), text: label, onclick: () => { kind = k; syncWin(); } })));
+  };
+  win.addEventListener("change", syncWin); sidesWin.addEventListener("change", syncWin);
+  syncLine();
 
   let species = [...(b.rule.species || [])];
   const chips = el("div", { class: "chips" });
@@ -297,12 +398,16 @@ export function renderBetForm(main, id) {
   const prize = el("input", { type: "text", maxlength: 200, value: b.prize || "", placeholder: "e.g. Loser buys pizza" });
   const note = el("textarea", { rows: 2, maxlength: 300, placeholder: "Anything else" }); note.value = b.note || "";
   const imIn = el("input", { type: "checkbox", checked: true });
+  // On a sides bet the organiser picks their side on the bet page, like everyone else.
+  const imInBox = el("section", { class: "card stack" }, el("label", { class: "check" }, imIn, el("span", { text: "I'm in" })));
   const msg = el("p", { class: "msg" });
 
   const form = el("form", { class: "stack", novalidate: true },
     el("h2", { class: "page-title", text: editing ? "Edit bet" : "Start a bet" }),
     el("section", { class: "card stack" }, field("Name", title), field("Details (optional)", note)),
-    el("section", { class: "card stack" }, el("h3", { text: "How it's won" }), field("Winner", win), sizeBox, calledHint,
+    el("section", { class: "card stack" }, el("h3", { text: "How it's won" }), kindSeg,
+      el("p", { class: "hint", text: "Contest: everyone for themselves, the winner takes the pot. Sides: everyone picks a side, and the winning side splits it." }),
+      contestBox, sidesBox,
       speciesField = el("div", { class: "field" }, el("span", { class: "field-label", text: "Species" }), chips, spInput),
       el("datalist", { id: "bet-species" }, ...SPECIES.map(s => el("option", { value: s })))),
     el("section", { class: "card stack" }, el("h3", { text: "When" }),
@@ -312,7 +417,7 @@ export function renderBetForm(main, id) {
       field("Buy-in ($ per angler, optional)", buyIn, "Makes the pot: the winner takes it, a tie splits it. The app only keeps track."), roundField,
       field("Prize (optional)", prize),
       el("p", { class: "hint", text: "League points are never bet." })),
-    editing ? null : el("section", { class: "card stack" }, el("label", { class: "check" }, imIn, el("span", { text: "I'm in" }))),
+    editing ? null : imInBox,
     msg,
     el("button", { class: "btn lime block big", type: "submit", text: editing ? "Save changes" : "Start the bet" }),
     el("a", { class: "btn quiet block", href: editing ? `#/b/${id}` : "#/derbies", text: "Cancel" }));
@@ -322,18 +427,22 @@ export function renderBetForm(main, id) {
     e.preventDefault();
     const fail = x => { msg.className = "msg err"; msg.textContent = x; msg.scrollIntoView({ block: "center", behavior: "smooth" }); };
     if (spInput.value.trim()) addSp();
-    if (win.value === "called") species = [];
+    const called = kind === "contest" ? win.value === "called" : sidesWin.value === "called";
+    if (called) species = [];
     const data = {
-      title: title.value.trim().slice(0, 80), organiserUid: me, kind: "contest",
-      rule: { win: win.value, species, minWeightOz: win.value === "first" ? Math.round((num(minLb.value) * 16 + num(minOz.value)) * 10) / 10 : 0,
-        minLengthIn: win.value === "first" ? Math.round(num(minIn.value) * 4) / 4 : 0 },
+      title: title.value.trim().slice(0, 80), organiserUid: me, kind,
+      rule: kind === "sides"
+        ? { win: sidesWin.value, species, minWeightOz: 0, minLengthIn: 0, ...(sidesWin.value === "over" ? { subject: subject.value, measure: measure.value, line: lineValue() } : {}) }
+        : { win: win.value, species, minWeightOz: win.value === "first" ? Math.round((num(minLb.value) * 16 + num(minOz.value)) * 10) / 10 : 0,
+          minLengthIn: win.value === "first" ? Math.round(num(minIn.value) * 4) / 4 : 0 },
       open, invited: open ? [] : [...invited], start: new Date(start.value).getTime(), end: new Date(end.value).getTime(),
       buyIn: Math.max(0, Math.round(num(buyIn.value) * 100) / 100), roundTo: +roundTo.value, prize: prize.value.trim().slice(0, 200),
       note: note.value.trim().slice(0, 300), createdAt: editing ? editing.createdAt : Date.now(), cancelled: false,
     };
+    if (kind === "sides") data.sides = sidesWin.value === "over" ? (data.rule.line > 0 ? overUnderSides(data.rule) : []) : labels.map(x => x.trim().slice(0, 40));
     const problem = betProblem(data, Date.now());
     if (problem) return fail(problem);
-    const newId = saveBet(editing ? id : null, data, { join: !editing && imIn.checked });
+    const newId = saveBet(editing ? id : null, data, { join: !editing && imIn.checked && kind !== "sides" });
     toast(editing ? "Bet updated." : data.open ? "Bet started. Tell the crew!" : "Bet started. Your invites are out.");
     location.hash = `#/b/${newId}`;
   });

@@ -730,7 +730,8 @@ export function saveBet(id, data, { join = false } = {}) {
   return ref.id;
 }
 export const setBetCancelled = (id, cancelled) => write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "bets", id), { cancelled }));
-export const joinBet = (id, on = true) => write(cloud.api.setDoc(cloud.api.doc(cloud.db, "bets", id, "players", uid()), { at: Date.now(), in: on }));
+export const joinBet = (id, on = true, side = null) =>
+  write(cloud.api.setDoc(cloud.api.doc(cloud.db, "bets", id, "players", uid()), { at: Date.now(), in: on, ...(on && side != null ? { side } : {}) }));
 export const leaveBet = (id, who = uid()) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "bets", id, "players", who)));
 export function deleteBet(id) {
   const { writeBatch, doc } = cloud.api, b = writeBatch(cloud.db);
@@ -753,9 +754,10 @@ export function watchProofs(betId) {
 export const sendProof = (betId, proof) => write(cloud.api.setDoc(cloud.api.doc(cloud.db, "bets", betId, "proofs", uid()), { ...proof, at: Date.now() }));
 export const removeProof = (betId, who = uid()) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "bets", betId, "proofs", who)));
 /* The organiser's call: who won (several split it), or a wash (no winners). null takes the call back. */
-export function settleBet(betId, winners) {
+export function settleBet(betId, winners, side = null) {
   const { updateDoc, doc, deleteField } = cloud.api;
-  write(updateDoc(doc(cloud.db, "bets", betId), { result: winners ? { winners, wash: !winners.length, at: Date.now(), by: uid() } : deleteField() }));
+  write(updateDoc(doc(cloud.db, "bets", betId), { result: winners
+    ? { winners, wash: side == null && !winners.length, at: Date.now(), by: uid(), ...(side != null ? { side } : {}) } : deleteField() }));
 }
 
 /* Head-to-head challenges. Offering one makes it the other angler's turn; they accept, decline or counter. */

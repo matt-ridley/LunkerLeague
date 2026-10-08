@@ -1,7 +1,8 @@
 // Unit tests for bets: status, what counts, winners, pot splits and the feed/bell. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { betStatus, betBoard, betResult, splitPot, betCatches, finalAt, betProblem, playersIn, canJoin, ruleText, LATE_HOURS } from "../js/bets.js";
+import { betStatus, betBoard, betResult, splitPot, betCatches, finalAt, betProblem, playersIn, canJoin, ruleText, LATE_HOURS,
+  overValue, overUnderSides, overText } from "../js/bets.js";
 import { leagueEvents, alertsFor } from "../js/events.js";
 
 const H = 3600e3;
@@ -126,4 +127,62 @@ test("bell: the organiser is told to settle a bet that's over", () => {
     bets: new Map([["b1", b]]), betPlayers: new Map([["b1", players("amy", "bo")]]) };
   assert.ok(alertsFor("amy", data).some(a => a.id === "betcall:b1"));
   assert.ok(!alertsFor("bo", data).some(a => a.id === "betcall:b1"));
+});
+
+/* ---------- Sides ---------- */
+const sides = (players) => new Map(Object.entries(players).map(([u, side]) => [u, { at: T0 - H, in: true, side }]));
+
+test("sides: everyone on the winning side splits the pot; fewer than 2 sides taken calls it off", () => {
+  const b = bet({ kind: "sides", sides: ["Yes", "No"], buyIn: 5, note: "Bully falls in" }, { win: "called" });
+  const p = sides({ amy: 0, bo: 1, cy: 1, dee: 1, eve: 0 });
+  assert.equal(betStatus(b, [], p, T0 + H), "live");
+  assert.equal(betStatus(b, [], sides({ amy: 0, bo: 0 }), T0 + H), "off");          // everyone on one side
+  const r = betResult({ ...b, result: { winners: ["bo", "cy", "dee"], wash: false, side: 1, at: T0 + 2 * H, by: "amy" } }, [], p);
+  assert.equal(r.side, 1); assert.deepEqual(r.winners, ["bo", "cy", "dee"]);
+  assert.equal(r.pot, 25); assert.equal(r.shares.get("bo"), 8.34); assert.equal(r.shares.get("cy"), 8.33);
+  // A wash, or a winning side nobody picked: nobody wins.
+  assert.equal(betResult({ ...b, result: { winners: [], wash: true, at: T0, by: "amy" } }, [], p).wash, true);
+  const three = { ...b, sides: ["Fri", "Sat", "Sun"] };
+  assert.equal(betResult({ ...three, result: { winners: [], wash: false, side: 2, at: T0, by: "amy" } }, [], sides({ amy: 0, bo: 1 })).wash, true);
+});
+
+test("over/under: the app checks the subject's catches against the line", () => {
+  const b = bet({ kind: "sides", sides: ["10 fish or more", "Fewer than 10 fish"] }, { win: "over", subject: "andy", measure: "fish", line: 10 });
+  const p = sides({ amy: 0, bo: 1 });
+  const list = [fish("andy", "Perch", null, 1, { fishCount: 8, limit: false }), fish("andy", "Perch", 10, 2), fish("bo", "Perch", 10, 3)];
+  assert.equal(overValue(b, list), 9);
+  assert.deepEqual(betResult(b, list, p).winners, ["bo"]);                          // under
+  assert.deepEqual(betResult(b, [...list, fish("andy", "Perch", 12, 4)], p).winners, ["amy"]);  // 10 reaches the line
+  assert.equal(betStatus(b, list, p, T0 + 25 * H), "closing");
+  assert.equal(betStatus(b, list, p, DONE), "done");
+  // The whole league, biggest by weight.
+  const big = { ...b, rule: { ...b.rule, subject: "league", measure: "weight", line: 80 } };
+  assert.equal(overValue(big, list), 10);
+  assert.deepEqual(overUnderSides(big.rule), ["5 lb or bigger", "Smaller than 5 lb"]);
+  assert.equal(overText(b.rule, u => u.toUpperCase()), "ANDY: 10 fish or more? (fish caught, any species)");
+});
+
+test("sides settings: 2 to 6 named, different sides, and a line for an over/under", () => {
+  const now = T0 - 2 * H, called = bet({ kind: "sides", sides: ["Yes", "No"], note: "Bully falls in" }, { win: "called" });
+  assert.equal(betProblem(called, now), "");
+  assert.match(betProblem({ ...called, sides: ["Yes"] }, now), /2 to 6/);
+  assert.match(betProblem({ ...called, sides: ["Yes", " "] }, now), /every side/);
+  assert.match(betProblem({ ...called, sides: ["Yes", "yes"] }, now), /different/);
+  const over = bet({ kind: "sides", sides: [] }, { win: "over", subject: "andy", measure: "fish", line: 0 });
+  assert.match(betProblem(over, now), /line/);
+});
+
+test("feed: a sides result names the winning side", () => {
+  const b = bet({ kind: "sides", sides: ["Yes", "No"], buyIn: 5, note: "x", result: { winners: ["bo"], wash: false, side: 1, at: T0 + 2 * H, by: "amy" } }, { win: "called" });
+  const news = leagueEvents({ catches: [], derbies: [], entrants: new Map(), name, now: DONE, crowns: [], badges: [], bets: new Map([["b1", b]]),
+    betPlayers: new Map([["b1", sides({ amy: 0, bo: 1 })]]) });
+  assert.ok(news.some(e => e.id === "betend:b1" && /“Biggest pike”: No wins\. BO takes it \(\$10\)/.test(e.text)));
+});
+
+test("bell: sides results name the side", () => {
+  const b = bet({ kind: "sides", sides: ["Yes", "No"], buyIn: 5, note: "x", result: { winners: ["bo"], wash: false, side: 1, at: T0 + 2 * H, by: "amy" } }, { win: "called" });
+  const data = { catches: [], derbies: [], entrants: new Map(), name, now: DONE, crowns: [], badges: [], bets: new Map([["b1", b]]),
+    betPlayers: new Map([["b1", sides({ amy: 0, bo: 1 })]]) };
+  assert.ok(alertsFor("bo", data).some(a => a.id === "betend:b1" && /Your side “No” won the bet “Biggest pike” \(\$10\)!/.test(a.text)));
+  assert.ok(alertsFor("amy", data).some(a => a.id === "betend:b1" && /“No” won the bet “Biggest pike”/.test(a.text)));
 });

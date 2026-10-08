@@ -10,7 +10,7 @@ import { crownSteals } from "./crowns.js";
 import { seriesStatus, seriesStandings, seriesFinalAt } from "./series.js";
 import { outingEnd, outingRecap } from "./outings.js";
 import { fmtWeight, fmtLength } from "./ui.js";
-import { betStatus, betResult, finalAt as betFinalAt, canJoin } from "./bets.js";
+import { betStatus, betResult, finalAt as betFinalAt, canJoin, isSides } from "./bets.js";
 import { fmtMoney } from "./payout.js";
 import { challengeStatus, challengeBoard, closesAt as h2hClosesAt, termsShort, scoreText as h2hScore, otherSide } from "./h2h.js";
 
@@ -147,6 +147,7 @@ function betEnd(b, catches, players, name, now) {
   const r = betResult(b, catches, players), at = betFinalAt(b, catches, players);
   if (r.wash) return { at, icon: "🫧", uids: [], text: `Nobody won the bet “${b.title}”. It's a wash.` };
   const names = r.winners.map(name), money = u => r.shares.get(u) ? ` (${fmtMoney(r.shares.get(u))})` : "";
+  if (isSides(b)) return { at, icon: "🎲", uids: r.winners, text: `“${b.title}”: ${b.sides[r.side]} wins. ${names.join(", ")} ${names.length > 1 ? `split it${money(r.winners[0]) ? `, ${fmtMoney(r.shares.get(r.winners[0]))} each` : ""}` : `takes it${money(r.winners[0])}`}` };
   return { at, icon: "🎲", uids: r.winners, text: r.winners.length === 1 ? `${names[0]} won the bet “${b.title}”${money(r.winners[0])}`
     : `${names.join(" and ")} split the bet “${b.title}”${money(r.winners[0])}` };
 }
@@ -293,8 +294,8 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     if (st === "done") {
       const r = betResult(b, catches, players), at = betFinalAt(b, catches, players), won = r.winners.includes(me);
       add({ id: `betend:${b.id}`, at, href, ...(r.wash ? { icon: "🫧", text: `Nobody won “${b.title}”. It's a wash.` }
-        : won ? { icon: "🏆", text: `You won the bet “${b.title}”${r.shares.get(me) ? ` (${fmtMoney(r.shares.get(me))})` : ""}!` }
-        : { icon: "😤", text: `${r.winners.map(name).join(" and ")} won the bet “${b.title}”` }) });
+        : won ? { icon: "🏆", text: `${isSides(b) ? `Your side “${b.sides[r.side]}” won` : "You won"} the bet “${b.title}”${r.shares.get(me) ? ` (${fmtMoney(r.shares.get(me))})` : ""}!` }
+        : { icon: "😤", text: isSides(b) ? `“${b.sides[r.side]}” won the bet “${b.title}”` : `${r.winners.map(name).join(" and ")} won the bet “${b.title}”` }) });
     }
   }
 
