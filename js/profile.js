@@ -81,7 +81,8 @@ export function renderProfile(main, id) {
   const statsLink = el("a", { class: "btn block", href: `#/stats/${m.id}`, text: mine ? "📊 Your stats and what's working" : `📊 ${m.displayName}'s stats` });
   const parts = [cover, head, flair, challenge, rankCard, goalsSection(m.id, mine), profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
     el("a", { class: "btn block", href: `#/box/${m.id}`, text: mine ? "🧰 Your tackle box" : `🧰 ${m.displayName}'s tackle box` }),
-    mine ? el("a", { class: "btn block", href: "#/map", text: "🗺️ Map of catches" }) : null];
+    mine ? el("a", { class: "btn block", href: "#/map", text: "🗺️ Map of catches" }) : null,
+    boatsRow(m.id)];
 
   if (mine) {
     parts.push(el("section", { class: "card stack" },
@@ -120,6 +121,15 @@ async function changePhoto(camera) {
   if (!file) return;
   try { updateMe({ avatar: await squareAvatar(file) }); toast("Photo updated."); }
   catch { toast("That file couldn't be opened as a photo."); }
+}
+
+/* The boats an angler owns or crews on, linked; and the way to everyone's boats. */
+function boatsRow(memberId) {
+  const boats = [...store.fleet.values()].filter(b => !b.retired && (b.uid === memberId || (b.crew || []).includes(memberId)));
+  return el("section", { class: "stack-tight" },
+    boats.length ? el("div", { class: "flair-row" }, ...boats.map(b => el("a", { class: "chip", href: `#/boat/${b.id}` },
+      `🚤 ${b.name}${b.uid === memberId ? "" : " (crew)"}`))) : null,
+    el("a", { class: "btn block", href: "#/boats", text: "🚤 Boats" }));
 }
 
 async function changeCover(camera) {
