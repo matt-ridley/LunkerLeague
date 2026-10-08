@@ -44,6 +44,7 @@ export const store = {
   challenges: new Map(),  // id -> head-to-head challenge
   bets: new Map(),        // id -> bet
   betPlayers: new Map(),  // bet id -> Map(uid -> { at, in })
+  proofs: new Map(),      // bet id -> Map(uid -> { photo, thumb, takenAt, note, at }), loaded when the bet is opened
   series: new Map(),      // id -> season series (Angler of the Year)
   rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at, boat, seatAt })
   boats: new Map(),       // trip id -> Map(owner uid -> { seats, name, at })
@@ -323,7 +324,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
-  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map();
+  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
 }
 
 function syncError(e) {
@@ -734,8 +735,27 @@ export const leaveBet = (id, who = uid()) => write(cloud.api.deleteDoc(cloud.api
 export function deleteBet(id) {
   const { writeBatch, doc } = cloud.api, b = writeBatch(cloud.db);
   for (const who of (store.betPlayers.get(id) || new Map()).keys()) b.delete(doc(cloud.db, "bets", id, "players", who));
+  for (const who of (store.proofs.get(id) || new Map()).keys()) b.delete(doc(cloud.db, "bets", id, "proofs", who));
   b.delete(doc(cloud.db, "bets", id));
   b.commit().catch(syncError);
+}
+
+/* Proof photos for a bet the organiser settles: listened to only while that bet is open on screen (they're big). */
+const proofUnsubs = new Map();
+export function watchProofs(betId) {
+  if (!cloud.db || proofUnsubs.has(betId)) return;
+  const { onSnapshot, collection } = cloud.api;
+  proofUnsubs.set(betId, onSnapshot(collection(cloud.db, "bets", betId, "proofs"), OPTS, snap => {
+    store.proofs.set(betId, new Map(snap.docs.map(d => [d.id, d.data()])));
+    emit();
+  }, () => { const u = proofUnsubs.get(betId); proofUnsubs.delete(betId); if (u) u(); }));
+}
+export const sendProof = (betId, proof) => write(cloud.api.setDoc(cloud.api.doc(cloud.db, "bets", betId, "proofs", uid()), { ...proof, at: Date.now() }));
+export const removeProof = (betId, who = uid()) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "bets", betId, "proofs", who)));
+/* The organiser's call: who won (several split it), or a wash (no winners). null takes the call back. */
+export function settleBet(betId, winners) {
+  const { updateDoc, doc, deleteField } = cloud.api;
+  write(updateDoc(doc(cloud.db, "bets", betId), { result: winners ? { winners, wash: !winners.length, at: Date.now(), by: uid() } : deleteField() }));
 }
 
 /* Head-to-head challenges. Offering one makes it the other angler's turn; they accept, decline or counter. */

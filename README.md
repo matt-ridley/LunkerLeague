@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.41.0 (beta)
+**Current version:** 0.42.0 (beta)
 
 ## Features
 
@@ -31,7 +31,8 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Bets.** Any number of anglers bet on something on **Events → 🎲 Bets**. League points are never bet.
   - **Setting one up:** a name, how it's won (biggest fish by weight or by length, most fish, or the **first to catch** a species and/or size), the species, when it starts and ends, who can join (**anyone**, or **invite only** with the anglers ticked), an optional buy-in in dollars per angler (the pot), how a split pot is rounded, and an optional prize ("loser buys pizza"). The organiser is in by default and can change the bet until it starts, or cancel it.
   - **Joining:** until it starts. Invited anglers get it in the bell and tap **I'm in** or **No thanks**. Fewer than 2 in when it starts and it's called off.
-  - **Settling:** the app settles it from the catches made during it by the anglers in it (sent within 12 hours, for no-signal spots). The winner takes the pot and a tie splits it; nobody scoring is a wash, with nothing owed. The bet page shows the live standings, the result and each winner's share. The app only keeps track; settle up by e-transfer or cash.
+  - **Bets the organiser decides:** for anything the catches can't settle ("first boat to the launch"), pick **The organiser decides** and say what wins in the details. Once it starts, each angler in it can send **one proof photo** with a note (sending another replaces it); the time the photo was taken shows with it, and anyone can open it full size. The organiser (or the league owner) ticks the winner, or several to split the pot, or calls it a wash, any time after it starts. They can be in the bet too, and can take the result back and pick again. When the bet ends, the bell reminds the organiser to settle it.
+  - **Settling:** the app settles the other kinds from the catches made during it by the anglers in it (sent within 12 hours, for no-signal spots). The winner takes the pot and a tie splits it; nobody scoring is a wash, with nothing owed. The bet page shows the live standings, the result and each winner's share. The app only keeps track; settle up by e-transfer or cash.
   - **The league sees it:** new bets and results show in the feed; invites, people joining your bet and your results show in the bell.
 - **Head-to-head challenges.** Challenge any angler from their profile or **Events → 🎲 Bets**.
   - **The terms:** how it's won (biggest fish by weight or by length, most fish, or the best total of the top 2 to 10 fish), the species (one, a few or any), when it starts and ends (up to 31 days), points staked, a written bet ("loser buys the coffee") and some trash talk.
@@ -113,7 +114,7 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
   - **The league sees it:** bets made, joined and decided show in the feed and the bell.
   - **Where:** the Events tab's **⚔️ H2H** becomes **🎲 Bets**, holding head-to-head challenges and bets together.
   - **Settled answers:** no paid ticks for now; a sides bet can have 2 or more choices (at least 2 need someone on them); the organiser picks how splits are rounded (exact, nearest $1 or $5).
-  - **Releases:** ✅ (1) the Bets tab and contest bets the app settles (0.41.0); (2) organiser-settled contests with proof photos; (3) sides bets.
+  - **Releases:** ✅ (1) the Bets tab and contest bets the app settles (0.41.0); ✅ (2) organiser-settled contests with proof photos (0.42.0); (3) sides bets.
 
 ### Milestone C: Notifications and social (done in 0.12.0, except as noted)
 - ✅ **In-app alerts (the bell)** instead of push notifications. Push would need the Firebase Blaze plan (a card on file) or a separate server, so the league stays on the free plan with alerts you see when you open the app.
@@ -218,6 +219,7 @@ npm run deploy:rules
 ## Where data is stored
 
 - Accounts, profiles, catches, photos, derbies, outings and chat are stored in the league's Firebase project. Only members can read them.
+- Proof photos for bets are stored the same way (one per angler per bet, about the size of a catch photo). The storage meter doesn't count them yet.
 - Photos are stored in Firestore itself (Firebase's file storage needs the paid plan), so they use most of the free plan's 1 GB. A new catch takes about 270 KB, photo included, which leaves room for roughly 3,500 to 4,000 catches. Admins can see how much is used on the League admin page (**Storage**). If it gets full: delete old test catches, or move to Firebase's Blaze plan.
 - Nothing about members is stored in this repository, which is public so GitHub Pages can host it for free.
 - Picking a spot on the map loads map pictures from OpenStreetMap (street map) and Esri (satellite). They only see which area is being viewed, never the catch or who is looking.
@@ -273,6 +275,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.42.0 | 2026-Oct-07 10:24:05 PM | **Bets**, part 2: **bets the organiser decides**, for anything the catches can't settle ("first boat to the launch"). The organiser says what wins in the details. Once it starts, each angler in it can send one proof photo with a note (replaceable), shown with the time it was taken and viewable full size. The organiser (or the league owner) picks the winner, several to split the pot, or a wash, any time after it starts, and can change their call. The bell reminds the organiser to settle a bet once it ends. **New security rules: publish firestore.rules.** |
 | 0.41.0 | 2026-Oct-07 10:14:20 PM | **Bets**, part 1. The Events page's H2H tab is now **🎲 Bets**, with bets above head-to-head challenges. Start a bet: how it's won (biggest fish by weight or length, most fish, or first to catch a species and/or size), species, start and end, open to anyone or invite only, an optional buy-in (the pot) with rounding, and an optional prize. Never league points. Anglers join until it starts (invites in the bell, with I'm in / No thanks); fewer than 2 and it's called off. The app settles it from the catches: the winner takes the pot, a tie splits it, nobody scoring is a wash. The feed and the bell announce bets, joins and results. **New security rules: publish firestore.rules.** |
 | 0.40.1 | 2026-Oct-07 09:54:41 PM | Roadmap: the **Bets** plan for the rest of Milestone B (contest and sides bets, open or invite only, buy-ins and prizes but never league points, proof photos for bets the organiser settles, the H2H tab renamed Bets). Guess bets added to Possible ideas. No app changes. |
 | 0.40.0 | 2026-Oct-07 09:20:01 PM | **Head-to-head extras.** Profiles show the angler's head-to-head record (wins–losses–ties, a winning streak, and how they've done against you), and **Events → H2H** has a records board for everyone. Finished challenges have a **Rematch** button (same terms, starting at the next hour, just as long); expired, declined or taken-back ones have **Challenge again**. New crown: **🤺 Duel King** (most head-to-head wins). 7 new badges: Duelist, Gunslinger, Sharpshooter, On a Roll, Shutout, High Roller and Rivalry (63 in all). Fixes: crowns and badges from a derby or challenge that has just finished now appear without waiting for other league activity, and the challenge form waits for the other angler's profile to load. No new security rules. |

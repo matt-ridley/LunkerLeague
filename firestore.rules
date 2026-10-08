@@ -500,28 +500,42 @@ service cloud.firestore {
     // themselves until it starts: anyone when it's open, otherwise the organiser and the anglers invited.
     function betPath(id) { return /databases/$(database)/documents/bets/$(id); }
     function validBet(b) {
-      return b.keys().hasOnly(["title", "organiserUid", "kind", "rule", "open", "invited", "start", "end", "buyIn", "roundTo", "prize", "note", "createdAt", "cancelled"])
+      return b.keys().hasOnly(["title", "organiserUid", "kind", "rule", "open", "invited", "start", "end", "buyIn", "roundTo", "prize", "note", "createdAt", "cancelled", "result"])
         && b.title is string && b.title.size() > 0 && b.title.size() <= 80
         && b.organiserUid is string && b.kind == "contest"
         && b.rule is map && b.rule.keys().hasOnly(["win", "species", "minWeightOz", "minLengthIn"])
-        && b.rule.win in ["heaviest", "longest", "most", "first"]
+        && b.rule.win in ["heaviest", "longest", "most", "first", "called"]
         && b.rule.species is list && b.rule.species.size() <= 10
         && b.rule.minWeightOz is number && b.rule.minWeightOz >= 0 && b.rule.minLengthIn is number && b.rule.minLengthIn >= 0
         && b.open is bool && b.invited is list && b.invited.size() <= 50
         && b.start is number && b.end is number && b.end > b.start && b.end - b.start <= 366 * 86400000
         && b.buyIn is number && b.buyIn >= 0 && b.buyIn <= 10000 && b.roundTo in [0, 1, 5]
         && b.prize is string && b.prize.size() <= 200 && b.note is string && b.note.size() <= 300
-        && b.createdAt is number && b.cancelled is bool;
+        && b.createdAt is number && b.cancelled is bool
+        && (!("result" in b) || validBetResult(b.result));
     }
+    // The organiser's call on a bet they settle: who won (several split it), or a wash.
+    function validBetResult(r) {
+      return r is map && r.keys().hasOnly(["winners", "wash", "at", "by"]) && r.winners is list && r.winners.size() <= 50
+        && r.wash is bool && r.at is number && r.by == me();
+    }
+    function startedBet(bid) { return request.time.toMillis() >= get(betPath(bid)).data.start; }
     match /bets/{bid} {
       allow read: if isMember();
       allow create: if isMember() && validBet(request.resource.data) && request.resource.data.organiserUid == me()
-        && request.resource.data.cancelled == false && request.resource.data.start > request.time.toMillis();
+        && request.resource.data.cancelled == false && request.resource.data.start > request.time.toMillis()
+        && !("result" in request.resource.data);
       // Before it starts: change anything (it can't be moved to start in the past). After: only cancel or un-cancel.
       allow update: if isMember() && resource.data.organiserUid == me() && validBet(request.resource.data)
         && !changed().hasAny(["organiserUid", "createdAt", "kind"])
-        && ((request.time.toMillis() < resource.data.start && request.resource.data.start > request.time.toMillis())
-          || changed().hasOnly(["cancelled"]));
+        && ((request.time.toMillis() < resource.data.start && request.resource.data.start > request.time.toMillis() && !("result" in request.resource.data))
+          || changed().hasOnly(["cancelled"])
+          || settling());
+      // Once it has started, the organiser settles a bet they decide (or changes their call); the league owner can too.
+      function settling() {
+        return changed().hasOnly(["result"]) && resource.data.rule.win == "called" && request.time.toMillis() >= resource.data.start;
+      }
+      allow update: if isOwner() && validBet(request.resource.data) && settling();
       allow delete: if isOwner() || (isMember() && resource.data.organiserUid == me() && request.time.toMillis() < resource.data.start);
       match /players/{who} {
         allow read: if isMember();
@@ -534,6 +548,21 @@ service cloud.firestore {
         allow delete: if isMember() && (!exists(betPath(bid))
           || (request.time.toMillis() < get(betPath(bid)).data.start && (who == me() || get(betPath(bid)).data.organiserUid == me()))
           || isOwner());
+      }
+      // Proof for a bet the organiser decides: one photo and a note per angler in it, sent once it has started and
+      // until it's settled (they can replace it). Removed by its angler, the organiser or the league owner.
+      match /proofs/{who} {
+        allow read: if isMember();
+        allow create, update: if isMember() && who == me() && exists(betPath(bid))
+          && get(betPath(bid)).data.rule.win == "called" && !get(betPath(bid)).data.cancelled && startedBet(bid)
+          && !("result" in get(betPath(bid)).data)
+          && get(/databases/$(database)/documents/bets/$(bid)/players/$(me())).data.get("in", false) == true
+          && request.resource.data.keys().hasOnly(["photo", "thumb", "takenAt", "note", "at"])
+          && request.resource.data.photo is string && request.resource.data.photo.size() > 100 && request.resource.data.photo.size() < 400000
+          && request.resource.data.thumb is string && request.resource.data.thumb.size() > 100 && request.resource.data.thumb.size() < 60000
+          && (request.resource.data.takenAt == null || request.resource.data.takenAt is number)
+          && request.resource.data.note is string && request.resource.data.note.size() <= 200 && request.resource.data.at is number;
+        allow delete: if isMember() && (who == me() || isOwner() || !exists(betPath(bid)) || get(betPath(bid)).data.organiserUid == me());
       }
     }
     match /{path=**}/players/{who} { allow read: if isMember(); }

@@ -100,3 +100,30 @@ test("feed and bell: started, invites, joins and results", () => {
   assert.ok(amy.some(a => a.id === "betjoin:b1:bo" && /BO is in on your bet/.test(a.text)));
   assert.ok(amy.some(a => a.id === "betend:b1" && /BO won the bet/.test(a.text)));
 });
+
+test("organiser-settled bets: live, waiting for the call, then the organiser's winners split the pot", () => {
+  const b = bet({ buyIn: 5, roundTo: 0, note: "First boat to the launch" }, { win: "called" }), p = players("amy", "bo", "cy");
+  assert.equal(betStatus(b, [], p, T0 + H), "live");
+  assert.equal(betStatus(b, [], p, T0 + 25 * H), "deciding");
+  const won = { ...b, result: { winners: ["bo", "cy"], wash: false, at: T0 + 26 * H, by: "amy" } };
+  assert.equal(betStatus(won, [], p, T0 + 26 * H), "done");
+  assert.equal(finalAt(won, [], p), T0 + 26 * H);
+  const r = betResult(won, [], p);
+  assert.deepEqual(r.winners, ["bo", "cy"]); assert.equal(r.shares.get("bo"), 7.5); assert.equal(r.shares.get("cy"), 7.5);
+  // Settled early (it's already decided): done straight away.
+  assert.equal(betStatus({ ...b, result: { winners: ["amy"], wash: false, at: T0 + 2 * H, by: "amy" } }, [], p, T0 + 2 * H), "done");
+  // A wash, and a winner who isn't in the bet doesn't count.
+  assert.equal(betResult({ ...b, result: { winners: [], wash: true, at: T0, by: "amy" } }, [], p).wash, true);
+  assert.equal(betResult({ ...b, result: { winners: ["zed"], wash: false, at: T0, by: "amy" } }, [], p).wash, true);
+  // It has to say what wins.
+  assert.match(betProblem({ ...b, note: "" }, T0 - 2 * H), /what wins/);
+  assert.equal(ruleText(b.rule), "The organiser decides, from proof photos");
+});
+
+test("bell: the organiser is told to settle a bet that's over", () => {
+  const b = bet({ note: "First to the launch" }, { win: "called" });
+  const data = { catches: [], derbies: [], entrants: new Map(), name, now: T0 + 25 * H, crowns: [], badges: [],
+    bets: new Map([["b1", b]]), betPlayers: new Map([["b1", players("amy", "bo")]]) };
+  assert.ok(alertsFor("amy", data).some(a => a.id === "betcall:b1"));
+  assert.ok(!alertsFor("bo", data).some(a => a.id === "betcall:b1"));
+});
