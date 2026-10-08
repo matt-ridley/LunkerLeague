@@ -12,6 +12,7 @@ import { renderDerbies, renderDerby, renderDerbyForm } from "./derbies.js";
 import { renderSeries, renderSeriesForm } from "./seriespage.js";
 import { renderScoring } from "./scoring.js";
 import { renderTrip, renderTripForm } from "./trips.js";
+import { renderChallenge, renderChallengeForm } from "./h2hpage.js";
 import { renderAlerts, bellCount } from "./alerts.js";
 import { applyTheme } from "./theme.js";
 
@@ -39,6 +40,9 @@ const ROUTES = {
   snew: { tab: "derbies", live: false, render: main => renderSeriesForm(main) },
   sedit: { tab: "derbies", live: false, render: renderSeriesForm },
   tedit: { tab: "derbies", live: false, render: renderTripForm },
+  h: { tab: "derbies", live: true, render: renderChallenge },
+  hnew: { tab: "derbies", live: false, render: (main, who) => renderChallengeForm(main, who) },
+  hcounter: { tab: "derbies", live: false, render: (main, id) => renderChallengeForm(main, null, id) },
   alerts: { tab: null, live: true, render: renderAlerts },
 };
 

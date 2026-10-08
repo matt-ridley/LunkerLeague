@@ -58,7 +58,9 @@ export function renderProfile(main, id) {
     el("span", { class: "eyebrow", text: `👑 ${held.length} crown${held.length === 1 ? "" : "s"}` }),
     el("span", { class: "badge-row" }, ...held.map(s => el("span", { class: "trophy crown", title: `${s.crown.name}: ${crownScore(s.crown, s.score)}` },
       el("span", { text: s.crown.icon }), el("small", { text: s.crown.name }))))) : null;
-  const parts = [head, rankCard, crownRow, badgeRow, ...pbWall(m.id)];
+  // Someone else's profile: challenge them head-to-head.
+  const challenge = !mine && !m.suspended ? el("a", { class: "btn block", href: `#/hnew/${m.id}`, text: `⚔️ Challenge ${m.displayName}` }) : null;
+  const parts = [head, challenge, rankCard, crownRow, badgeRow, ...pbWall(m.id)];
 
   if (mine) {
     parts.push(el("section", { class: "card stack" },

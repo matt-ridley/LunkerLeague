@@ -8,6 +8,7 @@ import { SCORING, PROOF, DEFAULTS, derbyStatus, STATUS_LABEL, closesAt, derbyEnt
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { tripsSection } from "./trips.js";
 import { seriesSection } from "./seriespage.js";
+import { challengesSection } from "./h2hpage.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -43,7 +44,7 @@ function when(d, now = Date.now()) {
 /* ---------- List (the Events tab: Derbies, with season series, and Outings) ---------- */
 // Which Events tab shows. Opening a derby or an outing remembers its tab, so "← Events" goes back to the right one.
 const EVENTS_TAB = "lunker-events-tab";
-const getEventsTab = () => { try { return sessionStorage.getItem(EVENTS_TAB) === "outings" ? "outings" : "derbies"; } catch { return "derbies"; } };
+const getEventsTab = () => { try { const t = sessionStorage.getItem(EVENTS_TAB); return t === "outings" || t === "h2h" ? t : "derbies"; } catch { return "derbies"; } };
 export const setEventsTab = t => { try { sessionStorage.setItem(EVENTS_TAB, t); } catch {} };
 export function renderDerbies(main) {
   const all = [...store.derbies.values()];
@@ -56,9 +57,10 @@ export function renderDerbies(main) {
   const section = (title, list) => list.length ? el("section", { class: "stack" }, el("h3", { text: title }),
     el("div", { class: "card-list" }, ...list.map(derbyCard))) : null;
   const tab = getEventsTab();
-  const tabs = el("div", { class: "seg" }, ...[["derbies", "🏁 Derbies"], ["outings", "🚤 Outings"]].map(([k, label]) =>
+  const tabs = el("div", { class: "seg" }, ...[["derbies", "🏁 Derbies"], ["outings", "🚤 Outings"], ["h2h", "⚔️ H2H"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(tab === k), text: label, onclick: () => { setEventsTab(k); renderDerbies(main); } })));
   if (tab === "outings") return fill(main, el("h2", { class: "page-title", text: "Events" }), tabs, tripsSection());
+  if (tab === "h2h") return fill(main, el("h2", { class: "page-title", text: "Events" }), tabs, challengesSection());
   fill(main,
     el("h2", { class: "page-title", text: "Events" }), tabs,
     seriesSection(),
