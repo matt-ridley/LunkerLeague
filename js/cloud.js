@@ -41,6 +41,7 @@ export const store = {
   mystery: new Map(),     // derby id -> { weightOz, setBy, setAt } or null (loaded once the rules let this angler see it)
   scoring: [],            // ranking point versions, oldest first
   trips: new Map(),       // id -> trip ("who's out Saturday?")
+  challenges: new Map(),  // id -> head-to-head challenge
   series: new Map(),      // id -> season series (Angler of the Year)
   rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at, boat, seatAt })
   boats: new Map(),       // trip id -> Map(owner uid -> { seats, name, at })
@@ -197,6 +198,11 @@ function refreshMemberListeners() {
     store.series = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "challenges"), OPTS, snap => {
+    seen("challenges", snap);
+    store.challenges = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "trips"), OPTS, snap => {
     seen("trips", snap);
     store.trips = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -298,7 +304,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
-  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map();
+  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map();
 }
 
 function syncError(e) {
@@ -695,6 +701,22 @@ export async function deleteDerby(d, { withEntries }) {
     await b.commit();
   }
 }
+
+/* Head-to-head challenges. Offering one makes it the other angler's turn; they accept, decline or counter. */
+export function sendChallenge(to, terms) {
+  const ref = cloud.api.doc(cloud.api.collection(cloud.db, "challenges"));
+  const now = Date.now();
+  write(cloud.api.setDoc(ref, { from: uid(), to, terms, status: "open", turn: to, counters: 0, createdAt: now, updatedAt: now, vetoed: false }));
+  return ref.id;
+}
+const challengeRef = id => cloud.api.doc(cloud.db, "challenges", id);
+export const acceptChallenge = id => write(cloud.api.updateDoc(challengeRef(id), { status: "accepted", acceptedAt: Date.now(), updatedAt: Date.now() }));
+export const declineChallenge = id => write(cloud.api.updateDoc(challengeRef(id), { status: "declined", updatedAt: Date.now() }));
+export const withdrawChallenge = id => write(cloud.api.updateDoc(challengeRef(id), { status: "withdrawn", updatedAt: Date.now() }));
+export function counterChallenge(ch, terms) {
+  write(cloud.api.updateDoc(challengeRef(ch.id), { terms, turn: ch.from === uid() ? ch.to : ch.from, counters: (ch.counters || 0) + 1, updatedAt: Date.now() }));
+}
+export const vetoChallenge = (id, on) => write(cloud.api.updateDoc(challengeRef(id), { vetoed: on, vetoedAt: Date.now(), vetoedBy: uid() }));
 
 /* Derbies with approval on: the organiser (or an admin) approves an entry, or takes the approval back. */
 export function setApproved(catchId, on) {

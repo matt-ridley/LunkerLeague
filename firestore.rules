@@ -448,12 +448,60 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------- Head-to-head challenges ----------
+    // One angler challenges another. The one whose turn it is accepts, declines or counters (new terms, and it's the
+    // other one's turn), all before it starts; the other one can withdraw their offer. Once accepted, the terms are
+    // fixed and the catches decide it. Points are worked out by the app (the max stake and "only what you have" are
+    // checked there); here, the shape. The league owner can veto a result, which voids it.
+    function validTerms(t) {
+      return t is map && t.keys().hasOnly(["win", "bagSize", "species", "start", "end", "stake", "money", "note"])
+        && t.win in ["heaviest", "longest", "most", "bag"]
+        && t.bagSize is int && t.bagSize >= 1 && t.bagSize <= 10
+        && t.species is list && t.species.size() <= 10
+        && t.start is number && t.end is number && t.end > t.start && t.end - t.start <= 31 * 86400000
+        && t.stake is int && t.stake >= 0 && t.stake <= 1000
+        && t.money is string && t.money.size() <= 100
+        && t.note is string && t.note.size() <= 200;
+    }
+    function startsLater(t) { return t.start > request.time.toMillis(); }
+    match /challenges/{cid} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(["from", "to", "terms", "status", "turn", "counters", "createdAt", "updatedAt", "vetoed"])
+        && request.resource.data.from == me() && request.resource.data.to != me() && exists(memberPath(request.resource.data.to))
+        && request.resource.data.status == "open" && request.resource.data.turn == request.resource.data.to
+        && request.resource.data.counters == 0 && request.resource.data.vetoed == false
+        && validTerms(request.resource.data.terms) && startsLater(request.resource.data.terms)
+        && request.resource.data.createdAt is number && request.resource.data.updatedAt is number;
+      allow update: if isMember() && (
+        // Your turn, before it starts: accept or decline as offered, or counter with new terms.
+        (resource.data.status == "open" && resource.data.turn == me() && startsLater(resource.data.terms)
+          && request.resource.data.updatedAt is number
+          && ((changed().hasOnly(["status", "acceptedAt", "updatedAt"]) && request.resource.data.status == "accepted"
+               && request.resource.data.acceptedAt is number)
+            || (changed().hasOnly(["status", "updatedAt"]) && request.resource.data.status == "declined")
+            || (changed().hasOnly(["terms", "turn", "counters", "updatedAt"])
+               && validTerms(request.resource.data.terms) && startsLater(request.resource.data.terms)
+               && request.resource.data.turn in [resource.data.from, resource.data.to] && request.resource.data.turn != me()
+               && request.resource.data.counters == resource.data.counters + 1 && request.resource.data.counters <= 20)))
+        // Waiting on the other one: take your offer back.
+        || (resource.data.status == "open" && resource.data.turn != me() && me() in [resource.data.from, resource.data.to]
+          && changed().hasOnly(["status", "updatedAt"]) && request.resource.data.status == "withdrawn"
+          && request.resource.data.updatedAt is number)
+        // The league owner vetoes a result (or takes the veto back).
+        || (isOwner() && changed().hasOnly(["vetoed", "vetoedAt", "vetoedBy"]) && request.resource.data.vetoed is bool
+          && request.resource.data.vetoedAt is number && request.resource.data.vetoedBy == me()));
+      allow delete: if isOwner();
+    }
+
     // ---------- Ranking points ----------
     // Each change to the scoring values is a new version; old versions are never edited or deleted, so the
     // history of how points worked can't be rewritten. Points themselves are never stored.
     function pts(n) { return n is number && n >= 0 && n <= 1000; }
     function validScoring(v) {
-      return v.keys().hasOnly(["catchPts", "dailyCap", "limitPts", "speciesPts", "recordPts", "crownPts", "badgePts", "derbyPts", "participationPts", "beatPts", "titles"])
+      return v.keys().hasOnly(["catchPts", "dailyCap", "limitPts", "speciesPts", "recordPts", "crownPts", "badgePts", "derbyPts", "participationPts", "beatPts", "titles",
+                              "h2hPts", "h2hWinPts", "h2hMaxStake"])
+        && (!("h2hPts" in v) || pts(v.h2hPts)) && (!("h2hWinPts" in v) || pts(v.h2hWinPts)) && (!("h2hMaxStake" in v) || pts(v.h2hMaxStake))
         && (!("limitPts" in v) || pts(v.limitPts)) && (!("crownPts" in v) || pts(v.crownPts)) && (!("badgePts" in v) || pts(v.badgePts))
         && pts(v.catchPts) && pts(v.dailyCap) && pts(v.speciesPts) && pts(v.participationPts) && pts(v.beatPts)
         && v.recordPts is list && v.recordPts.size() == 3

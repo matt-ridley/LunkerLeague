@@ -10,6 +10,7 @@ import { crownSteals } from "./crowns.js";
 import { seriesStatus, seriesStandings, seriesFinalAt } from "./series.js";
 import { outingEnd, outingRecap } from "./outings.js";
 import { fmtWeight, fmtLength } from "./ui.js";
+import { challengeStatus, challengeBoard, closesAt as h2hClosesAt, termsShort, scoreText as h2hScore, otherSide } from "./h2h.js";
 
 const PLACES = ["1st", "2nd", "3rd"];
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -114,10 +115,32 @@ export function leagueEvents(data) {
     out.push({ id: `outing:${t.id}`, at: outingEnd(t), icon: t.kind === "boat" ? "🚤" : "🎣", href: `#/t/${t.id}`, uids: r.anglers.map(a => a.uid),
       text: `${t.title}: ${r.fish} fish${big}` });
   }
+  // Head-to-head: challenges made, accepted, starting, and decided (or vetoed).
+  for (const ch of challengeList(data)) {
+    const href = `#/h/${ch.id}`, uids = [ch.from, ch.to], vs = `${name(ch.from)} vs ${name(ch.to)}`;
+    out.push({ id: `h2h:${ch.id}`, at: ch.createdAt || 0, icon: "⚔️", href, uids, text: `${name(ch.from)} challenged ${name(ch.to)}: ${termsShort(ch.terms)}` });
+    if (ch.status !== "accepted") continue;
+    if (ch.acceptedAt) out.push({ id: `h2hyes:${ch.id}`, at: ch.acceptedAt, icon: "🤝", href, uids, text: `${name(ch.turn)} accepted ${name(otherSide(ch, ch.turn))}'s ${ch.counters ? "counter" : "challenge"}: ${termsShort(ch.terms)}` });
+    if (now >= ch.terms.start && !ch.vetoed) out.push({ id: `h2hlive:${ch.id}`, at: ch.terms.start, icon: "⚔️", href, uids, text: `${vs} is on!` });
+    const r = h2hResult(ch, catches, name, now);
+    if (r) out.push({ id: `h2hend:${ch.id}`, ...r, href, uids });
+    if (ch.vetoed && ch.vetoedAt) out.push({ id: `h2hveto:${ch.id}:${ch.vetoedAt}`, at: ch.vetoedAt, icon: "🚫", href, uids, text: `The league owner vetoed ${vs}. No points move.` });
+  }
   for (const w of seriesWinners({ ...data, derbies: derbyMap, now })) {
     out.push({ id: `series:${w.s.id}`, at: w.at, icon: "🏆", href: `#/s/${w.s.id}`, uids: [w.uid], text: `${name(w.uid)} won ${aoty(w.s)}` });
   }
   return out.sort((a, b) => b.at - a.at);
+}
+
+const challengeList = data => [...(data.challenges ? asMap(data.challenges).values() : [])];
+/* A finished challenge's result line: { at, icon, text }, or null while it isn't decided (or was vetoed). */
+function h2hResult(ch, catches, name, now) {
+  if (challengeStatus(ch, now) !== "done") return null;
+  const r = challengeBoard(ch, catches), at = h2hClosesAt(ch);
+  if (r.tie) return { at, icon: "🤝", text: `${name(ch.from)} and ${name(ch.to)} tied${r.sides[0].score ? ` at ${h2hScore(ch.terms, r.sides[0].score)}` : ""}. Nobody wins.` };
+  const w = r.sides.find(x => x.uid === r.winner), l = r.sides.find(x => x.uid === r.loser);
+  const pts = ch.terms.stake ? ` and took ${ch.terms.stake} points` : "";
+  return { at, icon: "🏆", text: `${name(w.uid)} beat ${name(l.uid)} (${h2hScore(ch.terms, w.score)} to ${h2hScore(ch.terms, l.score)})${pts}` };
 }
 
 const catchName = c => (c ? (c.fishCount > 1 ? `stringer of ${c.species}` : c.species) : "catch");
@@ -210,6 +233,32 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     else for (const [u, r] of rsvps.get(t.id) || new Map()) if (u !== me) {
       add({ id: `rsvp:${t.id}:${u}:${r.answer}`, at: r.at || 0, icon: RSVP_ICON[r.answer] || "🚤", href: `#/t/${t.id}`, text: `${name(u)} ${RSVP_TEXT[r.answer] || "answered"} for ${t.title}` });
     }
+  }
+
+  // Head-to-head: your turn to answer, answers to your offers, results, vetoes; and other anglers' challenges.
+  for (const ch of challengeList(data)) {
+    const href = `#/h/${ch.id}`, st = challengeStatus(ch, now), mine = ch.from === me || ch.to === me;
+    if (!mine) {
+      add({ id: `h2h:${ch.id}`, at: ch.createdAt || 0, icon: "⚔️", href, text: `${name(ch.from)} challenged ${name(ch.to)}: ${termsShort(ch.terms)}` });
+      const r = h2hResult(ch, catches, name, now);
+      if (r) add({ id: `h2hend:${ch.id}`, ...r, href });
+      continue;
+    }
+    const them = name(otherSide(ch, me));
+    if (st === "open" && ch.turn === me) add({ id: `h2hturn:${ch.id}:${ch.counters || 0}`, at: ch.updatedAt || ch.createdAt || 0, icon: "⚔️", href,
+      text: ch.counters ? `${them} countered: ${termsShort(ch.terms)}. Your move.` : `${them} challenged you: ${termsShort(ch.terms)}. Accept?` });
+    // Who answered last: accepting or declining leaves the turn with whoever did it; withdrawing is the other one.
+    const answerer = ch.status === "withdrawn" ? otherSide(ch, ch.turn) : ch.turn;
+    const theyAnswered = ch.status !== "open" && answerer !== me;
+    if (ch.status === "accepted" && theyAnswered && ch.acceptedAt) add({ id: `h2hyes:${ch.id}`, at: ch.acceptedAt, icon: "🤝", href, text: `${them} accepted your challenge. ${termsShort(ch.terms)}` });
+    if (ch.status === "declined" && theyAnswered) add({ id: `h2hno:${ch.id}`, at: ch.updatedAt || 0, icon: "🙅", href, text: `${them} declined your challenge` });
+    if (ch.status === "withdrawn" && theyAnswered) add({ id: `h2hoff:${ch.id}`, at: ch.updatedAt || 0, icon: "↩️", href, text: `${them} took back their challenge` });
+    if (st === "done") {
+      const r = challengeBoard(ch, catches), at = h2hClosesAt(ch), stake = ch.terms.stake ? ` (${ch.terms.stake} points)` : "";
+      add({ id: `h2hend:${ch.id}`, at, href, ...(r.tie ? { icon: "🤝", text: `You and ${them} tied. Nobody wins.` }
+        : r.winner === me ? { icon: "🏆", text: `You beat ${them}${stake}!` } : { icon: "😤", text: `${them} beat you${stake}` }) });
+    }
+    if (ch.vetoed && ch.vetoedAt) add({ id: `h2hveto:${ch.id}:${ch.vetoedAt}`, at: ch.vetoedAt, icon: "🚫", href, text: `The league owner vetoed your challenge with ${them}. No points move.` });
   }
 
   // A season series you won.

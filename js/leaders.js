@@ -20,6 +20,7 @@ export function rankInput() {
     catches: [...store.catches.values()], derbies: store.derbies, entrants: store.entrants, versions: store.scoring,
     members: [...store.members.values()].filter(m => !m.suspended).map(m => m.id),
     comments: store.comments, reactions, spots, trips: store.trips, rsvps: store.rsvps, leagueStart: leagueStartOf(store.league), series: store.series,
+    challenges: store.challenges, name: memberName,
   };
   input.crowns = crownsNow(input);
   input.badges = badgesNow(input);
@@ -98,7 +99,7 @@ function rankView(main) {
       isAdmin() ? el("a", { class: "btn", href: "#/scoring", text: "Change points" }) : null));
 }
 
-const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "🐟 Records held", crown: "👑 Crowns held", badge: "🏅 Badges", derby: "🏁 Derbies" };
+const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "🐟 Records held", crown: "👑 Crowns held", badge: "🏅 Badges", derby: "🏁 Derbies", h2h: "⚔️ Head-to-head" };
 function breakdownSheet(r, place) {
   const m = who(r.uid);
   const badges = badgesFor(r.uid, rankInput());
@@ -111,7 +112,7 @@ function breakdownSheet(r, place) {
       el("div", { class: "fact" }, el("dt", { text: label }), el("dd", { text: `${Math.round(r.byKind[k] * 10) / 10} pts` })))),
     recent.length ? el("section", { class: "stack" }, el("h3", { text: "Latest points" }),
       el("ul", { class: "points-list" }, ...recent.map(e => el("li", {},
-        el("span", { class: "grow", text: e.label }), el("span", { class: "muted small", text: e.standing ? "now" : fmtDay(e.at) }), el("b", { text: `+${e.pts}` }))))) : null,
+        el("span", { class: "grow", text: e.label }), el("span", { class: "muted small", text: e.standing ? "now" : fmtDay(e.at) }), el("b", { text: `${e.pts > 0 ? "+" : ""}${e.pts}` }))))) : null,
     el("a", { class: "btn block", href: `#/u/${r.uid}`, text: "View profile", onclick: closeSheet }),
     el("button", { class: "btn quiet block", type: "button", text: "Close", onclick: closeSheet }))));
 }
@@ -129,6 +130,7 @@ export function howPointsSheet() {
       el("li", { text: `👑 ${v.crownPts} for each crown you hold right now (they move when someone passes you)` }),
       el("li", { text: `🏅 ${v.badgePts} for each badge you earn (yours for good; ${BADGES.length} to collect)` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),
+      el("li", { text: `⚔️ ${v.h2hPts} for fishing a head-to-head challenge (at least one fish), ${v.h2hWinPts} more for winning it, and the winner takes the points staked (up to ${v.h2hMaxStake} each). A tie or a vetoed challenge moves nothing` }),
       el("li", { text: "Disqualified catches and test derbies don't count." }),
       el("li", { text: `📜 Past catches (caught before the league start, ${fmtDay(leagueStartOf(store.league))}, or logged more than ${(store.league && store.league.graceDays) ?? 7} days late) count for personal bests and the all-time record boards only: no points, badges or crowns. Record points go to the best league catches.` })),
     el("h3", { text: "Titles" }),
