@@ -446,6 +446,7 @@ export function updateMe(fields) {
   const f = { ...fields };
   if ("displayName" in f) f.displayName = cleanName(f.displayName);
   if ("homeWater" in f) f.homeWater = String(f.homeWater || "").trim().slice(0, 60);
+  if ("favSpecies" in f) f.favSpecies = String(f.favSpecies || "").trim().slice(0, 40);
   write(cloud.api.updateDoc(ref("members", uid()), f));
 }
 
@@ -506,6 +507,33 @@ export function deleteCatch(c) {
   for (const who of (store.reactions.get(c.id) || new Map()).keys()) b.delete(doc(cloud.db, "catches", c.id, "reactions", who));
   outboxRemove(c.id);
   b.commit().catch(syncError);
+}
+
+/* ---------- Profile cover photo (covers/{uid}, loaded when a profile is opened) ---------- */
+export function saveCover(src) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db);
+  b.set(doc(cloud.db, "covers", uid()), { uid: uid(), src, bytes: src.length });
+  b.update(doc(cloud.db, "members", uid()), { hasCover: true });
+  coverCache.set(uid(), src);
+  b.commit().catch(syncError);
+}
+export function removeCover() {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db);
+  b.delete(doc(cloud.db, "covers", uid()));
+  b.update(doc(cloud.db, "members", uid()), { hasCover: false });
+  coverCache.delete(uid());
+  b.commit().catch(syncError);
+}
+const coverCache = new Map();
+export const cachedCover = id => coverCache.get(id) || "";
+export async function loadCover(id) {
+  if (coverCache.has(id)) return coverCache.get(id);
+  const snap = await cloud.api.getDoc(cloud.api.doc(cloud.db, "covers", id));
+  const src = snap.exists() ? String(snap.data().src || "") : "";
+  if (src) coverCache.set(id, src);
+  return src;
 }
 
 /* ---------- Tackle box ---------- */
@@ -614,9 +642,12 @@ export async function photoStorage() {
     getAggregateFromServer(query(photos, where("bytes", ">", 0)), { n: count(), bytes: sum("bytes") }),
   ]);
   // Tackle box photos (each saves its size too) are counted on top.
-  const box = await getAggregateFromServer(collection(cloud.db, "tackleBoxPhotos"), { n: count(), bytes: sum("bytes") });
+  const [box, covers] = await Promise.all([
+    getAggregateFromServer(collection(cloud.db, "tackleBoxPhotos"), { n: count(), bytes: sum("bytes") }),
+    getAggregateFromServer(collection(cloud.db, "covers"), { n: count(), bytes: sum("bytes") }),
+  ]);
   return { total: all.data().n, sized: sized.data().n, sizedBytes: sized.data().bytes || 0,
-    tackleN: box.data().n, tackleBytes: box.data().bytes || 0 };
+    tackleN: box.data().n, tackleBytes: box.data().bytes || 0, coverN: covers.data().n, coverBytes: covers.data().bytes || 0 };
 }
 
 /* ---------- Comments, reactions and chat ---------- */

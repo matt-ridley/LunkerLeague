@@ -94,6 +94,20 @@ function fit(img, maxEdge, quality, maxBytes) {
   return url;
 }
 
+/* A profile cover: a 3:1 banner cropped from the middle of the photo, about 60 KB as stored. */
+export async function coverPhoto(file) {
+  const img = await decode(file, 2000);
+  const [w, h] = dims(img);
+  const sw = Math.min(w, h * 3), sh = sw / 3, sx = (w - sw) / 2, sy = (h - sh) / 2;
+  const c = document.createElement("canvas");
+  c.width = 1080; c.height = 360;
+  c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  let q = 0.72, url = c.toDataURL("image/jpeg", q);
+  while (url.length > 60 * 1024 && q > 0.35) { q -= 0.08; url = c.toDataURL("image/jpeg", q); }
+  release(img, c);
+  return url;
+}
+
 /* A tackle box photo: much smaller than a catch photo (a lure doesn't need a scale read off it). A 640 px photo of about
    60 KB as stored, opened when the item is, and a 160 px thumbnail for the picker. */
 export async function tacklePhoto(file) {

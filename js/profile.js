@@ -1,7 +1,10 @@
 /* Profile: your own (with edit, theme and sign out) or another member's. */
 import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, icon, fill } from "./ui.js";
-import { store, uid, isAdmin, updateMe, signOut, syncStatus } from "./cloud.js";
-import { squareAvatar, pickImage } from "./photos.js";
+import { store, uid, isAdmin, updateMe, signOut, syncStatus, saveCover, removeCover, loadCover, cachedCover } from "./cloud.js";
+import { squareAvatar, pickImage, coverPhoto } from "./photos.js";
+import { luckyLure } from "./tacklebox.js";
+import { itemThumb } from "./tackleboxpage.js";
+import { SPECIES, normalizeSpecies } from "./species.js";
 import { VERSION } from "./config.js";
 import { getTheme, setTheme } from "./theme.js";
 import { pbWall } from "./catches.js";
@@ -33,6 +36,19 @@ export function renderProfile(main, id) {
   const m = mine ? { ...store.me, id: uid() } : store.members.get(id);
   if (!m) return fill(main, el("div", { class: "card" }, el("p", { text: "That member isn't in the league any more." })));
 
+  // A cover photo across the top, loaded when the profile is opened.
+  let cover = null;
+  if (m.hasCover) {
+    cover = el("div", { class: "profile-cover" });
+    const show = src => { if (src) fill(cover, el("img", { src, alt: "" })); };
+    show(cachedCover(m.id));
+    if (!cachedCover(m.id)) loadCover(m.id).then(show).catch(() => {});
+  }
+  const lucky = luckyLure(m.id, m.luckyLure, store.box, store.catches, store.tackle);
+  const flair = m.favSpecies || lucky ? el("div", { class: "flair-row" },
+    m.favSpecies ? el("span", { class: "chip" }, `⭐ Favourite: ${m.favSpecies}`) : null,
+    lucky ? el("a", { class: "chip lucky", href: `#/ti/${lucky.item.id}` }, "🍀 Lucky lure: ", itemThumb(lucky.item, "box-thumb tiny"),
+      lucky.item.name, lucky.fish ? ` (${lucky.fish} fish)` : "") : null) : null;
   const head = el("section", { class: "profile-head" },
     avatar(m, "xl"),
     el("div", {},
@@ -62,7 +78,7 @@ export function renderProfile(main, id) {
   // Someone else's profile: challenge them head-to-head.
   const challenge = !mine && !m.suspended ? el("a", { class: "btn block", href: `#/hnew/${m.id}`, text: `⚔️ Challenge ${m.displayName}` }) : null;
   const statsLink = el("a", { class: "btn block", href: `#/stats/${m.id}`, text: mine ? "📊 Your stats and what's working" : `📊 ${m.displayName}'s stats` });
-  const parts = [head, challenge, rankCard, profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
+  const parts = [cover, head, flair, challenge, rankCard, profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
     el("a", { class: "btn block", href: `#/box/${m.id}`, text: mine ? "🧰 Your tackle box" : `🧰 ${m.displayName}'s tackle box` }),
     mine ? el("a", { class: "btn block", href: "#/map", text: "🗺️ Map of catches" }) : null];
 
@@ -73,7 +89,12 @@ export function renderProfile(main, id) {
         el("button", { class: "btn", type: "button", html: icon.camera, onclick: () => changePhoto(true) }, "Camera"),
         el("button", { class: "btn", type: "button", html: icon.image, onclick: () => changePhoto(false) }, "Gallery")),
       m.avatar ? el("button", { class: "btn quiet", type: "button", text: "Remove photo", onclick: () => updateMe({ avatar: null }) }) : null,
-      el("button", { class: "btn", type: "button", text: "Edit name and home water", onclick: editSheet })));
+      el("span", { class: "field-label", text: "Cover photo" }),
+      el("div", { class: "row" },
+        el("button", { class: "btn", type: "button", html: icon.camera, onclick: () => changeCover(true) }, "Camera"),
+        el("button", { class: "btn", type: "button", html: icon.image, onclick: () => changeCover(false) }, "Gallery"),
+        m.hasCover ? el("button", { class: "btn quiet", type: "button", text: "Remove", onclick: () => { removeCover(); toast("Cover photo removed."); } }) : null),
+      el("button", { class: "btn", type: "button", text: "Edit name, home water and flair", onclick: editSheet })));
 
     const theme = getTheme();
     parts.push(el("section", { class: "card stack" },
@@ -100,21 +121,40 @@ async function changePhoto(camera) {
   catch { toast("That file couldn't be opened as a photo."); }
 }
 
+async function changeCover(camera) {
+  const file = await pickImage({ camera });
+  if (!file) return;
+  try { saveCover(await coverPhoto(file)); toast("Cover photo updated."); }
+  catch { toast("That file couldn't be opened as a photo."); }
+}
+
 function editSheet() {
   openSheet(box => {
     const name = el("input", { type: "text", maxlength: 40, autocapitalize: "words", value: store.me.displayName || "", "data-focus": "" });
     const water = el("input", { type: "text", maxlength: 60, autocapitalize: "words", value: store.me.homeWater || "", placeholder: "e.g. Lake Simcoe" });
+    const fav = el("input", { type: "text", list: "fav-species", maxlength: 40, autocapitalize: "words", autocomplete: "off",
+      value: store.me.favSpecies || "", placeholder: "e.g. Muskie" });
+    const favList = el("datalist", { id: "fav-species" }, ...SPECIES.map(s => el("option", { value: s })));
+    // The lucky lure: automatic (the item with the most fish) or one picked from the box.
+    const auto = luckyLure(uid(), null, store.box, store.catches, store.tackle);
+    const items = [...store.box.values()].filter(i => i.uid === uid()).sort((a, b) => a.name.localeCompare(b.name));
+    const lure = el("select", { "aria-label": "Lucky lure" },
+      el("option", { value: "", text: auto ? `Automatic: ${auto.item.name} (most fish)` : "Automatic (the tackle that catches you the most)" }),
+      ...items.map(i => el("option", { value: i.id, text: i.name + (i.retired ? " (retired)" : "") })));
+    lure.value = store.me.luckyLure && store.box.has(store.me.luckyLure) ? store.me.luckyLure : "";
     const form = el("form", { class: "stack" },
       el("h2", { text: "Edit profile" }),
       field("Name in the league", name),
       field("Home water (optional)", water, "Shown on your profile. Keep it vague if you like."),
+      field("Favourite species (optional)", fav), favList,
+      field("Lucky lure", lure, items.length ? "From your tackle box." : "Add tackle to your tackle box to pick one."),
       el("div", { class: "row" },
         el("button", { class: "btn", type: "button", text: "Cancel", onclick: closeSheet }),
         el("button", { class: "btn primary", type: "submit", text: "Save" })));
     form.addEventListener("submit", e => {
       e.preventDefault();
       if (!name.value.trim()) return name.focus();
-      updateMe({ displayName: name.value, homeWater: water.value });
+      updateMe({ displayName: name.value, homeWater: water.value, favSpecies: normalizeSpecies(fav.value) || fav.value, luckyLure: lure.value || null });
       closeSheet();
     });
     box.append(form);

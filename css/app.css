@@ -692,6 +692,13 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .map-legend .spot-dot { width: 14px; height: 14px; border-width: 1px; vertical-align: -2px; }
 .spot-pop ul { margin: 6px 0 0; padding-left: 18px; }
 .spot-pop li { margin: 4px 0; }
+/* Profile flair */
+.profile-cover { aspect-ratio: 3 / 1; border-radius: var(--radius); overflow: hidden; background: var(--surface-2); }
+.profile-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.flair-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.flair-row .chip { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
+.flair-row .lucky .box-thumb { margin-left: 6px; }
+
 /* Tackle box */
 .box-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .box-item { display: grid; gap: 4px; padding: 10px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); color: inherit; text-decoration: none; }
