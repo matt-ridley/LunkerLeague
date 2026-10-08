@@ -61,7 +61,8 @@ export function renderProfile(main, id) {
       el("span", { text: s.crown.icon }), el("small", { text: s.crown.name }))))) : null;
   // Someone else's profile: challenge them head-to-head.
   const challenge = !mine && !m.suspended ? el("a", { class: "btn block", href: `#/hnew/${m.id}`, text: `⚔️ Challenge ${m.displayName}` }) : null;
-  const parts = [head, challenge, rankCard, profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id)];
+  const statsLink = el("a", { class: "btn block", href: `#/stats/${m.id}`, text: mine ? "📊 Your stats and what's working" : `📊 ${m.displayName}'s stats` });
+  const parts = [head, challenge, rankCard, profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink];
 
   if (mine) {
     parts.push(el("section", { class: "card stack" },
