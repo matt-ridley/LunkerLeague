@@ -17,6 +17,8 @@ import { renderChallenge, renderChallengeForm } from "./h2hpage.js";
 import { renderBet, renderBetForm } from "./betspage.js";
 import { renderAlerts, bellCount } from "./alerts.js";
 import { applyTheme } from "./theme.js";
+import * as cloudApi from "./cloud.js";
+import { startWeather } from "./weather.js";
 
 /* Each route renders into <main>. `live` routes re-render when league data changes; forms don't, so typing isn't lost. */
 const ROUTES = {
@@ -145,6 +147,7 @@ $("scrim").addEventListener("click", closeSheet);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetOpen()) closeSheet(); });
 window.addEventListener("hashchange", () => { closeSheet(); render(true); });
 subscribe(() => render());
+startWeather(cloudApi); // fills in weather on your catches when there's signal
 // Ask the phone not to clear saved data (catches waiting for signal live there) when storage runs low.
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 registerWorker();

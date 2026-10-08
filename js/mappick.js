@@ -39,7 +39,7 @@ function startView(current) {
 }
 
 /* Opens the full-screen map. Resolves with { lat, lng } when the angler confirms a spot, or null if they cancel. */
-export async function pickOnMap(current) {
+export async function pickOnMap(current, title = "Tap where you caught it") {
   let L;
   try { L = await loadLeaflet(); }
   catch { toast("The map needs signal. Use your location (GPS) instead, or pick the spot later by editing the catch."); return null; }
@@ -56,7 +56,7 @@ export async function pickOnMap(current) {
         onclick: () => { layerChoice = k; setLayer(); drawSeg(); } })));
     };
     const box = el("div", { class: "map-pick", role: "dialog", "aria-label": "Pick the spot on the map" },
-      el("div", { class: "map-pick-top" }, el("b", { text: "Tap where you caught it" }), seg),
+      el("div", { class: "map-pick-top" }, el("b", { text: title }), seg),
       mapNode,
       el("div", { class: "map-pick-bar" },
         el("button", { class: "btn", type: "button", text: "Cancel", onclick: () => done(null) }), use));

@@ -1,6 +1,6 @@
 /* Catches: logging and editing, the feed, a catch's own page, and the personal-best wall. */
 import { el, field, avatar, fmtDate, fmtDay, fmtAgo, fmtWeight, fmtLength, toast, confirmButton, icon, openSheet, closeSheet, fill } from "./ui.js";
-import { store, uid, memberName, isAdmin, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
+import { store, uid, memberName, isAdmin, clearWeather, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
 import { pickOnMap } from "./mappick.js";
@@ -15,6 +15,7 @@ import { fishFinderCards } from "./fishfinder.js";
 import { rankInput } from "./leaders.js";
 import { estimatedWeight, estimateWeightOz } from "./estimate.js";
 import { skunkSheet } from "./statspage.js";
+import { weatherText, moonText } from "./weather.js";
 import { TECHNIQUES, cleanLure, parseDepth, hasTackle, tackleText, lureSuggestions } from "./tackle.js";
 
 const allCatches = () => [...store.catches.values()];
@@ -277,6 +278,8 @@ export function renderCatch(main, id) {
       el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), el("div", { class: "muted small", text: "View profile" }))),
     el("dl", { class: "facts card" },
       fact("Caught", fmtDate(c.caughtAt)),
+      weatherFact(c),
+      fact("Moon", moonText(c.caughtAt)),
       c.past ? fact("Counts for", "📜 Past catch: personal bests and the all-time record boards. No points, badges or crowns.") : null,
       c.photoTakenAt ? fact("Photo taken", fmtDate(c.photoTakenAt)) : null,
       ...(isStringer(c) ? [
@@ -333,6 +336,19 @@ function derbyBox(c) {
 }
 
 const fact = (k, v) => el("div", { class: "fact" }, el("dt", { text: k }), el("dd", {}, v));
+
+/* Weather at the time of the catch, once the angler's phone has looked it up. */
+function weatherFact(c) {
+  const w = store.weather.get(c.id);
+  if (w && Math.abs((w.forAt || 0) - c.caughtAt) <= 30 * 60000) {
+    return fact("Weather", `${weatherText(w)}${w.src === "home" ? " (at the home water)" : ""}`);
+  }
+  // Your own catch with nowhere to look: say how to get weather.
+  if (c.uid === uid() && !c.hasSpot && !(store.league && store.league.home)) {
+    return fact("Weather", "Tag a spot to get the weather (or ask an admin to set the league's home water).");
+  }
+  return c.uid === uid() ? fact("Weather", navigator.onLine ? "Looking it up…" : "Fills in when you have signal.") : null;
+}
 
 /* Shared tackle for everyone; secret tackle only on the angler's own phone. */
 function tackleView(c, mine) {
@@ -740,6 +756,9 @@ export function renderLog(main, editId, derbyArg) {
       if (editing.approved) data.approved = false;
     }
     const spot = st.spot ? { ...st.spot, name: spotName.value.trim().slice(0, 60), shared: st.share } : (oldSpot ? null : undefined);
+    // A spot that moved (or came or went) means the weather is looked up again; a new time is picked up anyway.
+    const moved = (a, b) => !!a !== !!b || (a && b && (Math.abs(a.lat - b.lat) > 0.005 || Math.abs(a.lng - b.lng) > 0.005));
+    if (editing && store.weather.has(editing.id) && moved(oldSpot, st.spot)) clearWeather(editing.id);
     const tackle = tackleHidden ? undefined : data.hasTackle ? { ...t, shared: data.tackleShared } : (oldTackle ? null : undefined);
     const mineNow = data.uid === uid();
     const check = mineNow ? checkNewPB({ id, ...data }, allCatches()) : { pb: false };
