@@ -162,6 +162,21 @@ test("the organiser can enter a catch for an angler who joined, and edit or dele
   b.set(doc(db, "catches/ob6"), entry("member", { enteredBy: "admin2", hasSpot: true, locShared: false }));
   b.set(doc(db, "spots/ob6"), { uid: "admin2", lat: 1, lng: 1, acc: 5, name: "", shared: false });
   await assertFails(b.commit());
+  // and so must tackle; the angler can still delete the catch and the tackle the organiser added
+  const t1 = (await import("firebase/firestore")).writeBatch(db);
+  t1.set(doc(db, "catches/ob7"), entry("member", { enteredBy: "admin2", hasTackle: true, tackleShared: false }));
+  t1.set(doc(db, "tackle/ob7"), { uid: "admin2", lure: "Jig", depthFt: null, technique: "", shared: false });
+  await assertFails(t1.commit());
+  const t2 = (await import("firebase/firestore")).writeBatch(db);
+  t2.set(doc(db, "catches/ob8"), entry("member", { enteredBy: "admin2", hasTackle: true, tackleShared: true }));
+  t2.set(doc(db, "tackle/ob8"), { uid: "admin2", lure: "Jig", depthFt: null, technique: "", shared: true });
+  t2.set(doc(db, "photos/ob8"), { uid: "admin2", src: "data:image/jpeg;base64,BBBB" });
+  await assertSucceeds(t2.commit());
+  const angler = as(env, "member");
+  const t3 = (await import("firebase/firestore")).writeBatch(angler);
+  t3.delete(doc(angler, "catches/ob8"));
+  t3.delete(doc(angler, "tackle/ob8"));
+  await assertSucceeds(t3.commit());
   await assertSucceeds(deleteDoc(doc(db, "catches/ob1")));
 });
 
