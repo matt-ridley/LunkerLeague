@@ -27,6 +27,7 @@ export const store = {
   pending: new Set(),     // ids of catches still waiting to reach the server
   spots: new Map(),       // catch id -> GPS spot (shared ones, plus all of this user's own)
   tackle: new Map(),      // catch id -> { lure, depthFt, technique } (shared ones, plus all of this user's own)
+  skunks: new Map(),      // "{uid}_{day}" -> { uid, day, notes, createdAt }: days out with no fish
   rejected: [],           // outbox entries the server refused
   comments: new Map(),    // catch id -> [comment], oldest first
   reactions: new Map(),   // catch id -> Map(uid -> [emoji])
@@ -224,6 +225,11 @@ function refreshMemberListeners() {
     store.betPlayers = by;
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "skunks"), OPTS, snap => {
+    seen("skunks", snap);
+    store.skunks = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "trips"), OPTS, snap => {
     seen("trips", snap);
     store.trips = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -336,6 +342,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
+  store.skunks = new Map();
   store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
 }
 
@@ -601,6 +608,15 @@ export function saveTrip(id, data) {
   const ref = id ? doc(cloud.db, "trips", id) : doc(collection(cloud.db, "trips"));
   write(setDoc(ref, data));
   return ref.id;
+}
+/* Skunks: log a day out with no fish ("YYYY-MM-DD", one per day), or take one back. */
+export function logSkunk(day, notes = "") {
+  const id = `${uid()}_${day}`, old = store.skunks.get(id);
+  write(cloud.api.setDoc(cloud.api.doc(cloud.db, "skunks", id),
+    { uid: uid(), day, notes: String(notes).trim().slice(0, 200), createdAt: old ? old.createdAt : Date.now() }));
+}
+export function removeSkunk(day) {
+  write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "skunks", `${uid()}_${day}`)));
 }
 /* Answers In / Maybe / Out. Staying In keeps your seat; anything else gives it up, and takes your own boat off. */
 export function setRsvp(tripId, answer) {

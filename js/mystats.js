@@ -7,18 +7,18 @@ import { lureKey, cleanLure, techniqueName } from "./tackle.js";
 
 export const PERIODS = [["all", "All time"], ["year", "This year"], ["12m", "Last 12 months"]];
 
+/* A period as { from, to } in ms, as of `now`. All time has no limits. */
+export function periodRange(period, now = Date.now()) {
+  const d = new Date(now);
+  if (period === "year") return { from: new Date(d.getFullYear(), 0, 1).getTime(), to: now };
+  if (period === "12m") return { from: new Date(d.getFullYear() - 1, d.getMonth(), d.getDate()).getTime(), to: now };
+  return { from: 0, to: Infinity };
+}
+
 /* The catches in a period, as of `now`. */
 export function inPeriod(catches, period, now = Date.now()) {
-  if (period === "year") {
-    const start = new Date(new Date(now).getFullYear(), 0, 1).getTime();
-    return catches.filter(c => c.caughtAt >= start && c.caughtAt <= now);
-  }
-  if (period === "12m") {
-    const d = new Date(now);
-    const start = new Date(d.getFullYear() - 1, d.getMonth(), d.getDate()).getTime();
-    return catches.filter(c => c.caughtAt >= start && c.caughtAt <= now);
-  }
-  return catches;
+  const { from, to } = periodRange(period, now);
+  return catches.filter(c => c.caughtAt >= from && c.caughtAt <= to);
 }
 
 const dayKey = ms => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };

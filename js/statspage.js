@@ -1,7 +1,9 @@
-/* An angler's stats page (#/stats/{uid}): catches by month, time of day, species and lure, and what's working. */
-import { el, fill } from "./ui.js";
-import { store, uid } from "./cloud.js";
-import { PERIODS, MONTHS, inPeriod, summary, byMonth, byDaypart, bySpecies, byLure, byTechnique, whatsWorking } from "./mystats.js";
+/* An angler's stats page (#/stats/{uid}): days out and skunks, catches by month, time of day, species and lure, and
+   what's working. Also the "Got skunked" sheet. */
+import { el, fill, field, fmtDay, openSheet, closeSheet, toast, confirmButton } from "./ui.js";
+import { store, uid, logSkunk, removeSkunk } from "./cloud.js";
+import { dayKey, dayAt, daysOut } from "./skunks.js";
+import { PERIODS, MONTHS, periodRange, inPeriod, summary, byMonth, byDaypart, bySpecies, byLure, byTechnique, whatsWorking } from "./mystats.js";
 
 // Remembered for the session, like the Leaders tab.
 const remember = (k, v) => { try { sessionStorage.setItem(k, v); } catch {} };
@@ -27,6 +29,8 @@ function parts(m, mine, st, draw) {
   const everyone = [...store.catches.values()].filter(c => !c.dq);
   const theirs = inPeriod(everyone.filter(c => c.uid === m.id), st.period);
   const sum = summary(theirs);
+  const out_ = daysOut(m.id, { catches: everyone, skunks: [...store.skunks.values()], trips: store.trips, rsvps: store.rsvps,
+    ...periodRange(st.period) });
   const pastN = theirs.filter(c => c.past).length;
   const seg = (key, options, value) => el("div", { class: "seg" }, ...options.map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(value === k), text: label,
@@ -35,9 +39,10 @@ function parts(m, mine, st, draw) {
   const out = [
     seg("period", PERIODS, st.period),
     el("div", { class: "hero-stats plain four" },
-      tile(sum.fish, "fish"), tile(sum.catches, "catches"), tile(sum.species, "species"), tile(sum.days, sum.days === 1 ? "day" : "days")),
+      tile(sum.fish, "fish"), tile(sum.catches, "catches"), tile(sum.species, "species"), tile(out_.daysOut, out_.daysOut === 1 ? "day out" : "days out")),
     pastN ? el("p", { class: "hint", text: `Includes ${pastN} past catch${pastN === 1 ? "" : "es"} from the 📜 logbook. A stringer counts as its number of fish.` })
-      : el("p", { class: "hint", text: "A stringer counts as its number of fish. Days are days with a fish." }),
+      : el("p", { class: "hint", text: "A stringer counts as its number of fish." }),
+    skunkCard(m, mine, out_),
   ];
   if (!theirs.length) {
     out.push(el("p", { class: "card empty", text: st.period === "all" ? "No catches yet." : "No catches in this period." }));
@@ -54,6 +59,57 @@ function parts(m, mine, st, draw) {
     techniques.length ? chartCard("Technique", null, hbars(techniques)) : null,
     working(m, mine, st, everyone, seg));
   return out;
+}
+
+/* Days out: fish per day, and the skunks (logged, or from outings with no fish). */
+function skunkCard(m, mine, d) {
+  const logged = d.days.filter(x => x.logged && x.skunk).reverse().slice(0, 5);
+  const line = (k, v) => el("div", { class: "fact" }, el("dt", { text: k }), el("dd", { text: v }));
+  return el("section", { class: "card stack" },
+    el("h3", { text: "🦨 Days out and skunks" }),
+    d.daysOut ? el("dl", { class: "facts" },
+      line("Days out", `${d.daysOut} (${d.daysOut - d.skunkDays} with fish, ${d.skunkDays} skunked)`),
+      line("Fish per day out", String(d.fishPerDay)),
+      line("Longest skunk streak", d.longestStreak ? `${d.longestStreak} day${d.longestStreak === 1 ? "" : "s"} out in a row` : "None yet"),
+      d.currentStreak ? line("Skunked lately", `The last ${d.currentStreak} day${d.currentStreak === 1 ? "" : "s"} out`) : null)
+      : el("p", { class: "muted", text: "No days out in this period." }),
+    el("p", { class: "hint", text: "A day out is a day with a fish, a skunk you logged, or an outing you were In for that ended with no fish. A day with a fish is never a skunk." }),
+    mine && logged.length ? el("ul", { class: "skunk-list" }, ...logged.map(x => el("li", { class: "row spread" },
+      el("span", { text: `🦨 ${fmtDay(dayAt(x.day))}` }),
+      confirmButton("Remove", "Tap again to remove", () => { removeSkunk(x.day); toast("Skunk removed."); }, "btn small quiet")))) : null,
+    mine ? el("button", { class: "btn block", type: "button", text: "🦨 Log a skunk", onclick: skunkSheet }) : null);
+}
+
+/* "Got skunked": a day out with no fish (today by default; not a day you logged a fish). */
+export function skunkSheet() {
+  openSheet(box => {
+    const today = dayKey(Date.now());
+    const day = el("input", { type: "date", value: today, max: today });
+    const notes = el("textarea", { rows: 2, maxlength: 200, placeholder: "Where you went, what you tried…" });
+    const msg = el("p", { class: "msg", role: "status" });
+    const existing = () => store.skunks.get(`${uid()}_${day.value}`);
+    const sync = () => { const s = existing(); notes.value = s ? s.notes || "" : notes.value; };
+    day.addEventListener("change", sync);
+    const form = el("form", { class: "stack" },
+      el("h2", { text: "🦨 Got skunked" }),
+      el("p", { class: "hint", text: "Log a day on the water with no fish. It counts toward your days out and fish per day, on your stats page." }),
+      field("Day", day), field("Notes (optional)", notes), msg,
+      el("div", { class: "row" },
+        el("button", { class: "btn", type: "button", text: "Cancel", onclick: closeSheet }),
+        el("button", { class: "btn primary", type: "submit", text: "Save" })));
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      const fail = t => { msg.className = "msg err"; msg.textContent = t; };
+      if (!day.value || day.value > today) return fail("Pick today or a day before.");
+      const fished = [...store.catches.values()].some(c => c.uid === uid() && !c.dq && dayKey(c.caughtAt) === day.value);
+      if (fished) return fail("You logged a fish that day, so it wasn't a skunk.");
+      logSkunk(day.value, notes.value);
+      closeSheet();
+      toast("Skunk logged. Better luck next time! 🦨");
+    });
+    sync();
+    box.append(form);
+  });
 }
 
 const tile = (n, label) => el("div", { class: "stat" }, el("b", { text: String(n) }), el("span", { text: label }));
