@@ -26,6 +26,7 @@ export const store = {
   catchesLoaded: false,
   pending: new Set(),     // ids of catches still waiting to reach the server
   spots: new Map(),       // catch id -> GPS spot (shared ones, plus all of this user's own)
+  tackle: new Map(),      // catch id -> { lure, depthFt, technique } (shared ones, plus all of this user's own)
   rejected: [],           // outbox entries the server refused
   comments: new Map(),    // catch id -> [comment], oldest first
   reactions: new Map(),   // catch id -> Map(uid -> [emoji])
@@ -138,7 +139,7 @@ function refreshMemberListeners() {
   for (const k of Object.keys(cloud.meta)) if (k !== "league" && k !== "me") delete cloud.meta[k];
   derbyChatUnsubs.forEach(u => u()); derbyChatUnsubs.clear();
   store.members = new Map(); store.invite = undefined;
-  store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map();
+  store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map(); store.tackle = new Map();
   resetSocial();
   if (!member) return;
   const { onSnapshot, collection, collectionGroup, doc, query, where, orderBy, limitToLast } = cloud.api;
@@ -282,6 +283,17 @@ function refreshMemberListeners() {
   cloud.memberUnsubs.push(
     spotListener("spotsShared", query(collection(cloud.db, "spots"), where("shared", "==", true))),
     spotListener("spotsMine", query(collection(cloud.db, "spots"), where("uid", "==", uid()))));
+  // Tackle, the same way: everyone's shared tackle, and all of your own (secret tackle never reaches anyone else).
+  const tackleSets = { tackleShared: new Map(), tackleMine: new Map() };
+  const tackleListener = (key, q) => onSnapshot(q, OPTS, snap => {
+    seen(key, snap);
+    tackleSets[key] = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    store.tackle = new Map([...tackleSets.tackleShared, ...tackleSets.tackleMine]);
+    emit();
+  }, syncError);
+  cloud.memberUnsubs.push(
+    tackleListener("tackleShared", query(collection(cloud.db, "tackle"), where("shared", "==", true))),
+    tackleListener("tackleMine", query(collection(cloud.db, "tackle"), where("uid", "==", uid()))));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "members"), OPTS, snap => {
     seen("members", snap);
     if (snap.docChanges().length || !store.members.size) {
@@ -316,7 +328,7 @@ function stopListeners() {
   cloud.unsubs = []; cloud.memberUnsubs = []; memberKey = "";
   cloud.meta = {};
   store.league = undefined; store.me = undefined; store.members = new Map(); store.invite = undefined;
-  store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map(); store.rejected = [];
+  store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map(); store.tackle = new Map(); store.rejected = [];
   resetSocial();
 }
 
@@ -440,10 +452,10 @@ export function randomCode() {
 /* ---------- Catches ---------- */
 export const newCatchId = () => cloud.api.doc(cloud.api.collection(cloud.db, "catches")).id;
 
-/* Saves a catch, its full photo and (optionally) its GPS spot in one go. Works offline: the batch waits on the
-   phone until there is signal. New catches also go in the outbox until the server confirms them.
-   spot: an object to save, null to remove an existing spot, undefined to leave it alone. */
-export function saveCatch({ id, data, photo, spot, isNew }) {
+/* Saves a catch, its full photo and (optionally) its GPS spot and tackle in one go. Works offline: the batch waits on
+   the phone until there is signal. New catches also go in the outbox until the server confirms them.
+   spot, tackle: an object to save, null to remove an existing one, undefined to leave it alone. */
+export function saveCatch({ id, data, photo, spot, tackle, isNew }) {
   const { writeBatch, doc } = cloud.api;
   const b = writeBatch(cloud.db);
   const me = uid();
@@ -451,7 +463,9 @@ export function saveCatch({ id, data, photo, spot, isNew }) {
   if (photo) b.set(doc(cloud.db, "photos", id), { uid: me, src: photo, bytes: photo.length }); // size, for the storage meter
   if (spot) b.set(doc(cloud.db, "spots", id), { ...spot, uid: me });
   else if (spot === null) b.delete(doc(cloud.db, "spots", id));
-  if (isNew) outboxPut({ id, uid: me, catchData: data, photo, spot: spot || null, savedAt: Date.now() });
+  if (tackle) b.set(doc(cloud.db, "tackle", id), { ...tackle, uid: me });
+  else if (tackle === null) b.delete(doc(cloud.db, "tackle", id));
+  if (isNew) outboxPut({ id, uid: me, catchData: data, photo, spot: spot || null, tackle: tackle || null, savedAt: Date.now() });
   b.commit().catch(e => console.warn("Catch not saved", e)); // a refusal is picked up by checkOutbox()
 }
 
@@ -461,6 +475,7 @@ export function deleteCatch(c) {
   b.delete(doc(cloud.db, "catches", c.id));
   b.delete(doc(cloud.db, "photos", c.id));
   if (c.hasSpot && store.spots.has(c.id)) b.delete(doc(cloud.db, "spots", c.id));
+  if (c.hasTackle) b.delete(doc(cloud.db, "tackle", c.id));
   // Its comments and reactions go with it (the rules let a catch's angler or an admin remove them).
   for (const cm of store.comments.get(c.id) || []) b.delete(doc(cloud.db, "catches", c.id, "comments", cm.id));
   for (const who of (store.reactions.get(c.id) || new Map()).keys()) b.delete(doc(cloud.db, "catches", c.id, "reactions", who));
@@ -502,7 +517,8 @@ async function checkOutbox() {
 export function retryRejected(entry, changes = {}) {
   store.rejected = store.rejected.filter(e => e.id !== entry.id);
   outboxRemove(entry.id);
-  saveCatch({ id: newCatchId(), data: { ...entry.catchData, ...changes }, photo: entry.photo, spot: entry.spot || undefined, isNew: true });
+  saveCatch({ id: newCatchId(), data: { ...entry.catchData, ...changes }, photo: entry.photo, spot: entry.spot || undefined,
+    tackle: entry.tackle || undefined, isNew: true });
   emit();
 }
 export function discardRejected(entry) {
@@ -707,6 +723,7 @@ export async function deleteDerby(d, { withEntries }) {
       for (const who of (store.reactions.get(c.id) || new Map()).keys()) refs.push(doc(cloud.db, "catches", c.id, "reactions", who));
       refs.push(doc(cloud.db, "photos", c.id));
       if (c.hasSpot) refs.push(doc(cloud.db, "spots", c.id));
+      if (c.hasTackle) refs.push(doc(cloud.db, "tackle", c.id));
       refs.push(doc(cloud.db, "catches", c.id));
     }
   }

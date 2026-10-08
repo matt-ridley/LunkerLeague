@@ -13,6 +13,7 @@ import { leagueEvents, postedAt } from "./events.js";
 import { NO_FILTERS, SHOW, WHEN, SORT, filterFeed, activeCount } from "./feedfilter.js";
 import { fishFinderCards } from "./fishfinder.js";
 import { rankInput } from "./leaders.js";
+import { TECHNIQUES, cleanLure, parseDepth, hasTackle, tackleText, lureSuggestions } from "./tackle.js";
 
 const allCatches = () => [...store.catches.values()];
 const byNewest = (a, b) => (b.caughtAt || 0) - (a.caughtAt || 0);
@@ -281,6 +282,7 @@ export function renderCatch(main, id) {
         fact("Length", fmtLength(c.lengthIn) || "Not measured"),
         fact("Released", c.released ? "Yes" : "No"),
       ]),
+      c.hasTackle ? fact("Tackle", tackleView(c, mine)) : null,
       c.notes ? fact("Notes", c.notes) : null,
       c.captain || c.netman ? fact("Boat crew", crewText(c)) : null,
       c.enteredBy ? fact("Entered by", `${memberName(c.enteredBy)} (organiser)`) : null,
@@ -325,6 +327,13 @@ function derbyBox(c) {
 }
 
 const fact = (k, v) => el("div", { class: "fact" }, el("dt", { text: k }), el("dd", {}, v));
+
+/* Shared tackle for everyone; secret tackle only on the angler's own phone. */
+function tackleView(c, mine) {
+  const t = store.tackle.get(c.id);
+  if (!t) return "🔒 Secret tackle";
+  return t.shared ? tackleText(t) : `🔒 ${tackleText(t)} (secret: only you can see it)`;
+}
 
 function spotView(c, spot, mine) {
   if (!c.hasSpot) return "Not tagged";
@@ -406,6 +415,9 @@ export function renderLog(main, editId, derbyArg) {
     return fill(main, el("div", { class: "card" }, el("p", { text: "You can only edit your own catches." })));
   }
   const oldSpot = editing && store.spots.get(editing.id);
+  // Someone else's secret tackle (an organiser editing an entry) isn't on this phone, so it's left as it is.
+  const oldTackle = editing && store.tackle.get(editing.id);
+  const tackleHidden = !!(editing && editing.hasTackle && !oldTackle);
   const st = {
     full: null, thumb: editing ? editing.thumb : null, takenAt: editing ? editing.photoTakenAt || null : null,
     spot: oldSpot ? { lat: oldSpot.lat, lng: oldSpot.lng, acc: oldSpot.acc } : null,
@@ -478,7 +490,7 @@ export function renderLog(main, editId, derbyArg) {
     : "");
   drawTimeHint();
   const released = el("input", { type: "checkbox", checked: editing ? !!editing.released : false });
-  const notes = el("textarea", { rows: 3, maxlength: 500, placeholder: "Lure, depth, weather, the one that got away…" });
+  const notes = el("textarea", { rows: 3, maxlength: 500, placeholder: "Weather, how it fought, the one that got away…" });
   notes.value = editing ? editing.notes || "" : "";
 
   // Stringer: how many fish, and was it a limit (no default; the angler has to say).
@@ -512,6 +524,27 @@ export function renderLog(main, editId, derbyArg) {
       : "Show the fish on a scale or measuring board if you can. It settles arguments.";
     drawPreview();
   };
+
+  // Tackle: optional, shared with the league unless it's kept secret.
+  const myTackle = [...store.tackle.values()].filter(t => t.uid === uid());
+  const lure = el("input", { type: "text", list: "lure-list", autocapitalize: "sentences", autocomplete: "off", maxlength: 60,
+    placeholder: "e.g. Chartreuse jig", value: oldTackle ? oldTackle.lure || "" : "" });
+  const lureList = el("datalist", { id: "lure-list" }, ...lureSuggestions(myTackle).map(l => el("option", { value: l })));
+  const depth = el("input", { type: "text", inputmode: "decimal", placeholder: "0", "aria-label": "Depth in feet",
+    value: oldTackle && oldTackle.depthFt ? String(oldTackle.depthFt) : "" });
+  const technique = el("select", { "aria-label": "Technique" }, el("option", { value: "", text: "—" }),
+    ...TECHNIQUES.map(([v, t]) => el("option", { value: v, text: t })));
+  technique.value = oldTackle ? oldTackle.technique || "" : "";
+  const tackleSecret = el("input", { type: "checkbox", checked: oldTackle ? !oldTackle.shared : false });
+  const tackleSection = el("section", { class: "card stack" },
+    el("h3", { text: "🎣 Tackle (optional)" }),
+    field("Bait or lure", lure), lureList,
+    el("div", { class: "field" }, el("span", { class: "field-label", text: "Depth" }),
+      el("div", { class: "unit-row" }, depth, el("span", { text: "ft" }))),
+    field("Technique", technique),
+    el("label", { class: "check" }, tackleSecret, el("span", { text: "🔒 Keep my tackle secret" })),
+    el("p", { class: "hint", text: "Shared tackle shows on the catch and in the league's what's-working stats. Secret tackle is only for you." }));
+  tackleSection.hidden = tackleHidden;
 
   // Spot
   const spotName = el("input", { type: "text", maxlength: 60, autocapitalize: "words", placeholder: "e.g. North bay, by the reeds",
@@ -627,6 +660,7 @@ export function renderLog(main, editId, derbyArg) {
       field("Caught", when), timeHint, pastNote,
       releasedRow,
       field("Notes (optional)", notes)),
+    tackleSection,
     el("section", { class: "card stack" }, el("h3", { text: "Where" }), spotBox),
     derbySection,
     msg,
@@ -651,6 +685,8 @@ export function renderLog(main, editId, derbyArg) {
     if (!stringer && num(oz.value) >= 16) return fail("Ounces should be under 16. Put whole pounds in the lb box.");
     if (!isFinite(caughtAt)) return fail("Enter when you caught it.");
     if (caughtAt > Date.now() + 600000) return fail("The catch time is in the future.");
+    const depthFt = parseDepth(depth.value);
+    if (Number.isNaN(depthFt)) return fail("Enter the depth in feet (up to 1000), or leave it blank.");
 
     const id = editing ? editing.id : newCatchId();
     const data = {
@@ -659,6 +695,8 @@ export function renderLog(main, editId, derbyArg) {
       notes: notes.value.trim().slice(0, 500), released: !stringer && released.checked,
       hasSpot: !!st.spot, locShared: !!st.spot && st.share, spotName: st.spot && st.share ? spotName.value.trim().slice(0, 60) : "",
     };
+    const t = { lure: cleanLure(lure.value), depthFt, technique: technique.value };
+    if (!tackleHidden) Object.assign(data, { hasTackle: hasTackle(t), tackleShared: hasTackle(t) && !tackleSecret.checked });
     if (stringer) Object.assign(data, { fishCount: count, limit: st.limit });
     if (savePast()) data.past = true;
     else if (editing && editing.fishCount != null) Object.assign(data, { fishCount: null, limit: null }); // was a stringer
@@ -672,6 +710,7 @@ export function renderLog(main, editId, derbyArg) {
         data.uid = angler; data.enteredBy = uid();
         if (st.spot) st.share = true; // their spot has to be shared, or they couldn't see it
         data.locShared = !!st.spot; data.spotName = st.spot ? spotName.value.trim().slice(0, 60) : "";
+        if (data.hasTackle) data.tackleShared = true; // the same for their tackle
       }
       if (captain.value() === undefined || netman.value() === undefined) return fail("Type the guest's name, or pick someone else.");
       const problem = entryProblem({ ...data, released: released.checked, approved: true }, d);
@@ -684,9 +723,10 @@ export function renderLog(main, editId, derbyArg) {
       if (editing.approved) data.approved = false;
     }
     const spot = st.spot ? { ...st.spot, name: spotName.value.trim().slice(0, 60), shared: st.share } : (oldSpot ? null : undefined);
+    const tackle = tackleHidden ? undefined : data.hasTackle ? { ...t, shared: data.tackleShared } : (oldTackle ? null : undefined);
     const mineNow = data.uid === uid();
     const check = mineNow ? checkNewPB({ id, ...data }, allCatches()) : { pb: false };
-    saveCatch({ id, data, photo: st.full, spot, isNew: !editing });
+    saveCatch({ id, data, photo: st.full, spot, tackle, isNew: !editing });
     // Celebrate beating your PB, or your first ever of a species (not when an unmeasured one was logged before).
     if (check.pb && (check.previous || (check.first && !editing))) celebrate = { id, previous: check.previous, at: Date.now() };
     toast(navigator.onLine ? "Catch saved." : "Saved on this phone. It will be shared when you have signal.");

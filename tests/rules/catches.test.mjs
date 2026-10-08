@@ -156,3 +156,67 @@ test("league start: admins move it (not into the future); catches before it need
   await assertSucceeds(saveAll(db, "s2", "member", { extra: { ...before, past: true } })); // older versions flagged it
   await assertFails(saveAll(db, "s3", "member", { extra: { past: true } }));              // a catch after the start isn't past
 });
+
+// Tackle: in its own doc, like a spot, so it can be kept secret.
+const tackleData = (uid, shared, extra = {}) => ({ uid, lure: "Chartreuse jig", depthFt: 12, technique: "jigging", shared, ...extra });
+function saveWithTackle(db, id, uid, tackle, extra = {}) {
+  const b = writeBatch(db);
+  b.set(doc(db, "catches", id), catchData(uid, { hasTackle: true, tackleShared: tackle.shared, ...extra }));
+  b.set(doc(db, "photos", id), { uid, src: "data:image/jpeg;base64,BBBB" });
+  b.set(doc(db, "tackle", id), tackle);
+  return b.commit();
+}
+
+test("secret tackle is readable only by its angler; shared tackle by everyone", async () => {
+  const owner = as(env, "member");
+  await assertSucceeds(saveWithTackle(owner, "tsec", "member", tackleData("member", false)));
+  await assertSucceeds(saveWithTackle(owner, "tpub", "member", tackleData("member", true)));
+  const other = as(env, "admin2");
+  await assertFails(getDoc(doc(other, "tackle/tsec")));
+  await assertSucceeds(getDoc(doc(other, "tackle/tpub")));
+  await assertSucceeds(getDoc(doc(owner, "tackle/tsec")));
+  await assertSucceeds(getDocs(query(collection(other, "tackle"), where("shared", "==", true))));
+  await assertSucceeds(getDocs(query(collection(owner, "tackle"), where("uid", "==", "member"))));
+  await assertFails(getDocs(collection(other, "tackle")));
+});
+
+test("tackle must agree with its catch and be sensible", async () => {
+  const db = as(env, "member");
+  // Shared or secret has to match the catch, and the catch has to say it has tackle.
+  await assertFails(saveWithTackle(db, "t1", "member", tackleData("member", true), { tackleShared: false }));
+  await assertFails(saveWithTackle(db, "t2", "member", tackleData("member", false), { hasTackle: false }));
+  await assertFails(saveAll(db, "t3", "member", { extra: { hasTackle: false, tackleShared: true } }));
+  await assertFails(saveWithTackle(db, "t4", "member", tackleData("member", true, { technique: "dynamite" })));
+  await assertFails(saveWithTackle(db, "t5", "member", tackleData("member", true, { depthFt: 0 })));
+  await assertFails(saveWithTackle(db, "t6", "member", tackleData("member", true, { depthFt: 1001 })));
+  await assertFails(saveWithTackle(db, "t7", "member", tackleData("member", true, { lure: "x".repeat(61) })));
+  await assertFails(saveWithTackle(db, "t8", "member", tackleData("member", true, { weather: "sunny" })));
+  await assertSucceeds(saveWithTackle(db, "t9", "member", tackleData("member", true, { lure: "", depthFt: null, technique: "fly" })));
+  // Nobody else can add tackle to your catch.
+  await saveAll(db, "t10", "member");
+  const other = as(env, "admin2");
+  await assertFails(writeBatch(other).set(doc(other, "tackle", "t10"), tackleData("admin2", true)).commit());
+});
+
+test("tackle can be changed or removed with its catch, and goes when the catch is deleted", async () => {
+  const db = as(env, "member");
+  await saveWithTackle(db, "t1", "member", tackleData("member", false));
+  // Make it shared.
+  let b = writeBatch(db);
+  b.update(doc(db, "catches/t1"), { tackleShared: true });
+  b.set(doc(db, "tackle/t1"), tackleData("member", true));
+  await assertSucceeds(b.commit());
+  // Remove it.
+  b = writeBatch(db);
+  b.update(doc(db, "catches/t1"), { hasTackle: false, tackleShared: false });
+  b.delete(doc(db, "tackle/t1"));
+  await assertSucceeds(b.commit());
+  // An admin deleting a catch can remove its secret tackle too; nobody else can.
+  await saveWithTackle(db, "t2", "member", tackleData("member", false));
+  await assertFails(deleteDoc(doc(as(env, "stranger"), "tackle/t2")));
+  const admin = as(env, "admin2");
+  b = writeBatch(admin);
+  b.delete(doc(admin, "catches/t2"));
+  b.delete(doc(admin, "tackle/t2"));
+  await assertSucceeds(b.commit());
+});
