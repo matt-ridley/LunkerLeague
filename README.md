@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.52.0 (beta)
+**Current version:** 0.52.1 (beta)
 
 ## Features
 
@@ -155,11 +155,12 @@ Built in this order, one release each. Tackle, weather and estimated weights nev
 - ✅ **Best-bite times** (M), done in 0.51.0: solunar major and minor feeding times for the home water, worked out on the phone (so they work offline), on a Fish Finder card and on outings.
 
 ### Milestone F: Fun extras
-- **End-of-season awards page** (M): a podium, the season's records, badge winners and a shareable recap.
-- **Hall of Fame** (S): every record ever held, when it was broken and by whom.
-- **Boat profiles** (M): boat name and photo, crew, and stats per boat.
-- **Personal goals** (S): for example "10 species this year", with progress bars.
-- **Profile flair** (S): a cover photo, favourite species and lucky lure.
+Built in this order, one release each, smallest first; the awards come last because they use everything else. None of it changes points.
+- **Profile flair** (S), 0.53.0: a cover photo across the top of your profile (stored on its own, about 60 KB, and loaded only when the profile is opened), a favourite species, and a lucky lure: the tackle box item that's caught you the most fish, or one you pin.
+- **Hall of Fame** (S), 0.54.0: every species' weight and length record in order of who held it, from the first one set: the angler, the fish, when it was set, when it was broken and by whom, and how long it stood, with the current holder marked. League catches only, like record points. In Leaders → Records.
+- **Personal goals** (S), 0.55.0: set goals such as a number of species, fish or days out, a fish of a species at a size (for example a 40-inch muskie), or beating your personal best for a species, for this year or between dates. Progress bars on your profile, a Fish Finder card when you're close, and 🎯 news in the feed and the bell when you reach one. Everyone in the league can see your goals.
+- **Boat profiles** (M), 0.56.0: save your boat with its name, a photo, its regular crew and notes. "I'm bringing a boat" on an outing picks a saved boat, and the log form gets an optional **Boat** (your boats and ones you crew on, defaulting to the last one you used, and filled in when you're seated on a boat for an outing). Each boat's page shows its fish, species, biggest catch, crew and outings.
+- **End-of-season awards** (M), 0.57.0: a season is the calendar year. A page for each season (the current one "so far"): the podium (top 3 by points), records set, crowns held at the end, most badges, and superlatives (biggest fish, most species, most days out, most skunks, top boat, top lure), with past seasons kept. **Share recap** makes a picture on the phone and opens the phone's share menu, or saves it.
 
 ### Possible ideas
 Not planned yet, but worth keeping in mind.
@@ -292,6 +293,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.52.1 | 2026-Oct-08 12:49:35 PM | Roadmap: the **Milestone F** plan in release order (profile flair with a cover photo, favourite species and lucky lure; the Hall of Fame; personal goals with progress and feed news; boat profiles with a Boat on each catch; end-of-season awards by calendar year with a shareable recap). No app changes. |
 | 0.52.0 | 2026-Oct-08 11:07:13 AM | **Tackle box**: a 🧰 library of your tackle on every profile (yours to manage, everyone else's to look through): name, type, usual technique and depth, notes, and a small photo (640 px, about 60 KB, loaded only when opened; a 160 px thumbnail for lists). The log form shows your tackle (most recently used first) to tap, fills in its technique and depth, and has **+ New**. New catches ask **Same tackle as your last catch?** with **Lure only**, **Everything** (depth and technique too) or **No thanks**. Each item's page lists the shared catches it caught, by species. **Fill my box from my catches** makes items from the lures you've typed (merging spellings) and links those catches. Retire or delete items; catches keep the name. The catch page links its tackle to the item. The storage meter counts tackle photos. **New security rules: publish firestore.rules.** |
 | 0.51.0 | 2026-Oct-08 10:33:29 AM | **Best-bite times** (Milestone E is complete): solunar major periods (2 hours around the moon overhead and underfoot) and minor periods (1 hour around moonrise and moonset) for the league's home water, with sunrise, sunset, the moon phase and a 1-to-4 🐟 rating for each day. A **Best bite** card in the Fish Finder shows the period on now or the next one, and opens the next 7 days. Each outing shows its day's times, marking the ones during the outing. Worked out on the phone (checked against the suncalc library to within a few minutes), so it works with no signal. Shows once an admin sets the home water. No new security rules. |
 | 0.50.0 | 2026-Oct-08 10:08:42 AM | **Map of catches**: a 🗺️ button on your profile opens a map of **My spots** (shared and 🔒 private, which only you see) or **The league**'s shared spots, on the street map or satellite view, filtered by species. Catches within about 10 m share a marker showing how many there are; tap it for a list (species, size, angler, day) linking to each catch. The map zooms to fit the spots. Map pictures need signal. No new security rules. |
