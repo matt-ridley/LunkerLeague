@@ -28,6 +28,7 @@ export const store = {
   spots: new Map(),       // catch id -> GPS spot (shared ones, plus all of this user's own)
   tackle: new Map(),      // catch id -> { lure, depthFt, technique } (shared ones, plus all of this user's own)
   skunks: new Map(),      // "{uid}_{day}" -> { uid, day, notes, createdAt }: days out with no fish
+  weather: new Map(),     // catch id -> { tempC, windKph, windDir, gustKph, pressureHpa, cloud, code, forAt, src }
   rejected: [],           // outbox entries the server refused
   comments: new Map(),    // catch id -> [comment], oldest first
   reactions: new Map(),   // catch id -> Map(uid -> [emoji])
@@ -225,6 +226,11 @@ function refreshMemberListeners() {
     store.betPlayers = by;
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "weather"), OPTS, snap => {
+    seen("weather", snap);
+    store.weather = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "skunks"), OPTS, snap => {
     seen("skunks", snap);
     store.skunks = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -342,7 +348,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
-  store.skunks = new Map();
+  store.skunks = new Map(); store.weather = new Map();
   store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
 }
 
@@ -440,6 +446,11 @@ export function updateMe(fields) {
 /* ---------- Admin ---------- */
 export const setLeagueName = name => write(cloud.api.updateDoc(ref("config", "league"), { name: cleanName(name) || "Lunker League" }));
 export const setLeagueStart = ms => write(cloud.api.updateDoc(ref("config", "league"), { startAt: Math.round(ms) }));
+/* The home water ({ lat, lng, name }), or null to clear it. */
+export const setLeagueHome = home => write(cloud.api.updateDoc(ref("config", "league"), { home: home || null }));
+/* Weather for a catch (from Open-Meteo), or clear it so it's looked up again (its spot moved). */
+export const saveWeather = (catchId, w) => write(cloud.api.setDoc(cloud.api.doc(cloud.db, "weather", catchId), { ...w, uid: uid(), fetchedAt: Date.now() }));
+export const clearWeather = catchId => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "weather", catchId)));
 export const setGraceDays = days => write(cloud.api.updateDoc(ref("config", "league"), { graceDays: Math.max(0, Math.min(60, Math.round(days))) }));
 export const setInviteCode = code => write(cloud.api.setDoc(ref("config", "invite"), { code: cleanCode(code) }));
 export const setSuspended = (id, suspended) => write(cloud.api.updateDoc(ref("members", id), { suspended }));
@@ -483,6 +494,7 @@ export function deleteCatch(c) {
   b.delete(doc(cloud.db, "photos", c.id));
   if (c.hasSpot && store.spots.has(c.id)) b.delete(doc(cloud.db, "spots", c.id));
   if (c.hasTackle) b.delete(doc(cloud.db, "tackle", c.id));
+  if (store.weather.has(c.id)) b.delete(doc(cloud.db, "weather", c.id));
   // Its comments and reactions go with it (the rules let a catch's angler or an admin remove them).
   for (const cm of store.comments.get(c.id) || []) b.delete(doc(cloud.db, "catches", c.id, "comments", cm.id));
   for (const who of (store.reactions.get(c.id) || new Map()).keys()) b.delete(doc(cloud.db, "catches", c.id, "reactions", who));
@@ -740,6 +752,7 @@ export async function deleteDerby(d, { withEntries }) {
       refs.push(doc(cloud.db, "photos", c.id));
       if (c.hasSpot) refs.push(doc(cloud.db, "spots", c.id));
       if (c.hasTackle) refs.push(doc(cloud.db, "tackle", c.id));
+      if (store.weather.has(c.id)) refs.push(doc(cloud.db, "weather", c.id));
       refs.push(doc(cloud.db, "catches", c.id));
     }
   }

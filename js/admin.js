@@ -1,6 +1,7 @@
 /* League admin: name, invite code, members and (owner only) admins. */
 import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, copyText, confirmButton, fill } from "./ui.js";
-import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode, photoStorage, setGraceDays, setLeagueStart } from "./cloud.js";
+import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode, photoStorage, setGraceDays, setLeagueStart, setLeagueHome } from "./cloud.js";
+import { pickOnMap } from "./mappick.js";
 import { leagueStartOf } from "./stats.js";
 import { estimateStorage, docsBytes, fmtBytes, FREE_BYTES } from "./storage.js";
 import { parseEmails, inviteEmail, mailtoLink } from "./invite.js";
@@ -35,7 +36,11 @@ export function renderAdmin(main) {
     el("div", { class: "row spread" },
       el("span", {}, el("strong", { text: "Late logging: " }), `${L.graceDays ?? 7} days`),
       el("button", { class: "btn small", type: "button", text: "Change", onclick: graceSheet })),
-    el("p", { class: "hint", text: `Catches caught before the league start, or logged more than ${L.graceDays ?? 7} days after they were caught, are 📜 past catches: they count for PBs and the all-time records, not points, badges or crowns. Moving the start re-sorts every catch straight away. Changing the late-logging days only affects catches logged from now on.` }));
+    el("p", { class: "hint", text: `Catches caught before the league start, or logged more than ${L.graceDays ?? 7} days after they were caught, are 📜 past catches: they count for PBs and the all-time records, not points, badges or crowns. Moving the start re-sorts every catch straight away. Changing the late-logging days only affects catches logged from now on.` }),
+    el("div", { class: "row spread" },
+      el("span", {}, el("strong", { text: "Home water: " }), L.home ? L.home.name || "Set on the map" : "Not set"),
+      el("button", { class: "btn small", type: "button", text: L.home ? "Change" : "Set", onclick: homeSheet })),
+    el("p", { class: "hint", text: "Where the league usually fishes. Catches without a tagged spot get their weather from here." }));
 
   const members = [...store.members.values()].sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
   const list = el("section", { class: "card stack" },
@@ -203,6 +208,37 @@ function graceSheet() {
       if (!(n >= 0 && n <= 60)) return input.focus();
       setGraceDays(n); closeSheet(); toast(`Catches can now be logged up to ${n} days late.`);
     });
+    box.append(form);
+  });
+}
+
+/* The home water: a name and a point on the map. */
+function homeSheet() {
+  const old = store.league.home || null;
+  let at = old ? { lat: old.lat, lng: old.lng } : null;
+  openSheet(box => {
+    const name = el("input", { type: "text", maxlength: 60, autocapitalize: "words", placeholder: "e.g. Lake Simcoe", value: old ? old.name || "" : "" });
+    const where = el("p", { class: "msg" });
+    const drawWhere = () => { where.className = "msg " + (at ? "ok" : ""); where.textContent = at ? "📍 Picked on the map." : "Not picked yet."; };
+    const form = el("form", { class: "stack" },
+      el("h2", { text: "Home water" }),
+      field("Name", name),
+      el("button", { class: "btn", type: "button", text: "🗺️ Pick it on the map", onclick: async () => {
+        const p = await pickOnMap(at, "Tap the middle of your home water");
+        if (p) { at = { lat: p.lat, lng: p.lng }; drawWhere(); }
+      } }),
+      where,
+      el("p", { class: "hint", text: "Weather for catches without a spot comes from here (Open-Meteo is sent the position rounded to about 1 km). Everyone in the league can see the name." }),
+      el("div", { class: "row" },
+        old ? el("button", { class: "btn", type: "button", text: "Clear", onclick: () => { setLeagueHome(null); closeSheet(); toast("Home water cleared."); } }) : null,
+        el("button", { class: "btn primary", type: "submit", text: "Save" })));
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      if (!at) { where.className = "msg err"; where.textContent = "Pick it on the map first."; return; }
+      setLeagueHome({ lat: Math.round(at.lat * 1e5) / 1e5, lng: Math.round(at.lng * 1e5) / 1e5, name: name.value.trim().slice(0, 60) });
+      closeSheet(); toast("Home water saved.");
+    });
+    drawWhere();
     box.append(form);
   });
 }

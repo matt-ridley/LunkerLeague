@@ -34,7 +34,14 @@ service cloud.firestore {
             && request.resource.data.graceDays >= 0 && request.resource.data.graceDays <= 60))
         // The league start (catches before it are past catches). Admins can move it, but not into the future.
         && (!("startAt" in request.resource.data) || (request.resource.data.startAt is int
-            && request.resource.data.startAt <= request.time.toMillis() + 600000));
+            && request.resource.data.startAt <= request.time.toMillis() + 600000))
+        // The home water: where weather is looked up for catches without a spot (and best-bite times).
+        && (request.resource.data.get("home", null) == null || validHome(request.resource.data.home));
+    }
+    function validHome(h) {
+      return h is map && h.keys().hasOnly(["lat", "lng", "name"])
+        && h.lat is number && h.lat >= -90 && h.lat <= 90 && h.lng is number && h.lng >= -180 && h.lng <= 180
+        && h.name is string && h.name.size() <= 60;
     }
 
     match /config/invite {
@@ -285,6 +292,24 @@ service cloud.firestore {
             || (getAfter(catchPath(id)).data.get("enteredBy", null) == me() && request.resource.data.shared == true))
         && getAfter(catchPath(id)).data.get("hasTackle", false) == true
         && getAfter(catchPath(id)).data.get("tackleShared", false) == request.resource.data.shared;
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin() || get(catchPath(id)).data.uid == me()
+        || get(catchPath(id)).data.get("enteredBy", null) == me() || testingOrganiserOf(get(catchPath(id)).data));
+    }
+
+    // Weather at the time of a catch, filled in by its angler's phone from Open-Meteo. No location is saved here.
+    function optRange(d, f, lo, hi) { return d.get(f, null) == null || (d[f] is number && d[f] >= lo && d[f] <= hi); }
+    function validWeather(d) {
+      return d.keys().hasOnly(["uid", "forAt", "tempC", "windKph", "windDir", "gustKph", "pressureHpa", "cloud", "code", "src", "fetchedAt"])
+        && d.uid == me() && d.forAt is number && d.fetchedAt is number
+        && d.tempC is number && d.tempC > -90 && d.tempC < 70
+        && optRange(d, "windKph", 0, 500) && optRange(d, "windDir", 0, 360) && optRange(d, "gustKph", 0, 600)
+        && optRange(d, "pressureHpa", 800, 1100) && optRange(d, "cloud", 0, 100)
+        && (d.get("code", null) == null || (d.code is int && d.code >= 0 && d.code <= 99))
+        && d.src in ["spot", "home"];
+    }
+    match /weather/{id} {
+      allow read: if isMember();
+      allow create, update: if isMember() && validWeather(request.resource.data) && get(catchPath(id)).data.uid == me();
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin() || get(catchPath(id)).data.uid == me()
         || get(catchPath(id)).data.get("enteredBy", null) == me() || testingOrganiserOf(get(catchPath(id)).data));
     }
