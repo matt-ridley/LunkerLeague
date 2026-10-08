@@ -5,6 +5,7 @@ import { cloud, store, subscribe, gate, syncStatus, initCloud, uid } from "./clo
 import { renderGate } from "./gate.js";
 import { renderProfile } from "./profile.js";
 import { renderStats } from "./statspage.js";
+import { renderMap } from "./mappage.js";
 import { renderAdmin } from "./admin.js";
 import { renderFeed, renderCatch, renderLog, maybeShowRejected } from "./catches.js";
 import { renderLeaders } from "./leaders.js";
@@ -37,6 +38,7 @@ const ROUTES = {
   me: { tab: null, live: true, render: main => renderProfile(main) },
   u: { tab: null, live: true, render: (main, id) => renderProfile(main, id) },
   stats: { tab: null, live: true, render: (main, id) => renderStats(main, id) },
+  map: { tab: null, live: false, render: main => renderMap(main) },
   admin: { tab: null, live: true, render: renderAdmin },
   scoring: { tab: "leaders", live: false, render: renderScoring },
   t: { tab: "derbies", live: true, render: renderTrip },

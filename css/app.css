@@ -680,6 +680,18 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .working { display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--line); }
 .working:first-child { border-top: 0; padding-top: 0; }
 .working p { margin: 0; }
+/* Map of catches: its own stacking context, so the map's controls stay under the header and tab bar. */
+.catch-map { height: min(62vh, 560px); min-height: 320px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); isolation: isolate; }
+.map-tools select { flex: 1; min-width: 0; }
+.map-tools .seg { flex: none; }
+.spot-dot { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font: 800 13px/1 var(--f-body);
+  background: var(--primary); color: var(--primary-ink); border: 2px solid var(--surface); box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+.spot-dot.private { background: var(--tangerine); color: var(--surface); }
+.spot-dot.big { width: 36px; height: 36px; }
+.map-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; font-weight: 700; }
+.map-legend .spot-dot { width: 14px; height: 14px; border-width: 1px; vertical-align: -2px; }
+.spot-pop ul { margin: 6px 0 0; padding-left: 18px; }
+.spot-pop li { margin: 4px 0; }
 .skunk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
