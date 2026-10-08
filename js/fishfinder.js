@@ -7,7 +7,8 @@ import { fishIn, measured, isStringer, speciesBoard, leagueCatches } from "./sta
 import { derbyStatus, closesAt, standings } from "./derby.js";
 import { rankings, scoringTimeline, currentScoring, TITLES } from "./rank.js";
 import { BADGES } from "./badges.js";
-import { fmtWeight, fmtLength } from "./ui.js";
+import { fmtWeight, fmtLength, fmtClock } from "./ui.js";
+import { biteTimes, nextPeriod } from "./solunar.js";
 
 const MIN = 60 * 1000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 /* 1 -> "1st", 2 -> "2nd", 11 -> "11th", 23 -> "23rd" */
@@ -55,6 +56,21 @@ function happening(x) {
   const soon = [...derbies.values()].filter(d => !d.cancelled && derbyStatus(d, now) === "upcoming" && d.start - now < 7 * DAY).sort((a, b) => a.start - b.start)[0];
   if (soon) return { title: `${soon.name} starts in ${span(soon.start - now)}`, detail: joined(soon) ? "You're entered." : "Not entered yet. Tap to join.", href: `#/d/${soon.id}` };
   return null;
+}
+
+/* ---------- Best bite: what's on now or next at the home water (only once an admin has set it) ---------- */
+function bestBite(x) {
+  const home = x.input.home;
+  if (!home || typeof home.lat !== "number") return null;
+  const today = biteTimes(x.now, home);
+  let at = nextPeriod(today, x.now), day = today, when = "";
+  if (!at) { day = biteTimes(x.now + DAY, home); at = day.periods.length ? { period: day.periods[0], now: false } : null; when = "Tomorrow "; }
+  if (!at) return null;
+  const p = at.period, kind = p.kind === "major" ? "Major" : "Minor";
+  const rated = `${when ? "Tomorrow" : "Today"} looks ${day.ratingText.toLowerCase()} (${day.moon.emoji} ${day.moon.name.toLowerCase()}).`;
+  return at.now
+    ? { title: `🎣 ${kind} bite on now`, detail: `${p.why} until ${fmtClock(p.end)}. ${rated}`, href: "#/bite" }
+    : { title: `🎣 Next bite: ${when}${fmtClock(p.start)}`, detail: `${kind}: ${p.why.toLowerCase()}, ${fmtClock(p.start)} to ${fmtClock(p.end)}. ${rated}`, href: "#/bite" };
 }
 
 /* ---------- Your standing: this season's place, and the next title ---------- */
@@ -184,6 +200,7 @@ export function fishFinderCards(input, me, { now = Date.now(), seasonStart = new
   const out = getOutThere(x);
   return [
     card("now", "Happening now", happening(x)),
+    card("bite", "Best bite", bestBite(x)),
     out.overdue ? card("out", "Get out there", out) : null,
     card("standing", "Your standing", standing(x)),
     card("reach", "Within reach", withinReach(x)),

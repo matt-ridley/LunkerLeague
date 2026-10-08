@@ -92,3 +92,15 @@ test("past and disqualified catches don't count", () => {
   assert.equal(byKind(list, "out").title, "No catches logged yet");
   assert.equal(byKind(list, "week").title, "Quiet week on the water");
 });
+
+test("best bite: shown once the league has a home water, after what's happening now, linking to the times", () => {
+  assert.equal(fishFinderCards({ catches: [] }, "amy", { now: NOW }).some(c => c.kind === "bite"), false);
+  const cards = fishFinderCards({ catches: [], home: { lat: 44.4, lng: -79.4, name: "Lake Simcoe" } }, "amy", { now: NOW });
+  const bite = cards.find(c => c.kind === "bite");
+  assert.ok(bite);
+  assert.equal(bite.label, "Best bite");
+  assert.equal(bite.href, "#/bite");
+  assert.match(bite.title, /^🎣 (Major bite on now|Minor bite on now|Next bite: )/);
+  assert.match(bite.detail, /looks (fair|good|great|excellent)/);
+  assert.equal(cards[0].kind === "now" ? cards[1].kind : cards[0].kind, "bite");
+});

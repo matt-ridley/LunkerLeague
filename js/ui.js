@@ -34,6 +34,11 @@ export function fmtDate(d) {
   const h = d.getHours() % 12 || 12;
   return `${d.getFullYear()}-${MON[d.getMonth()]}-${pad(d.getDate())} ${pad(h)}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${d.getHours() < 12 ? "AM" : "PM"}`;
 }
+/* 07:09 PM */
+export function fmtClock(d) {
+  d = toDate(d);
+  return `${pad(d.getHours() % 12 || 12)}:${pad(d.getMinutes())} ${d.getHours() < 12 ? "AM" : "PM"}`;
+}
 /* 2026-Oct-03 */
 export function fmtDay(d) {
   d = toDate(d);

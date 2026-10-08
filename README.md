@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.50.0 (beta)
+**Current version:** 0.51.0 (beta)
 
 ## Features
 
@@ -27,6 +27,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 - **Export your catches.** On your stats page, **Download my catches** saves all your catches as a spreadsheet (CSV) file for Excel, Numbers or Google Sheets: when, species, weight and length (and any estimate), stringers, released, past, derby, tackle, spot (name and position, private ones too) and notes. It's made on the phone, so it works with no signal. Photos aren't included.
 - **Weather and moon.** Each catch shows the weather at the hour it was caught (sky, temperature, wind and gusts, pressure) and the moon phase. Your phone looks the weather up from the free Open-Meteo service once it has signal, at the catch's spot or, for catches without one, at the league's **home water** (set by an admin on League admin). Old logbook catches get it too. The moon is worked out on the phone.
 - **Map of catches.** **🗺️ Map of catches** on your profile shows your spots (private ones too, only on your phone) or the league's shared spots on a street map or satellite view, with a species filter. Each marker is a spot with how many catches it has; tap it for the list, and tap a catch to open it.
+- **Best-bite times.** Solunar times for the league's home water: major periods (about 2 hours around the moon being overhead or underfoot) and minor ones (about 1 hour around moonrise and moonset), with sunrise, sunset, the moon phase and a rating for the day (best near the new and full moon, and when a period lines up with sunrise or sunset). The Fish Finder shows what's on now or next, tap it for the next 7 days, and each outing shows its day's times with the ones during the outing marked. Worked out on the phone, so they work with no signal. Needs the home water set on League admin.
 - **Personal bests.** Your best catch of each species is worked out automatically, past catches included (you only ever have one PB per species), with a celebration when you beat it. Heavier wins when both were weighed, longer when both were measured; a fish measured one way never beats a PB measured only the other way. Each profile has catch, species and record counts that work as filters: **catches** shows the PB wall and recent catches, **species** lists every species with how many were caught, and **records** shows the league records held.
 - **Leaders.** For every species: the **👑 league record** (heaviest and longest, from league catches, worth points by weight and by length) and, when a past catch beats it, the **📜 all-time record** (props, no points), with a note explaining the points. Each species' leaderboard switches between **League** and **All-time**, by weight or by length.
 - **Reactions and comments.** React to any catch with 🎣 🔥 🐟 😂 👏 🤥 (fish story!) or any emoji from the picker, and see who reacted. Comment on catches; the comment's author, the catch's angler or an admin can remove one. Catch cards show the top reactions and the comment count.
@@ -141,7 +142,7 @@ Ideas picked for future versions, grouped into milestones in a rough order. Size
 - ✅ **Season series or Angler of the Year** (M): a set of derbies with points across the season (done in 0.34.0).
 - ✅ **Copy a derby** (S): start a new derby from an old one's settings (done in 0.30.0).
 
-### Milestone E: Logbook and stats
+### Milestone E: Logbook and stats (done in 0.44.0 to 0.51.0)
 Built in this order, one release each. Tackle, weather and estimated weights never change points, records, derbies or bets.
 - ✅ **Tackle on each catch** (S–M), done in 0.44.0: optional bait or lure (suggesting the ones you've used before), depth and technique (casting, trolling, jigging, live bait, fly, ice, drift or bottom). Shared with the league unless you tick **Keep my tackle secret**, like a secret spot.
 - ✅ **Estimated weight from length** (S), done in 0.45.0: standard formulas for each species, shown as "~4 lb 2 oz (est.)" on fish that were only measured. For show only: never a personal best, a record, a derby weight or a bet result. Species without a formula get no estimate.
@@ -150,7 +151,7 @@ Built in this order, one release each. Tackle, weather and estimated weights nev
 - ✅ **Export your catches** (S), done in 0.48.0: download your catches as a spreadsheet (CSV) file.
 - ✅ **Automatic weather and moon** (M), done in 0.49.0: air temperature, wind, pressure and sky at the time of the catch, from the free Open-Meteo service (no account needed), filled in once the phone has signal. Old logbook catches get weather too. The spot's location is rounded to about 1 km before it's sent, and catches without a spot use the league's **home water**, set by an admin. The moon phase is worked out on the phone. Saved in metric, shown in °F, mph and inHg.
 - ✅ **Map of catches** (M), done in 0.50.0: your spots (private ones too, only you see them) and the league's shared spots on a free OpenStreetMap map.
-- **Best-bite times** (M), 0.51.0: solunar major and minor feeding times for the home water, worked out on the phone (so they work offline), on a Fish Finder card and on outings.
+- ✅ **Best-bite times** (M), done in 0.51.0: solunar major and minor feeding times for the home water, worked out on the phone (so they work offline), on a Fish Finder card and on outings.
 
 ### Milestone F: Fun extras
 - **End-of-season awards page** (M): a podium, the season's records, badge winners and a shareable recap.
@@ -290,6 +291,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.51.0 | 2026-Oct-08 10:33:29 AM | **Best-bite times** (Milestone E is complete): solunar major periods (2 hours around the moon overhead and underfoot) and minor periods (1 hour around moonrise and moonset) for the league's home water, with sunrise, sunset, the moon phase and a 1-to-4 🐟 rating for each day. A **Best bite** card in the Fish Finder shows the period on now or the next one, and opens the next 7 days. Each outing shows its day's times, marking the ones during the outing. Worked out on the phone (checked against the suncalc library to within a few minutes), so it works with no signal. Shows once an admin sets the home water. No new security rules. |
 | 0.50.0 | 2026-Oct-08 10:08:42 AM | **Map of catches**: a 🗺️ button on your profile opens a map of **My spots** (shared and 🔒 private, which only you see) or **The league**'s shared spots, on the street map or satellite view, filtered by species. Catches within about 10 m share a marker showing how many there are; tap it for a list (species, size, angler, day) linking to each catch. The map zooms to fit the spots. Map pictures need signal. No new security rules. |
 | 0.49.0 | 2026-Oct-08 09:57:42 AM | **Weather and moon on each catch**: the catch page shows the weather at the hour it was caught (sky, °F, wind in mph with direction and gusts, pressure in inHg) and the moon phase with how much is lit. Your phone fills in the weather for your own catches from Open-Meteo once it has signal (up to 20 at a time, newest first, so old logbook catches fill in over a few visits), using the catch's spot rounded to about 1 km, or the league's **home water** for catches without a spot. Admins set the home water on League admin (a name and a point picked on the map). Moving a catch's spot or time looks its weather up again. The moon is worked out on the phone. **New security rules: publish firestore.rules.** |
 | 0.48.0 | 2026-Oct-08 09:50:06 AM | **Export your catches**: **Download my catches** on your stats page saves every catch you've logged as a CSV spreadsheet (oldest first): caught, species, weight (as written and in lb), length, estimated weight, fish and limit for stringers, released, past, derby and disqualified, bait or lure, depth, technique and whether the tackle is secret, spot name and position and whether it's shared, notes, when it was logged, and its ID. Made on the phone (works with no signal); Excel reads the accents and emoji; anything that looks like a spreadsheet formula is saved as plain text. No new security rules. |
