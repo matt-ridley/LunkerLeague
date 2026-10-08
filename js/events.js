@@ -12,6 +12,7 @@ import { outingEnd, outingRecap } from "./outings.js";
 import { fmtWeight, fmtLength } from "./ui.js";
 import { betStatus, betResult, finalAt as betFinalAt, canJoin, isSides } from "./bets.js";
 import { fmtMoney } from "./payout.js";
+import { goalsReached, goalTitle, periodText } from "./goals.js";
 import { challengeStatus, challengeBoard, closesAt as h2hClosesAt, termsShort, scoreText as h2hScore, otherSide } from "./h2h.js";
 
 const PLACES = ["1st", "2nd", "3rd"];
@@ -93,6 +94,12 @@ export function leagueEvents(data) {
     out.push({ id: `rec:${s.c.id}:${s.field}`, at: postedAt(s.c), icon: "👑", href: `#/c/${s.c.id}`, uids: [s.c.uid, s.from.uid],
       cid: s.c.id, short: `Took the ${kind} record from ${name(s.from.uid)}`,
       text: `${name(s.c.uid)} took the ${s.species} ${kind} record from ${name(s.from.uid)}` });
+  }
+  // Personal goals reached.
+  for (const r of goalsReached(data.goals || [], data)) {
+    out.push({ id: `goal:${r.g.id}`, at: posted.at(r.at, [r.g.uid]), icon: "🎯", href: `#/u/${r.g.uid}`, uids: [r.g.uid],
+      cid: r.catchId || undefined, short: r.catchId ? `Reached a goal: ${goalTitle(r.g)} ${periodText(r.g)}` : undefined,
+      text: `${name(r.g.uid)} reached a goal: ${goalTitle(r.g)} ${periodText(r.g)}` });
   }
   for (const b of data.badges || badgeTimeline({ ...data, derbies: derbyMap })) {
     out.push({ id: `badge:${b.uid}:${b.badge.id}`, at: posted.at(b.at, [b.uid]), icon: b.badge.icon, href: `#/u/${b.uid}`, uids: [b.uid],
@@ -211,6 +218,9 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
   for (const s of recordSteals(catches)) if (s.from.uid === me && s.c.uid !== me) {
     add({ id: `rec:${s.c.id}:${s.field}`, at: postedAt(s.c), icon: "😱", href: `#/c/${s.c.id}`,
       text: `${name(s.c.uid)} took your ${s.species} ${s.field === "weightOz" ? "weight" : "length"} record` });
+  }
+  for (const r of goalsReached((data.goals || []).filter(g => g.uid === me), data)) {
+    add({ id: `goal:${r.g.id}`, at: posted.at(r.at, [me]), icon: "🎯", href: "#/me", text: `You reached your goal: ${goalTitle(r.g)} ${periodText(r.g)}` });
   }
   for (const b of data.badges || badgeTimeline({ ...data, derbies: derbyMap })) if (b.uid === me) {
     add({ id: `badge:${b.badge.id}`, at: posted.at(b.at, [me]), icon: b.badge.icon, href: "#/me", text: `You earned the ${b.badge.name} badge` });

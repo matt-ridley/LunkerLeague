@@ -305,6 +305,24 @@ service cloud.firestore {
         || get(catchPath(id)).data.get("enteredBy", null) == me() || testingOrganiserOf(get(catchPath(id)).data));
     }
 
+    // Personal goals: everyone in the league can see them; only their angler sets them (admins can delete).
+    function validGoal(d) {
+      return d.keys().hasOnly(["uid", "kind", "target", "species", "field", "value", "from", "to", "createdAt"])
+        && d.uid == me() && d.kind in ["species", "fish", "days", "size", "pb"]
+        && (d.kind in ["size", "pb"] || (d.target is int && d.target >= 1 && d.target <= 100000))
+        && (!(d.kind in ["size", "pb"]) || (d.species is string && d.species.size() > 0 && d.species.size() <= 40
+            && d.field in ["weightOz", "lengthIn"]))
+        && (d.kind != "size" || (d.value is number && d.value > 0 && d.value <= 16000))
+        && d.from is number && d.to is number && d.to > d.from && d.createdAt is number;
+    }
+    match /goals/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && validGoal(request.resource.data);
+      allow update: if isMember() && resource.data.uid == me() && validGoal(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+    }
+
     // A profile's cover photo (about 60 KB), loaded when the profile is opened.
     match /covers/{id} {
       allow read: if isMember();

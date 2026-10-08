@@ -28,6 +28,7 @@ export const store = {
   spots: new Map(),       // catch id -> GPS spot (shared ones, plus all of this user's own)
   tackle: new Map(),      // catch id -> { lure, depthFt, technique } (shared ones, plus all of this user's own)
   skunks: new Map(),      // "{uid}_{day}" -> { uid, day, notes, createdAt }: days out with no fish
+  goals: new Map(),       // goal id -> { uid, kind, target, species, field, value, from, to, createdAt }
   box: new Map(),         // tackle box item id -> { uid, name, type, technique, depthFt, notes, thumb, retired, createdAt }
   weather: new Map(),     // catch id -> { tempC, windKph, windDir, gustKph, pressureHpa, cloud, code, forAt, src }
   rejected: [],           // outbox entries the server refused
@@ -227,6 +228,11 @@ function refreshMemberListeners() {
     store.betPlayers = by;
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "goals"), OPTS, snap => {
+    seen("goals", snap);
+    store.goals = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "tackleBox"), OPTS, snap => {
     seen("tackleBox", snap);
     store.box = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -354,7 +360,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
-  store.skunks = new Map(); store.weather = new Map(); store.box = new Map();
+  store.skunks = new Map(); store.weather = new Map(); store.box = new Map(); store.goals = new Map();
   store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
 }
 
@@ -508,6 +514,16 @@ export function deleteCatch(c) {
   outboxRemove(c.id);
   b.commit().catch(syncError);
 }
+
+/* ---------- Personal goals ---------- */
+export function saveGoal(id, data) {
+  const { doc, collection, setDoc } = cloud.api;
+  const ref = id ? doc(cloud.db, "goals", id) : doc(collection(cloud.db, "goals"));
+  const old = id && store.goals.get(id);
+  write(setDoc(ref, { ...data, uid: uid(), createdAt: old ? old.createdAt : Date.now() }));
+  return ref.id;
+}
+export const deleteGoal = id => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "goals", id)));
 
 /* ---------- Profile cover photo (covers/{uid}, loaded when a profile is opened) ---------- */
 export function saveCover(src) {

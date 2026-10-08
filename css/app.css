@@ -692,6 +692,12 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .map-legend .spot-dot { width: 14px; height: 14px; border-width: 1px; vertical-align: -2px; }
 .spot-pop ul { margin: 6px 0 0; padding-left: 18px; }
 .spot-pop li { margin: 4px 0; }
+/* Goals */
+.goal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.goal { display: grid; gap: 4px; }
+.goal.ended { opacity: .6; }
+.meter-fill.goal { background: var(--primary); }
+
 /* Hall of Fame */
 .hof-list { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
 .hof-species summary { cursor: pointer; padding: 2px 0; }
