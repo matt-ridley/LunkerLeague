@@ -14,6 +14,7 @@ import { NO_FILTERS, SHOW, WHEN, SORT, filterFeed, activeCount } from "./feedfil
 import { fishFinderCards } from "./fishfinder.js";
 import { rankInput } from "./leaders.js";
 import { estimatedWeight, estimateWeightOz } from "./estimate.js";
+import { skunkSheet } from "./statspage.js";
 import { TECHNIQUES, cleanLure, parseDepth, hasTackle, tackleText, lureSuggestions } from "./tackle.js";
 
 const allCatches = () => [...store.catches.values()];
@@ -662,6 +663,7 @@ export function renderLog(main, editId, derbyArg) {
   const form = el("form", { class: "stack", novalidate: true },
     el("h2", { class: "page-title", text: editing ? "Edit catch" : chosenDerby() && derbyArg ? `Enter: ${chosenDerby().name}` : "Log a catch" }),
     derbyOnly ? null : modeSeg,
+    editing || derbyOnly ? null : el("button", { class: "btn quiet block", type: "button", text: "🦨 Got skunked? Log a day with no fish", onclick: skunkSheet }),
     el("section", { class: "card stack" }, preview,
       el("div", { class: "row" },
         el("button", { class: "btn", type: "button", html: icon.camera, onclick: () => takePhoto(true) }, "Camera"),
