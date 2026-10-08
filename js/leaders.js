@@ -23,6 +23,7 @@ export function rankInput() {
     members: [...store.members.values()].filter(m => !m.suspended).map(m => m.id),
     comments: store.comments, reactions, spots, trips: store.trips, rsvps: store.rsvps, leagueStart: leagueStartOf(store.league), series: store.series,
     challenges: store.challenges, bets: store.bets, betPlayers: store.betPlayers, name: memberName,
+    goals: [...store.goals.values()], skunks: [...store.skunks.values()],
   };
   input.crowns = crownsNow(input);
   input.badges = badgesNow(input);

@@ -9,6 +9,7 @@ import { rankings, scoringTimeline, currentScoring, TITLES } from "./rank.js";
 import { BADGES } from "./badges.js";
 import { fmtWeight, fmtLength, fmtClock } from "./ui.js";
 import { biteTimes, nextPeriod } from "./solunar.js";
+import { goalWatch as goalNear, goalTitle, periodText } from "./goals.js";
 
 const MIN = 60 * 1000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 /* 1 -> "1st", 2 -> "2nd", 11 -> "11th", 23 -> "23rd" */
@@ -161,6 +162,13 @@ function badgeWatch(x) {
   return { title: `${left} more ${left === 1 ? o.one : o.many} for ${o.b.icon} ${o.b.name}`, detail: `${o.b.desc}. You have ${o.n} of ${o.need}.`, href: "#/me" };
 }
 
+/* ---------- Goal watch: your goal closest to done (at least half way) ---------- */
+function goalWatch(x) {
+  const w = goalNear(x.me, x.input.goals || [], { ...x.input, now: x.now });
+  if (!w) return null;
+  return { title: `${w.left} more ${w.unit} for 🎯 ${goalTitle(w.g)}`, detail: `Your goal ${periodText(w.g)}: ${w.p.text}.`, href: "#/me" };
+}
+
 /* ---------- This week: the league's last 7 days ---------- */
 function thisWeek(x) {
   const { now, name, leagueCounted } = x;
@@ -205,6 +213,7 @@ export function fishFinderCards(input, me, { now = Date.now(), seasonStart = new
     card("standing", "Your standing", standing(x)),
     card("reach", "Within reach", withinReach(x)),
     card("crowns", "Crown watch", crownWatch(x)),
+    card("goal", "Goal watch", goalWatch(x)),
     card("badges", "Badge watch", badgeWatch(x)),
     card("week", "This week", thisWeek(x)),
     out.overdue ? null : card("out", "Keep it going", out),

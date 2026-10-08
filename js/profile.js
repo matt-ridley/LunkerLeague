@@ -3,6 +3,7 @@ import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, icon, fill } f
 import { store, uid, isAdmin, updateMe, signOut, syncStatus, saveCover, removeCover, loadCover, cachedCover } from "./cloud.js";
 import { squareAvatar, pickImage, coverPhoto } from "./photos.js";
 import { luckyLure } from "./tacklebox.js";
+import { goalsSection } from "./goalspage.js";
 import { itemThumb } from "./tackleboxpage.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { VERSION } from "./config.js";
@@ -78,7 +79,7 @@ export function renderProfile(main, id) {
   // Someone else's profile: challenge them head-to-head.
   const challenge = !mine && !m.suspended ? el("a", { class: "btn block", href: `#/hnew/${m.id}`, text: `⚔️ Challenge ${m.displayName}` }) : null;
   const statsLink = el("a", { class: "btn block", href: `#/stats/${m.id}`, text: mine ? "📊 Your stats and what's working" : `📊 ${m.displayName}'s stats` });
-  const parts = [cover, head, flair, challenge, rankCard, profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
+  const parts = [cover, head, flair, challenge, rankCard, goalsSection(m.id, mine), profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
     el("a", { class: "btn block", href: `#/box/${m.id}`, text: mine ? "🧰 Your tackle box" : `🧰 ${m.displayName}'s tackle box` }),
     mine ? el("a", { class: "btn block", href: "#/map", text: "🗺️ Map of catches" }) : null];
 
