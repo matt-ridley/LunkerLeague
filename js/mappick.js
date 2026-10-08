@@ -13,7 +13,7 @@ const LAYERS = {
 let layerChoice = "sat";
 
 let leaflet = null;
-function loadLeaflet() {
+export function loadLeaflet() {
   if (window.L) return Promise.resolve(window.L);
   if (leaflet) return leaflet;
   leaflet = new Promise((resolve, reject) => {
@@ -24,6 +24,21 @@ function loadLeaflet() {
     document.head.append(s);
   });
   return leaflet;
+}
+
+/* The Map / Satellite switch for a Leaflet map (the choice is kept while the app is open). Returns the switch. */
+export function layerSwitch(L, map) {
+  let layer = null;
+  const seg = el("div", { class: "seg" });
+  const setLayer = () => {
+    if (layer) layer.remove();
+    const v = LAYERS[layerChoice];
+    layer = L.tileLayer(v.url, { maxZoom: v.maxZoom, attribution: v.attribution }).addTo(map);
+  };
+  const drawSeg = () => seg.replaceChildren(...Object.entries(LAYERS).map(([k, v]) => el("button", { type: "button",
+    "aria-pressed": String(layerChoice === k), text: v.label, onclick: () => { layerChoice = k; setLayer(); drawSeg(); } })));
+  setLayer(); drawSeg();
+  return seg;
 }
 
 /* Where to centre the map: the spot already picked, else this angler's latest spot, else roughly the Great Lakes. */
@@ -45,18 +60,14 @@ export async function pickOnMap(current, title = "Tap where you caught it") {
   catch { toast("The map needs signal. Use your location (GPS) instead, or pick the spot later by editing the catch."); return null; }
 
   return new Promise(resolve => {
-    let pin = null, layer = null;
+    let pin = null;
     const done = v => { map.remove(); box.remove(); resolve(v); };
     const mapNode = el("div", { class: "map-pick-map" });
     const use = el("button", { class: "btn lime", type: "button", text: "Use this spot", disabled: !current,
       onclick: () => { const p = pin.getLatLng(); done({ lat: p.lat, lng: p.lng }); } });
-    const seg = el("div", { class: "seg" });
-    const drawSeg = () => {
-      seg.replaceChildren(...Object.entries(LAYERS).map(([k, v]) => el("button", { type: "button", "aria-pressed": String(layerChoice === k), text: v.label,
-        onclick: () => { layerChoice = k; setLayer(); drawSeg(); } })));
-    };
+    const top = el("div", { class: "map-pick-top" }, el("b", { text: title }));
     const box = el("div", { class: "map-pick", role: "dialog", "aria-label": "Pick the spot on the map" },
-      el("div", { class: "map-pick-top" }, el("b", { text: title }), seg),
+      top,
       mapNode,
       el("div", { class: "map-pick-bar" },
         el("button", { class: "btn", type: "button", text: "Cancel", onclick: () => done(null) }), use));
@@ -64,12 +75,7 @@ export async function pickOnMap(current, title = "Tap where you caught it") {
 
     const view = startView(current);
     const map = L.map(mapNode, { zoomControl: true }).setView(view.at, view.zoom);
-    const setLayer = () => {
-      if (layer) layer.remove();
-      const v = LAYERS[layerChoice];
-      layer = L.tileLayer(v.url, { maxZoom: v.maxZoom, attribution: v.attribution }).addTo(map);
-    };
-    setLayer(); drawSeg();
+    top.append(layerSwitch(L, map));
     // An emoji pin, so Leaflet's marker images don't have to load.
     const icon = L.divIcon({ className: "map-pin", html: "📍", iconSize: [36, 36], iconAnchor: [18, 34] });
     const place = latlng => {
