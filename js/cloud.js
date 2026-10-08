@@ -13,6 +13,8 @@ export const cloud = {
   on: !!FIREBASE_CONFIG, api: null, db: null, auth: null,
   user: null, authKnown: false, failed: false, loadError: false,
   meta: {}, unsubs: [], memberUnsubs: [], retry: null,
+  statusKind: "", statusSince: Date.now(), // the fish icon's current state and when it last changed
+  lastServerAt: 0,                         // when the server last sent fresh data (not the phone's cached copy)
 };
 
 export const store = {
@@ -85,13 +87,18 @@ export function gate() {
 
 /* ---------- Sync status ---------- */
 export function syncStatus() {
+  const s = currentStatus();
+  if (s.kind !== cloud.statusKind) { cloud.statusKind = s.kind; cloud.statusSince = Date.now(); }
+  return { ...s, since: cloud.statusSince };
+}
+function currentStatus() {
   if (!cloud.on || !cloud.user) return { kind: "off", label: "" };
   if (cloud.failed) return { kind: "bad", label: "Sync problem" };
   const m = Object.values(cloud.meta);
   const pending = m.some(x => x.hasPendingWrites);
-  if (!navigator.onLine || m.some(x => x.fromCache)) return { kind: "offline", label: pending ? "Offline · changes waiting" : "Offline" };
-  if (pending) return { kind: "busy", label: "Syncing" };
-  return { kind: "live", label: "Live" };
+  if (!navigator.onLine || m.some(x => x.fromCache)) return { kind: "offline", label: pending ? "Offline · changes waiting" : "Offline", pending };
+  if (pending) return { kind: "busy", label: "Syncing", pending };
+  return { kind: "live", label: "Connected" };
 }
 window.addEventListener("online", emit);
 window.addEventListener("offline", emit);
@@ -101,7 +108,10 @@ window.addEventListener("offline", emit);
 let pendingOf = {};
 function syncPending() { store.pendingIds = new Set(Object.values(pendingOf).flatMap(set => [...set])); }
 const OPTS = { includeMetadataChanges: true };
-const seen = (key, snap) => { cloud.meta[key] = snap.metadata; cloud.failed = false; };
+const seen = (key, snap) => {
+  cloud.meta[key] = snap.metadata; cloud.failed = false;
+  if (!snap.metadata.fromCache) cloud.lastServerAt = Date.now();
+};
 
 function startListeners() {
   const { onSnapshot, doc } = cloud.api;
