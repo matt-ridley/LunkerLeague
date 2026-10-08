@@ -13,6 +13,7 @@ import { renderSeries, renderSeriesForm } from "./seriespage.js";
 import { renderScoring } from "./scoring.js";
 import { renderTrip, renderTripForm } from "./trips.js";
 import { renderChallenge, renderChallengeForm } from "./h2hpage.js";
+import { renderBet, renderBetForm } from "./betspage.js";
 import { renderAlerts, bellCount } from "./alerts.js";
 import { applyTheme } from "./theme.js";
 
@@ -44,6 +45,9 @@ const ROUTES = {
   hnew: { tab: "derbies", live: false, render: (main, who) => renderChallengeForm(main, who) },
   hcounter: { tab: "derbies", live: false, render: (main, id) => renderChallengeForm(main, null, id) },
   hrematch: { tab: "derbies", live: false, render: (main, id) => renderChallengeForm(main, null, null, id) },
+  b: { tab: "derbies", live: true, render: renderBet },
+  bnew: { tab: "derbies", live: false, render: main => renderBetForm(main) },
+  bedit: { tab: "derbies", live: false, render: renderBetForm },
   alerts: { tab: null, live: true, render: renderAlerts },
 };
 

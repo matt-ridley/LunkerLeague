@@ -10,6 +10,8 @@ import { crownSteals } from "./crowns.js";
 import { seriesStatus, seriesStandings, seriesFinalAt } from "./series.js";
 import { outingEnd, outingRecap } from "./outings.js";
 import { fmtWeight, fmtLength } from "./ui.js";
+import { betStatus, betResult, finalAt as betFinalAt, canJoin } from "./bets.js";
+import { fmtMoney } from "./payout.js";
 import { challengeStatus, challengeBoard, closesAt as h2hClosesAt, termsShort, scoreText as h2hScore, otherSide } from "./h2h.js";
 
 const PLACES = ["1st", "2nd", "3rd"];
@@ -126,10 +128,27 @@ export function leagueEvents(data) {
     if (r) out.push({ id: `h2hend:${ch.id}`, ...r, href, uids });
     if (ch.vetoed && ch.vetoedAt) out.push({ id: `h2hveto:${ch.id}:${ch.vetoedAt}`, at: ch.vetoedAt, icon: "🚫", href, uids, text: `The league owner vetoed ${vs}. No points move.` });
   }
+  // Bets: started, and how they ended.
+  for (const b of asMap(data.bets).values()) {
+    const href = `#/b/${b.id}`, players = (data.betPlayers || new Map()).get(b.id) || new Map();
+    out.push({ id: `bet:${b.id}`, at: b.createdAt || 0, icon: "🎲", href, uids: [b.organiserUid], text: `${name(b.organiserUid)} started a bet: ${b.title}` });
+    const r = betEnd(b, catches, players, name, now);
+    if (r) out.push({ id: `betend:${b.id}`, ...r, href, uids: r.uids });
+  }
   for (const w of seriesWinners({ ...data, derbies: derbyMap, now })) {
     out.push({ id: `series:${w.s.id}`, at: w.at, icon: "🏆", href: `#/s/${w.s.id}`, uids: [w.uid], text: `${name(w.uid)} won ${aoty(w.s)}` });
   }
   return out.sort((a, b) => b.at - a.at);
+}
+
+/* A finished bet's result line: { at, icon, text, uids }, or null until it's decided. */
+function betEnd(b, catches, players, name, now) {
+  if (betStatus(b, catches, players, now) !== "done") return null;
+  const r = betResult(b, catches, players), at = betFinalAt(b, catches, players);
+  if (r.wash) return { at, icon: "🫧", uids: [], text: `Nobody won the bet “${b.title}”. It's a wash.` };
+  const names = r.winners.map(name), money = u => r.shares.get(u) ? ` (${fmtMoney(r.shares.get(u))})` : "";
+  return { at, icon: "🎲", uids: r.winners, text: r.winners.length === 1 ? `${names[0]} won the bet “${b.title}”${money(r.winners[0])}`
+    : `${names.join(" and ")} split the bet “${b.title}”${money(r.winners[0])}` };
 }
 
 const challengeList = data => [...(data.challenges ? asMap(data.challenges).values() : [])];
@@ -259,6 +278,23 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
         : r.winner === me ? { icon: "🏆", text: `You beat ${them}${stake}!` } : { icon: "😤", text: `${them} beat you${stake}` }) });
     }
     if (ch.vetoed && ch.vetoedAt) add({ id: `h2hveto:${ch.id}:${ch.vetoedAt}`, at: ch.vetoedAt, icon: "🚫", href, text: `The league owner vetoed your challenge with ${them}. No points move.` });
+  }
+
+  // Bets: invites, open bets to join, people joining yours, and how the ones you're in ended.
+  for (const b of asMap(data.bets).values()) {
+    const href = `#/b/${b.id}`, players = (data.betPlayers || new Map()).get(b.id) || new Map(), st = betStatus(b, catches, players, now);
+    const mineP = players.get(me), inIt = mineP && mineP.in !== false;
+    if (b.organiserUid !== me && st === "open" && !mineP && canJoin(b, me)) add({ id: `betinv:${b.id}`, at: b.createdAt || 0, icon: "🎲", href,
+      text: b.open ? `${name(b.organiserUid)} started a bet: ${b.title}. Want in?` : `${name(b.organiserUid)} invited you to a bet: ${b.title}. You in?` });
+    if (b.organiserUid === me) for (const [u, p] of players) if (u !== me && p.in !== false) add({ id: `betjoin:${b.id}:${u}`, at: p.at || 0, icon: "🤝", href, text: `${name(u)} is in on your bet: ${b.title}` });
+    if (!inIt) continue;
+    if (st === "off") add({ id: `betoff:${b.id}`, at: b.start, icon: "🫧", href, text: `“${b.title}” was called off: fewer than 2 joined` });
+    if (st === "done") {
+      const r = betResult(b, catches, players), at = betFinalAt(b, catches, players), won = r.winners.includes(me);
+      add({ id: `betend:${b.id}`, at, href, ...(r.wash ? { icon: "🫧", text: `Nobody won “${b.title}”. It's a wash.` }
+        : won ? { icon: "🏆", text: `You won the bet “${b.title}”${r.shares.get(me) ? ` (${fmtMoney(r.shares.get(me))})` : ""}!` }
+        : { icon: "😤", text: `${r.winners.map(name).join(" and ")} won the bet “${b.title}”` }) });
+    }
   }
 
   // A season series you won.
