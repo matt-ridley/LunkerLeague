@@ -76,6 +76,7 @@ export function renderLeaders(main, speciesArg, byArg) {
     el("div", { class: "card stack points-note" },
       el("p", {}, el("b", { text: "👑 League records" }), ` are from league catches since ${started}. ${v.recordPts.some(Boolean) ? `Holding 1st, 2nd or 3rd on a species' weight board or length board is worth ${v.recordPts.join(" / ")} points while you hold it (each board counts). Beat it to take the points.` : "They aren't worth points right now."}`),
       el("p", {}, el("b", { text: "📜 All-time records" }), " include past catches from before the league. Give them props, but they're not worth points.")),
+    el("a", { class: "btn block", href: "#/hof", text: "🏛️ Hall of Fame: every record ever held" }),
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading…" })
       : records.length ? el("div", { class: "card-list" }, ...records.map(r => el("a", { class: "record-card", href: `#/leaders/${encodeURIComponent(r.species)}` },
           el("div", { class: "record-head" }, el("b", { text: r.species }), el("span", { class: "muted small", text: r.count ? `${r.count} caught in the league` : "Only past catches so far" })),
