@@ -762,4 +762,62 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .bite-list li.now, .bite-list li.during { outline: 2px solid var(--primary); }
 .skunk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 
+/* ---------- Computers (web view) ----------
+   Everything for wide screens is inside this one rule, so phones and tablets keep the layout above exactly.
+   The nav becomes a rail on the left, the column gets wider, and sheets open as centred dialogs. */
+.nav .wide-only { display: none; }
+@media (min-width: 1024px) {
+  :root { --rail: 232px; --col: 760px; }
+  body { padding-left: var(--rail); }
+  body.gated { padding-left: 0; }
+  .top { padding-left: max(var(--gutter), calc((100% - var(--col)) / 2 + var(--gutter)));
+    padding-right: max(var(--gutter), calc((100% - var(--col)) / 2 + var(--gutter))); }
+  main { max-width: var(--col); padding-bottom: 48px; }
+  body.gated main { max-width: 560px; }
+
+  /* The rail */
+  .nav {
+    top: 0; right: auto; width: var(--rail); height: auto;
+    display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+    padding: 20px 14px; border-top: 0; border-right: 1px solid var(--line); box-shadow: none;
+  }
+  .nav-item {
+    height: 50px; display: flex; align-items: center; justify-content: flex-start; gap: 14px;
+    padding: 0 14px; border-radius: 14px; font-size: 16px; color: var(--ink);
+  }
+  .nav-item svg, .nav-item[aria-current="page"] svg { width: 24px; height: 24px; padding: 0; background: none; border-radius: 0; }
+  .nav-item[aria-current="page"] { background: var(--primary-soft); color: var(--primary); }
+  .nav-item.log { order: -1; height: 56px; margin-bottom: 12px; background: var(--lime); color: var(--lime-ink); font-size: 17px; font-weight: 800; box-shadow: 0 4px 14px rgba(0, 0, 0, .15); }
+  .nav-item.log svg, .nav-item.log[aria-current="page"] svg { width: 26px; height: 26px; padding: 0; margin: 0; border: 0; border-radius: 0; box-shadow: none; background: none; }
+  .nav-badge { position: static; margin-left: auto; }
+  .nav .wide-only { display: flex; }
+  .view-toggle { margin-top: auto; border: 0; background: none; font: inherit; font-size: 15px; color: var(--muted); cursor: pointer; }
+  .view-icon { width: 24px; text-align: center; font-size: 20px; }
+
+  /* Sheets become centred dialogs; the toast and chat box no longer sit above a bottom nav. */
+  .sheet {
+    inset: 0 0 0 var(--rail); margin: auto; width: calc(100% - var(--rail) - 48px); max-width: 600px; height: fit-content; max-height: 86vh;
+    border-radius: 24px; padding: 26px 24px; animation: dialog-in .15s ease-out;
+  }
+  body.gated .sheet { inset: 0; width: calc(100% - 48px); }
+  .sheet::before { display: none; }
+  .toast { left: calc(var(--rail) + var(--gutter)); bottom: 24px; }
+  body.gated .toast { left: var(--gutter); bottom: 24px; }
+  .chat-bottom { bottom: 0; }
+  .catch-map { height: min(72vh, 760px); }
+}
+@keyframes dialog-in { from { opacity: 0; transform: scale(.97); } }
+@media (min-width: 1024px) and (hover: hover) {
+  .nav-item:hover:not([aria-current="page"]):not(.log) { background: var(--surface-2); }
+  .nav-item.log:hover { filter: brightness(1.05); }
+  .btn:hover:not(:disabled), .icon-btn:hover, .toast-btn:hover { filter: brightness(.95); }
+  .catch-card:hover, .derby-card:hover, .board-row:hover, .member-row:hover, .record-card:hover, .box-item:hover { border-color: var(--primary); }
+}
+
+/* Phone view on a computer: the app in a phone-sized frame. */
+body.phone-host { min-height: 100dvh; display: grid; justify-items: center; align-content: start; gap: 14px; padding: 16px; background: var(--surface-2); }
+.phone-bar { display: flex; align-items: center; gap: 16px; font-weight: 800; }
+.phone-bar small { font-weight: 600; color: var(--muted); margin-left: 6px; }
+.phone-frame { box-sizing: content-box; max-height: calc(100dvh - 116px); border: 10px solid #111; border-radius: 36px; background: var(--bg); box-shadow: var(--shadow); }
+
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

@@ -13,6 +13,7 @@ import { renderFleet, renderBoat } from "./fleetpage.js";
 import { renderAwards } from "./awardspage.js";
 import { renderSystem } from "./systempage.js";
 import { statusText } from "./sysinfo.js";
+import { phoneHost, showPhoneFrame, switchToPhone } from "./viewmode.js";
 import { renderAdmin } from "./admin.js";
 import { renderFeed, renderCatch, renderLog, maybeShowRejected } from "./catches.js";
 import { renderLeaders } from "./leaders.js";
@@ -85,10 +86,6 @@ const typing = () => {
   return !!(a && $("main").contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
 };
 const flushPending = () => { if (pendingRender && !typing()) { pendingRender = false; render(); } };
-document.addEventListener("focusout", () => setTimeout(flushPending, 0));
-setInterval(flushPending, 2000); // backup: focus events don't always fire (e.g. when the app is in the background)
-// Countdowns and "x min ago" times: refresh live screens once a minute.
-setInterval(() => { if (!document.hidden && parseRoute().live && !parseRoute().inPlace) render(); }, 60000);
 
 let lastKey = "";
 function render(force = false) {
@@ -144,7 +141,10 @@ function renderNav(inApp, active) {
     item("leaders", "Leaders", icon.trophy),
     item("log", "Log", icon.plus, "log"),
     item("derbies", "Events", icon.flag),
-    item("chat", "Chat", icon.chat, "", active === "chat" ? 0 : chatUnread()));
+    item("chat", "Chat", icon.chat, "", active === "chat" ? 0 : chatUnread()),
+    // Computers only (hidden on phones by the stylesheet): see the app as a phone shows it.
+    el("button", { class: "nav-item view-toggle wide-only", type: "button", onclick: switchToPhone },
+      el("span", { class: "view-icon", "aria-hidden": "true", text: "📱" }), el("span", { text: "Phone view" })));
 }
 
 
@@ -161,19 +161,29 @@ function registerWorker() {
 }
 
 /* ---------- Boot ---------- */
-applyTheme();
-initToast();
-$("scrim").addEventListener("click", closeSheet);
-document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetOpen()) closeSheet(); });
-window.addEventListener("hashchange", () => { closeSheet(); render(true); });
-subscribe(() => render());
-startWeather(cloudApi); // fills in weather on your catches when there's signal
-// Ask the phone not to clear saved data (catches waiting for signal live there) when storage runs low.
-if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-registerWorker();
-render(true);
-initCloud();
-document.documentElement.dataset.version = VERSION;
+// Phone view on a computer: this page only holds the phone-sized frame, and the app runs inside it.
+if (phoneHost()) { applyTheme(); showPhoneFrame(); }
+else boot();
 
-// Handy when testing locally: window.__ll in the console.
-if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__ll = { cloud, store, render };
+function boot() {
+  document.addEventListener("focusout", () => setTimeout(flushPending, 0));
+  setInterval(flushPending, 2000); // backup: focus events don't always fire (e.g. when the app is in the background)
+  // Countdowns and "x min ago" times: refresh live screens once a minute.
+  setInterval(() => { if (!document.hidden && parseRoute().live && !parseRoute().inPlace) render(); }, 60000);
+  applyTheme();
+  initToast();
+  $("scrim").addEventListener("click", closeSheet);
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetOpen()) closeSheet(); });
+  window.addEventListener("hashchange", () => { closeSheet(); render(true); });
+  subscribe(() => render());
+  startWeather(cloudApi); // fills in weather on your catches when there's signal
+  // Ask the phone not to clear saved data (catches waiting for signal live there) when storage runs low.
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  registerWorker();
+  render(true);
+  initCloud();
+  document.documentElement.dataset.version = VERSION;
+
+  // Handy when testing locally: window.__ll in the console.
+  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__ll = { cloud, store, render };
+}
