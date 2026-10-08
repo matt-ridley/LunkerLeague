@@ -3,6 +3,7 @@
 import { el, fill, field, fmtDay, openSheet, closeSheet, toast, confirmButton } from "./ui.js";
 import { store, uid, logSkunk, removeSkunk } from "./cloud.js";
 import { dayKey, dayAt, daysOut } from "./skunks.js";
+import { catchRows, toCsv, fileName, download } from "./export.js";
 import { PERIODS, MONTHS, periodRange, inPeriod, summary, byMonth, byDaypart, bySpecies, byLure, byTechnique, whatsWorking } from "./mystats.js";
 
 // Remembered for the session, like the Leaders tab.
@@ -21,7 +22,8 @@ export function renderStats(main, id = uid()) {
   const box = el("div", { class: "stack" });
   const draw = () => fill(box, ...parts(m, mine, st, draw));
   draw();
-  fill(main, el("h2", { class: "page-title", text: mine ? "📊 Your stats" : `📊 ${m.displayName}'s stats` }), box);
+  fill(main, el("h2", { class: "page-title", text: mine ? "📊 Your stats" : `📊 ${m.displayName}'s stats` }), box,
+    mine ? exportCard() : null);
 }
 
 function parts(m, mine, st, draw) {
@@ -78,6 +80,19 @@ function skunkCard(m, mine, d) {
       el("span", { text: `🦨 ${fmtDay(dayAt(x.day))}` }),
       confirmButton("Remove", "Tap again to remove", () => { removeSkunk(x.day); toast("Skunk removed."); }, "btn small quiet")))) : null,
     mine ? el("button", { class: "btn block", type: "button", text: "🦨 Log a skunk", onclick: skunkSheet }) : null);
+}
+
+/* Download all your catches as a spreadsheet file (every period, disqualified ones too, marked). */
+function exportCard() {
+  const list = [...store.catches.values()].filter(c => c.uid === uid());
+  return el("section", { class: "card stack" },
+    el("h3", { text: "⬇️ Export your catches" }),
+    el("p", { class: "hint", text: `All ${list.length} of your catches as a spreadsheet (CSV) file, with weights, lengths, tackle, spots (private ones too) and notes. Opens in Excel, Numbers or Google Sheets. Photos aren't included.` }),
+    el("button", { class: "btn block", type: "button", text: "Download my catches", disabled: !list.length,
+      onclick: () => {
+        download(toCsv(catchRows(list, { tackle: store.tackle, spots: store.spots, derbies: store.derbies })), fileName());
+        toast("Download started.");
+      } }));
 }
 
 /* "Got skunked": a day out with no fish (today by default; not a day you logged a fish). */
