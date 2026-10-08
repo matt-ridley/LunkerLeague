@@ -13,12 +13,16 @@ import { leagueEvents, postedAt } from "./events.js";
 import { NO_FILTERS, SHOW, WHEN, SORT, filterFeed, activeCount } from "./feedfilter.js";
 import { fishFinderCards } from "./fishfinder.js";
 import { rankInput } from "./leaders.js";
+import { estimatedWeight, estimateWeightOz } from "./estimate.js";
 import { TECHNIQUES, cleanLure, parseDepth, hasTackle, tackleText, lureSuggestions } from "./tackle.js";
 
 const allCatches = () => [...store.catches.values()];
 const byNewest = (a, b) => (b.caughtAt || 0) - (a.caughtAt || 0);
 const sizeText = c => isStringer(c) ? `Stringer of ${c.fishCount}`
   : [fmtWeight(c.weightOz), fmtLength(c.lengthIn)].filter(Boolean).join(" · ");
+// An estimated weight (for fish measured but not weighed), only ever shown, never saved or counted.
+const estText = c => { const e = estimatedWeight(c); return e ? `~${fmtWeight(e)} est.` : ""; };
+const shownSize = c => [sizeText(c), estText(c)].filter(Boolean).join(" · ");
 // Logged well after it was caught (within the grace days): the card says when it was posted too, since the feed
 // orders by that.
 const postedLate = c => !c.past && (c.createdAt || 0) - c.caughtAt > 12 * 3600 * 1000;
@@ -38,7 +42,7 @@ export function catchCard(c, all = allCatches(), news = []) {
         rec.length || pb ? el("div", { class: "flair" },
           rec.length ? flairBadge("badge record", c.past ? "📜 All-time record" : "👑 League record", c.past ? "📜 All-time" : "👑 Record") : null,
           pb ? el("span", { class: "badge pb", title: "Personal best", text: "PB" }) : null) : null),
-      el("div", { class: "catch-size" + (sizeText(c) ? "" : " unmeasured"), text: sizeText(c) || "Not measured" }),
+      el("div", { class: "catch-size" + (sizeText(c) ? "" : " unmeasured"), text: shownSize(c) || "Not measured" }),
       el("div", { class: "catch-who" }, avatar(m, "xs"), el("span", { text: `${m.displayName} · ${c.past ? fmtDay(c.caughtAt) : fmtAgo(c.caughtAt)}` })),
       postedLate(c) ? el("div", { class: "catch-posted", text: `Posted ${fmtAgo(c.createdAt)}` }) : null,
       // Chips for the rest that matters (limits, derbies, problems); quieter facts go in the line below.
@@ -260,7 +264,7 @@ export function renderCatch(main, id) {
   parts.push(photoBox, note,
     el("section", { class: "catch-head" },
       el("h2", { text: c.species }),
-      sizeText(c) ? el("div", { class: "catch-size big", text: sizeText(c) }) : el("div", { class: "muted", text: "Not measured" }),
+      sizeText(c) ? el("div", { class: "catch-size big", text: shownSize(c) }) : el("div", { class: "muted", text: "Not measured" }),
       el("div", { class: "badges" },
         rec.includes("weight") ? el("span", { class: "badge record", text: c.past ? "📜 All-time heaviest" : "👑 Heaviest in the league" }) : null,
         rec.includes("length") ? el("span", { class: "badge record", text: c.past ? "📜 All-time longest" : "👑 Longest in the league" }) : null,
@@ -278,7 +282,8 @@ export function renderCatch(main, id) {
         fact("Fish", String(c.fishCount)),
         fact("Limit", c.limit ? "Yes" : "No"),
       ] : [
-        fact("Weight", fmtWeight(c.weightOz) || "Not weighed"),
+        fact("Weight", fmtWeight(c.weightOz) || (estimatedWeight(c)
+          ? `Not weighed. About ${fmtWeight(estimatedWeight(c))} going by its length (an estimate, for show only).` : "Not weighed")),
         fact("Length", fmtLength(c.lengthIn) || "Not measured"),
         fact("Released", c.released ? "Yes" : "No"),
       ]),
@@ -396,7 +401,7 @@ function wallParts(memberId, choose) {
       el("h3", { text: "Personal bests" }),
       pbs.length ? el("div", { class: "pb-wall" }, ...pbs.map(c => el("a", { class: "pb-tile", href: `#/c/${c.id}` },
         el("img", { src: c.thumb, alt: "", loading: "lazy" }),
-        el("div", { class: "pb-text" }, el("b", { text: c.species }), el("span", { text: sizeText(c) })))))
+        el("div", { class: "pb-text" }, el("b", { text: c.species }), el("span", { text: shownSize(c) })))))
         : el("p", { class: "muted", text: "No catches yet." })),
     recent.length ? el("section", { class: "stack" }, el("h3", { text: "Recent catches" }),
       el("div", { class: "card-list" }, ...recent.map(c => catchCard(c, all)))) : null);
@@ -501,11 +506,21 @@ export function renderLog(main, editId, derbyArg) {
     el("button", { type: "button", "aria-pressed": String(st.limit === v), text: label, onclick: () => { st.limit = v; drawLimit(); } })));
   drawLimit();
   const photoHint = el("p", { class: "hint" });
+  // Measured but not weighed: what it probably weighs, going by its length (shown, never saved).
+  const estHint = el("p", { class: "hint est-hint" });
+  const drawEst = () => {
+    const e = num(lb.value) || num(oz.value) ? null : estimateWeightOz(normalizeSpecies(species.value), num(inches.value) + num(frac.value));
+    estHint.textContent = e ? `📏 About ${fmtWeight(e)} going by its length. Weigh it if you can: an estimate is only for show.` : "";
+    estHint.hidden = !e;
+  };
+  for (const box of [species, lb, oz, inches, frac]) box.addEventListener("input", drawEst);
+  drawEst();
   const singleBox = el("div", { class: "stack" },
     el("div", { class: "field" }, el("span", { class: "field-label", text: "Weight" }),
       el("div", { class: "unit-row" }, lb, el("span", { text: "lb" }), oz, el("span", { text: "oz" }))),
     el("div", { class: "field" }, el("span", { class: "field-label", text: "Length" }),
       el("div", { class: "unit-row" }, inches, frac, el("span", { text: "inches" }))),
+    estHint,
     el("p", { class: "hint", text: "Optional. Measure the ones that might be a PB or a derby entry; the rest still count toward your catches." }));
   const releasedRow = el("label", { class: "check" }, released, el("span", { text: "Released" }));
   const stringerBox = el("div", { class: "stack" },
