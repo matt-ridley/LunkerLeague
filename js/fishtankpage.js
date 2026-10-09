@@ -7,6 +7,7 @@ import { isPersonalBest, recordKinds } from "./stats.js";
 import { WHEN } from "./feedfilter.js";
 import { NO_TANK, TANK_SHOW, RELEASED, TANK_SORT, tankActive, filterTank, tankStats, reactionCount, topReaction } from "./fishtank.js";
 import { focusStyle } from "./thumbfocus.js";
+import { browseFrom, returningTo, scrollBackTo } from "./browse.js";
 
 // Filters last for the session (until the app is closed); grid or list is remembered on this phone.
 const KEY = "lunker-tank-filters", VIEW = "lunker-tank-view", PAGE = 60;
@@ -22,6 +23,9 @@ const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
 
 export function renderTank(main) {
   const head = el("div", { class: "tank-head" }), tools = el("div", { class: "feed-tools" }), results = el("div", { class: "tank-results" });
+  // Back from stepping through catches: show enough of the tank to scroll to the last one viewed.
+  let ids = [], back = returningTo("tank");
+  browseFrom(results, "tank", () => ids);
   redraw = () => {
     const n = tankActive(f), all = [...store.catches.values()], v = view();
     fill(head,
@@ -35,6 +39,8 @@ export function renderTank(main) {
     fill(tools, ...chips(), n > 1 ? el("button", { class: "chip removable clear", type: "button", text: "Clear all", onclick: clearF }) : null);
     if (!store.catchesLoaded) return fill(results, el("p", { class: "loading", text: "Loading catches…" }));
     const list = filterTank({ catches: all, f, reactions: store.reactions, comments: store.comments, tackle: store.tackle });
+    ids = list.map(c => c.id);
+    if (back) { const i = ids.indexOf(back); if (i >= limit) limit = Math.ceil((i + 1) / PAGE) * PAGE; }
     const shown = list.slice(0, limit);
     fill(results,
       list.length ? el("p", { class: "muted small result-count", text: statsText(tankStats(list)) }) : null,
@@ -47,6 +53,8 @@ export function renderTank(main) {
   };
   redraw();
   fill(main, head, tools, results);
+  scrollBackTo(back);
+  back = null;
 }
 
 /* "47 fish · 9 species · heaviest 6 lb 2 oz" */

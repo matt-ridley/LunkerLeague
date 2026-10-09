@@ -15,9 +15,9 @@ const ids = (uid, input) => badgesFor(uid, { derbies: [], entrants: new Map(), n
 const has = (uid, input, id) => ids(uid, input).includes(id);
 const whenEarned = (uid, input, id) => (badgeTimeline({ derbies: [], entrants: new Map(), now: NOW, ...input }).find(b => b.uid === uid && b.badge.id === id) || {}).at;
 
-test("80 badges with unique ids, the six originals kept", () => {
-  assert.equal(BADGES.length, 80);
-  assert.equal(new Set(BADGES.map(b => b.id)).size, 80);
+test("79 badges with unique ids, the six originals kept", () => {
+  assert.equal(BADGES.length, 79);
+  assert.equal(new Set(BADGES.map(b => b.id)).size, 79);
   for (const id of ["first", "ten", "champ", "release", "owl", "net"]) assert.ok(BADGES.some(b => b.id === id));
 });
 
@@ -96,7 +96,6 @@ test("social badges: comments, reactions given and received, trips", () => {
   const input = { catches: [amyFish], comments, reactions, trips, rsvps };
   assert.ok(has("bo", input, "trashTalker"));
   assert.ok(has("amy", input, "crowdFav"));   // 10 emojis from 5 people
-  assert.ok(has("amy", input, "tallTale"));   // 5 🤥
   assert.equal(whenEarned("amy", input, "tripPlanner"), at(5, 5) + 3);
   assert.ok(!has("bo", input, "alwaysIn"));
 });

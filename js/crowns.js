@@ -20,7 +20,6 @@ export const CROWNS = [
   { id: "nightStalker", icon: "🌙", name: "Night Stalker", desc: "Most fish caught at night (9 PM to 4 AM)", unit: ["fish", "fish"] },
   { id: "ironAngler", icon: "💪", name: "Iron Angler", desc: "Most days fished (days with a catch logged)", unit: ["day", "days"] },
   { id: "explorer", icon: "🧭", name: "Explorer", desc: "Most different spots shared with the league", unit: ["spot", "spots"] },
-  { id: "fishStory", icon: "🤥", name: "Fish Story King", desc: "Most 🤥 reactions received", unit: ["🤥", "🤥"] },
   { id: "hypeMan", icon: "📣", name: "Hype Man", desc: "Most reactions and comments given on other people's catches", unit: ["hype", "hype"] },
   { id: "skunkMaster", icon: "🦨", name: "Skunk Master", desc: "Most derbies finished without a fish", unit: ["skunk", "skunks"] },
   { id: "duelKing", icon: "🤺", name: "Duel King", desc: "Most head-to-head challenges won", unit: ["win", "wins"] },
@@ -110,7 +109,6 @@ export function crownChanges({ catches, derbies, entrants = new Map(), comments 
     for (const [u, r] of byUser) {
       if (u === c.uid) continue;
       add("hypeMan", r.at || 0, u, r.emojis.length);
-      if (r.emojis.includes("🤥")) add("fishStory", r.at || 0, c.uid);
     }
   }
   for (const [cid, list] of comments) {

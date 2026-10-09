@@ -80,7 +80,6 @@ export const BADGES = [
   { id: "trashTalker", icon: "🗣️", name: "Trash Talker", desc: "50 comments on other people's catches", at: x => nth(x.commentsGiven, 50) },
   { id: "hypeSquad", icon: "🙌", name: "Hype Squad", desc: "100 reactions given", at: x => nth(x.reactionsGiven, 100, r => r.n) },
   { id: "crowdFav", icon: "⭐", name: "Crowd Favourite", desc: "A catch with 10 or more reactions", at: x => x.crowdFavAt },
-  { id: "tallTale", icon: "🤥", name: "Tall Tale", desc: "A catch with 5 or more 🤥 reactions", at: x => x.tallTaleAt },
   { id: "tripPlanner", icon: "🧭", name: "Outing Planner", desc: "Plan an outing that gets 4 or more \"In\"s", at: x => x.tripPlannerAt },
   { id: "alwaysIn", icon: "✅", name: "Always In", desc: "Answer \"In\" to 10 outings", at: x => nth(x.insGiven, 10) },
   // Crowns and places
@@ -357,7 +356,7 @@ function anglerContext(u, L) {
     recordTakes: myRecords.map(p => p.from), recordSteals: myRecords.filter(p => p.stolen).map(p => p.from),
     recordPeriods: myRecords, doubleRecordAt,
     commentsGiven: L.commentList.filter(c => c.uid === u), reactionsGiven: L.reactionList.filter(r => r.uid === u),
-    crowdFavAt: perCatch(r => r.n, 10), tallTaleAt: perCatch(r => (r.emojis.includes("🤥") ? 1 : 0), 5),
+    crowdFavAt: perCatch(r => r.n, 10),
     tripPlannerAt, insGiven,
     crownSteals: L.crownSteals.filter(s => s.uid === u).map(s => s.at), crownPeriods: myCrowns, royaltyAt,
     spots: L.spotsList.filter(s => s.uid === u),

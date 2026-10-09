@@ -3,7 +3,7 @@ import { el, avatar, fmtAgo, fmtDay, fmtDate, openSheet, closeSheet, confirmButt
 import { store, uid, isAdmin, memberName, addComment, deleteComment, toggleReaction, sendChat, deleteChat, watchDerbyChat } from "./cloud.js";
 import { findMentions, mentionParts, mentionQuery } from "./mentions.js";
 
-export const QUICK_REACTIONS = ["🎣", "🔥", "🐟", "😂", "👏", "🤥"];
+export const QUICK_REACTIONS = ["👍", "🔥", "😮", "😂", "👏"];
 const EMOJI = [
   "🎣", "🐟", "🐠", "🐡", "🦈", "🐊", "🐋", "🦐", "🪝", "🛶", "🚤", "⛵", "🌊", "🏞️", "🌅", "🌄", "🌧️", "☀️", "⛈️", "🌬️", "🦆", "🦅",
   "🔥", "👏", "🙌", "💪", "👍", "👎", "🤙", "🏆", "🥇", "🥈", "🥉", "👑", "💯", "⭐", "🎉", "📏", "⚖️",
@@ -78,20 +78,22 @@ export function reactionBar(catchId) {
   const r = store.reactions.get(catchId) || new Map();
   const byEmoji = new Map();
   for (const [person, list] of r) for (const e of list) { if (!byEmoji.has(e)) byEmoji.set(e, []); byEmoji.get(e).push(person); }
-  const shown = [...new Set([...QUICK_REACTIONS, ...byEmoji.keys()])];
+  // The quick five and ＋ fill one row; any other emoji people have used go on the row under it.
+  const others = [...byEmoji.keys()].filter(e => !QUICK_REACTIONS.includes(e));
   const mine = r.get(uid()) || [];
   const more = el("div", { class: "emoji-panel", hidden: true },
     ...EMOJI.map(e => el("button", { type: "button", class: "emoji-pick", text: e, onclick: () => toggleReaction(catchId, e) })));
+  const button = e => {
+    const people = byEmoji.get(e) || [];
+    return el("button", { type: "button", class: "reaction", "aria-pressed": String(mine.includes(e)),
+      "aria-label": `${e} ${people.length}${people.length ? ": " + names(people) : ""}`, onclick: () => toggleReaction(catchId, e) },
+      el("span", { class: "reaction-emoji", text: e }), people.length ? el("span", { class: "reaction-n", text: String(people.length) }) : null);
+  };
   return el("section", { class: "reactions" },
-    el("div", { class: "reaction-row" },
-      ...shown.map(e => {
-        const people = byEmoji.get(e) || [];
-        return el("button", { type: "button", class: "reaction", "aria-pressed": String(mine.includes(e)),
-          "aria-label": `${e} ${people.length}${people.length ? ": " + names(people) : ""}`, onclick: () => toggleReaction(catchId, e) },
-          el("span", { class: "reaction-emoji", text: e }), people.length ? el("span", { class: "reaction-n", text: String(people.length) }) : null);
-      }),
+    el("div", { class: "reaction-quick" }, ...QUICK_REACTIONS.map(button),
       el("button", { type: "button", class: "reaction more", "aria-label": "More emoji", text: "＋",
         onclick: () => { more.hidden = !more.hidden; } })),
+    others.length ? el("div", { class: "reaction-row" }, ...others.map(button)) : null,
     more,
     byEmoji.size ? el("p", { class: "hint reaction-who", text: [...byEmoji.entries()].map(([e, p]) => `${e} ${names(p)}`).join(" · ") }) : null);
 }
