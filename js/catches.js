@@ -5,7 +5,7 @@ import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
 import { pickOnMap } from "./mappick.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
-import { reactionBar, commentsSection, reactionSummary } from "./social.js";
+import { reactionBar, commentsSection, reactionSummary, chatUnread } from "./social.js";
 import { derbyStatus, entryProblem, awaitingApproval, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
 import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer, pastCatch, loggedLate, leagueStartOf, DEFAULT_GRACE_DAYS } from "./stats.js";
@@ -104,14 +104,18 @@ export function renderFeed(main) {
   // Catches mixed with league news (records stolen, badges, derby results), newest first.
   const input = store.catchesLoaded ? { ...rankInput(), name: memberName } : null;
   const news = input ? leagueEvents(input) : [];
-  // One row: the Filters button, then a removable chip for each filter in use.
+  // "The Feed" with a filter button on the same line, then a removable chip for each filter in use.
+  const head = el("div", { class: "feed-head" });
   const tools = el("div", { class: "feed-tools" });
   const results = el("div", { class: "feed-results" });
 
   redrawFeed = () => {
     const n = activeCount(filters);
+    fill(head, el("h2", { text: "The Feed" }),
+      el("button", { class: "filter-btn", type: "button", "aria-pressed": String(n > 0), "aria-label": n ? `Filters, ${n} on` : "Filters",
+        html: icon.filter, onclick: () => filterSheet(all) }, n ? el("b", { class: "nav-badge", text: String(n) }) : null));
+    tools.hidden = !n;
     fill(tools,
-      el("button", { class: "btn filter-btn", type: "button", "aria-pressed": String(n > 0), text: n ? `Filters · ${n}` : "Filters", onclick: () => filterSheet(all) }),
       ...activeChips(me),
       n > 1 ? el("button", { class: "chip removable clear", type: "button", text: "Clear all", onclick: clearFilters }) : null);
     const { catches, onCard, loose } = filterFeed({ catches: all, news, f: filters });
@@ -141,7 +145,17 @@ export function renderFeed(main) {
         onclick: () => { feedLimit += 30; redrawFeed(); } }) : null);
   };
   redrawFeed();
-  fill(main, input ? fishFinder(input, me) : null, tools, results);
+  fill(main, input ? fishFinder(input, me) : null, chatRow(), head, tools, results);
+}
+
+/* The way in to the league chat, with how many new messages are waiting. */
+function chatRow() {
+  const n = chatUnread();
+  return el("a", { class: "chat-row", href: "#/chat", "aria-label": n ? `League chat, ${n} new` : "League chat" },
+    el("span", { class: "chat-row-icon", html: icon.chat }),
+    el("b", { class: "grow", text: "League chat" }),
+    n ? el("span", { class: "chat-new", text: `${n > 99 ? "99+" : n} new` }) : null,
+    el("span", { class: "chat-row-go", "aria-hidden": "true", text: "›" }));
 }
 
 const countText = (c, n) => [`${c} ${c === 1 ? "catch" : "catches"}`, n ? `${n} news` : null].filter(Boolean).join(" · ");
@@ -203,10 +217,30 @@ const newsCard = e => el("a", { class: "news-card", href: e.href },
 
 /* ---------- Fish Finder: a carousel of cards about what's going on (fishfinder.js picks them) ---------- */
 let finderAt = 0; // the card showing, kept when live data redraws the feed
+// Folded up to one line (the card showing) to save room; this phone remembers it.
+const FF_CLOSED = "lunker-ff-closed";
+const finderClosed = () => { try { return localStorage.getItem(FF_CLOSED) === "1"; } catch { return false; } };
+const CHEVRON = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
 function fishFinder(input, me) {
   const cards = fishFinderCards({ ...input, home: store.league && store.league.home }, me);
   if (!cards.length) return null;
   finderAt = Math.min(finderAt, cards.length - 1);
+  const closed = finderClosed();
+  let section;
+  const toggle = el("button", { class: "ff-arrow ff-toggle", type: "button", "aria-expanded": String(!closed),
+    "aria-label": closed ? "Show the Fish Finder" : "Fold up the Fish Finder", html: CHEVRON(closed ? "m6 9 6 6 6-6" : "m18 15-6-6-6 6"),
+    onclick: () => {
+      try { localStorage.setItem(FF_CLOSED, closed ? "0" : "1"); } catch {}
+      section.replaceWith(fishFinder(input, me));
+    } });
+  if (closed) {
+    const c = cards[finderAt];
+    section = el("section", { class: "ff closed", "aria-label": "Fish Finder" },
+      el("div", { class: "ff-head" },
+        el("a", { class: "ff-line", href: c.href }, el("span", { class: "ff-name", text: "Fish Finder" }), el("b", { text: `${c.label}: ${c.title}` })),
+        toggle));
+    return section;
+  }
   const track = el("div", { class: "ff-track" }, ...cards.map((c, i) =>
     el("a", { class: "ff-card", href: c.href, role: "group", "aria-roledescription": "card", "aria-label": `${i + 1} of ${cards.length}: ${c.label}`,
       onclick: c.crowns ? () => { try { sessionStorage.setItem("lunker-leaders-tab", "crowns"); } catch {} } : null },
@@ -233,11 +267,13 @@ function fishFinder(input, me) {
   new ResizeObserver(() => { if (track.clientWidth && track.clientWidth !== width) go(finderAt, false); }).observe(track);
   const arrow = (dir, label, path) => el("button", { class: "ff-arrow", type: "button", "aria-label": label, onclick: () => go(finderAt + dir),
     html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>` });
-  return el("section", { class: "ff", "aria-roledescription": "carousel", "aria-label": "Fish Finder" },
+  section = el("section", { class: "ff", "aria-roledescription": "carousel", "aria-label": "Fish Finder" },
     el("div", { class: "ff-head" }, el("span", { class: "ff-name", text: "Fish Finder" }),
-      cards.length > 1 ? el("div", { class: "ff-nav" }, arrow(-1, "Previous card", "m15 18-6-6 6-6"), arrow(1, "Next card", "m9 18 6-6-6-6")) : null),
+      el("div", { class: "ff-nav" },
+        ...(cards.length > 1 ? [arrow(-1, "Previous card", "m15 18-6-6 6-6"), arrow(1, "Next card", "m9 18 6-6-6-6")] : []), toggle)),
     track,
     cards.length > 1 ? dots : null);
+  return section;
 }
 
 /* ---------- One catch ---------- */

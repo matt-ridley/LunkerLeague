@@ -12,6 +12,7 @@ import { renderHof } from "./hofpage.js";
 import { renderFleet, renderBoat } from "./fleetpage.js";
 import { renderAwards } from "./awardspage.js";
 import { renderSystem } from "./systempage.js";
+import { renderDock, renderAnglers, renderTackleBoxes } from "./dockpage.js";
 import { statusText } from "./sysinfo.js";
 import { phoneHost, showPhoneFrame, switchToPhone } from "./viewmode.js";
 import { renderAdmin } from "./admin.js";
@@ -42,17 +43,20 @@ const ROUTES = {
   dcopy: { tab: "derbies", live: false, render: (main, id) => renderDerbyForm(main, null, id) },
   dchat: { tab: "derbies", live: true, inPlace: true, render: renderChat },
   enter: { tab: "log", live: false, render: (main, derbyId) => renderLog(main, null, derbyId) },
-  chat: { tab: "chat", live: true, inPlace: true, render: renderChat },
+  chat: { tab: null, live: true, inPlace: true, render: renderChat },
   me: { tab: null, live: true, render: main => renderProfile(main) },
   u: { tab: null, live: true, render: (main, id) => renderProfile(main, id) },
   stats: { tab: null, live: true, render: (main, id) => renderStats(main, id) },
-  map: { tab: null, live: false, render: main => renderMap(main) },
-  bite: { tab: null, live: true, render: main => renderBite(main) },
+  dock: { tab: "dock", live: true, render: main => renderDock(main) },
+  anglers: { tab: "dock", live: true, render: main => renderAnglers(main) },
+  tackle: { tab: "dock", live: true, render: main => renderTackleBoxes(main) },
+  map: { tab: "dock", live: false, render: main => renderMap(main) },
+  bite: { tab: "dock", live: true, render: main => renderBite(main) },
   box: { tab: null, live: true, render: (main, id) => renderBox(main, id) },
   ti: { tab: null, live: true, render: renderItem },
   hof: { tab: "leaders", live: true, render: main => renderHof(main) },
-  boats: { tab: null, live: true, render: main => renderFleet(main) },
-  boat: { tab: null, live: true, render: renderBoat },
+  boats: { tab: "dock", live: true, render: main => renderFleet(main) },
+  boat: { tab: "dock", live: true, render: renderBoat },
   awards: { tab: "leaders", live: true, render: renderAwards },
   admin: { tab: null, live: true, render: renderAdmin },
   system: { tab: null, live: true, render: main => renderSystem(main) },
@@ -93,7 +97,7 @@ function render(force = false) {
   const inApp = g === "in";
   document.body.classList.toggle("gated", !inApp);
   renderHeader(inApp);
-  renderNav(inApp, r.tab);
+  renderNav(inApp, r.tab, r.name);
   const key = inApp ? `in:${r.name}:${r.arg || ""}:${r.arg2 || ""}` : `gate:${g}`;
   if (!force && key === lastKey && !(inApp && r.live)) return;
   if (!force && key === lastKey && !r.inPlace && typing()) { pendingRender = true; return; }
@@ -129,19 +133,21 @@ function bell(open) {
     n ? el("b", { class: "nav-badge", text: n > 9 ? "9+" : String(n) }) : null);
 }
 
-function renderNav(inApp, active) {
+function renderNav(inApp, active, route) {
   const nav = $("nav");
   nav.hidden = !inApp;
   if (!inApp) return;
-  const item = (tab, label, svg, cls = "", badge = 0) => el("a", { class: "nav-item " + cls, href: `#/${tab}`,
-    "aria-current": active === tab ? "page" : null, "aria-label": badge ? `${label}, ${badge} new` : null, html: svg },
+  const item = (tab, label, svg, cls = "", badge = 0, aria = null) => el("a", { class: "nav-item " + cls, href: `#/${tab}`,
+    "aria-current": active === tab ? "page" : null, "aria-label": aria || (badge ? `${label}, ${badge} new` : null), html: svg },
     el("span", { text: label }), badge ? el("b", { class: "nav-badge", text: badge > 9 ? "9+" : String(badge) }) : null);
+  // Chat lives on the feed now: from other screens, a dot on Feed says there are new messages.
+  const chatNew = route !== "chat" && active !== "feed" && chatUnread() > 0;
   fill(nav,
-    item("feed", "Feed", icon.feed),
+    item("feed", "Feed", icon.feed, chatNew ? "has-dot" : "", 0, chatNew ? "Feed, new chat messages" : null),
     item("leaders", "Leaders", icon.trophy),
     item("log", "Log", icon.plus, "log"),
     item("derbies", "Events", icon.flag),
-    item("chat", "Chat", icon.chat, "", active === "chat" ? 0 : chatUnread()),
+    item("dock", "Dock", icon.dock),
     // Computers only (hidden on phones by the stylesheet): see the app as a phone shows it.
     el("button", { class: "nav-item view-toggle wide-only", type: "button", onclick: switchToPhone },
       el("span", { class: "view-icon", "aria-hidden": "true", text: "📱" }), el("span", { text: "Phone view" })));

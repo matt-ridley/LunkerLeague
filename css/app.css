@@ -342,6 +342,9 @@ textarea { resize: vertical; line-height: 1.4; }
 
 /* ---------- Social ---------- */
 .nav-item { position: relative; }
+/* A dot on Feed when there are new chat messages */
+.nav-item.has-dot::after { content: ""; position: absolute; top: 8px; left: calc(50% + 10px); width: 12px; height: 12px; border-radius: 99px;
+  background: var(--tangerine); border: 2px solid var(--surface); }
 .nav-badge {
   position: absolute; top: 6px; left: calc(50% + 6px); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px;
   background: var(--tangerine); color: #fff; font-size: 12px; font-weight: 800; display: grid; place-items: center;
@@ -484,9 +487,26 @@ textarea { resize: vertical; line-height: 1.4; }
 .ff-dots button { width: 22px; height: 22px; border: 0; padding: 0; background: none; cursor: pointer; display: grid; place-items: center; }
 .ff-dots button::after { content: ""; width: 8px; height: 8px; border-radius: 99px; background: currentColor; opacity: .35; }
 .ff-dots button[aria-current="true"]::after { width: 18px; opacity: .9; }
+/* Folded up: one line showing the current card */
+.ff.closed { padding: 6px 8px 6px 14px; grid-template-columns: minmax(0, 1fr); }
+.ff-line { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; color: inherit; text-decoration: none; min-height: 36px; align-self: center; padding-top: 8px; }
+.ff-line .ff-name { flex: none; }
+.ff-line b { min-width: 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The way in to the league chat, under the Fish Finder */
+.chat-row { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 14px; color: inherit; text-decoration: none;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.chat-row-icon { display: grid; color: var(--primary); }
+.chat-row-icon svg { width: 24px; height: 24px; }
+.chat-new { padding: 2px 10px; border-radius: 99px; background: var(--tangerine); color: #fff; font-size: 13px; font-weight: 800; }
+.chat-row-go { font-size: 26px; line-height: 1; color: var(--muted); }
+/* "The Feed": a clear break, the title and the filter button on one line */
+.feed-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 14px; border-top: 2px solid var(--line); }
+.filter-btn { position: relative; flex: none; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); }
+.filter-btn svg { width: 22px; height: 22px; }
+.filter-btn .nav-badge { top: -7px; left: auto; right: -7px; }
 /* Feed filters: the Filters button and a chip for each filter in use, in one row */
 .feed-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.filter-btn { flex: none; min-height: 44px; white-space: nowrap; }
 .filter-btn[aria-pressed="true"] { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
 .feed-tools .chip { display: inline-flex; align-items: center; gap: 6px; }
 .feed-tools .chip.clear { background: transparent; color: var(--primary); text-decoration: underline; }
@@ -744,6 +764,14 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .box-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .box-item { display: grid; gap: 4px; padding: 10px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); color: inherit; text-decoration: none; }
 .box-item.retired { opacity: .6; }
+.lucky-line { display: flex; align-items: center; min-width: 0; overflow: hidden; white-space: nowrap; }
+/* The Dock */
+.dock-head { margin-bottom: -6px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-family: inherit; }
+.dock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.dock-tile { display: grid; gap: 2px; align-content: start; min-height: 104px; padding: 14px; color: inherit; text-decoration: none;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.dock-icon { font-size: 28px; line-height: 1.2; }
+.dock-tile b { font-size: 17px; }
 .box-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; font-size: 32px; }
 .box-thumb.small { width: 52px; height: 52px; font-size: 22px; border-radius: 10px; }
 .box-thumb.tiny { width: 24px; height: 24px; font-size: 14px; border-radius: 6px; display: inline-grid; vertical-align: middle; margin-right: 6px; }
@@ -796,6 +824,8 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
   .nav-item.log { order: -1; height: 56px; margin-bottom: 12px; background: var(--lime); color: var(--lime-ink); font-size: 17px; font-weight: 800; box-shadow: 0 4px 14px rgba(0, 0, 0, .15); }
   .nav-item.log svg, .nav-item.log[aria-current="page"] svg { width: 26px; height: 26px; padding: 0; margin: 0; border: 0; border-radius: 0; box-shadow: none; background: none; }
   .nav-badge { position: static; margin-left: auto; }
+  .nav-item.has-dot::after { position: static; margin-left: auto; }
+  .filter-btn .nav-badge { position: absolute; margin: 0; }
   .nav .wide-only { display: flex; }
   .view-toggle { margin-top: auto; border: 0; background: none; font: inherit; font-size: 15px; color: var(--muted); cursor: pointer; }
   .view-icon { width: 24px; text-align: center; font-size: 20px; }
@@ -817,7 +847,7 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
   .nav-item:hover:not([aria-current="page"]):not(.log) { background: var(--surface-2); }
   .nav-item.log:hover { filter: brightness(1.05); }
   .btn:hover:not(:disabled), .icon-btn:hover, .toast-btn:hover { filter: brightness(.95); }
-  .catch-card:hover, .derby-card:hover, .board-row:hover, .member-row:hover, .record-card:hover, .box-item:hover { border-color: var(--primary); }
+  .catch-card:hover, .derby-card:hover, .board-row:hover, .member-row:hover, .record-card:hover, .box-item:hover, .dock-tile:hover, .chat-row:hover { border-color: var(--primary); }
 }
 
 /* Phone view on a computer: the app in a phone-sized frame. */

@@ -81,7 +81,8 @@ export function renderProfile(main, id) {
   const statsLink = el("a", { class: "btn block", href: `#/stats/${m.id}`, text: mine ? "📊 Your stats and what's working" : `📊 ${m.displayName}'s stats` });
   const parts = [cover, head, flair, challenge, rankCard, goalsSection(m.id, mine), profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
     el("a", { class: "btn block", href: `#/box/${m.id}`, text: mine ? "🧰 Your tackle box" : `🧰 ${m.displayName}'s tackle box` }),
-    mine ? el("a", { class: "btn block", href: "#/map", text: "🗺️ Map of catches" }) : null,
+    // Opens the map on your own spots (private ones too); the Dock's map tile opens the league's.
+    mine ? el("a", { class: "btn block", href: "#/map", text: "🗺️ Your spots", onclick: () => { try { sessionStorage.setItem("lunker-map-view", "mine"); } catch {} } }) : null,
     boatsRow(m.id)];
 
   if (mine) {
