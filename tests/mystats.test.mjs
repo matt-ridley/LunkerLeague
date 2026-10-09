@@ -7,11 +7,12 @@ const at = (y, m, d, h = 12) => new Date(y, m, d, h).getTime();
 const c = (id, species, caughtAt, extra = {}) => ({ id, uid: "amy", species, caughtAt, ...extra });
 const tk = entries => new Map(entries.map(([id, lure, technique = "", depthFt = null]) => [id, { lure, technique, depthFt, shared: true }]));
 
-test("periods: all time, this calendar year, the last 12 months", () => {
+test("periods: all time, this season, last season, the last 12 months", () => {
   const now = at(2026, 9, 8);
   const all = [c("a", "Walleye", at(2025, 0, 5)), c("b", "Walleye", at(2025, 11, 1)), c("d", "Walleye", at(2026, 2, 1))];
   assert.equal(inPeriod(all, "all", now).length, 3);
   assert.deepEqual(inPeriod(all, "year", now).map(x => x.id), ["d"]);
+  assert.deepEqual(inPeriod(all, "last", now).map(x => x.id), ["a", "b"]);
   assert.deepEqual(inPeriod(all, "12m", now).map(x => x.id), ["b", "d"]);
 });
 

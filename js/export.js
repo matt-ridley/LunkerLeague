@@ -17,7 +17,7 @@ export function cell(v) {
 }
 export const toCsv = rows => rows.map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
 
-export const HEADERS = ["Caught", "Species", "Weight", "Weight (lb)", "Length (in)", "Estimated weight (lb)", "Fish", "Limit",
+export const HEADERS = ["Caught", "Season", "Species", "Weight", "Weight (lb)", "Length (in)", "Estimated weight (lb)", "Fish", "Limit",
   "Released", "Past catch", "Derby", "Disqualified", "Bait or lure", "Depth (ft)", "Technique", "Tackle secret",
   "Spot name", "Latitude", "Longitude", "Spot shared", "Notes", "Logged", "Catch ID"];
 
@@ -30,7 +30,7 @@ export function catchRows(catches, { tackle = new Map(), spots = new Map(), derb
   for (const c of [...catches].sort((a, b) => a.caughtAt - b.caughtAt)) {
     const str = isStringer(c), t = tackle.get(c.id), s = spots.get(c.id), d = c.derbyId && derbies.get(c.derbyId);
     rows.push([
-      fmtDate(c.caughtAt), c.species,
+      fmtDate(c.caughtAt), new Date(c.caughtAt).getFullYear(), c.species,
       fmtWeight(c.weightOz), lb(c.weightOz), c.lengthIn > 0 ? c.lengthIn : null, lb(estimatedWeight(c)),
       str ? c.fishCount : 1, str ? !!c.limit : null, str ? null : !!c.released, !!c.past,
       d ? d.name : c.derbyId ? "(deleted derby)" : "", c.derbyId ? !!c.dq : null,

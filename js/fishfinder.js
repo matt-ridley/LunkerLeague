@@ -2,10 +2,11 @@
    fishFinderCards(input, me) -> [{ kind, label, title, detail, href }], most relevant first. A card with nothing to
    say is left out (no derby card when nothing is on). Pure functions on plain data.
    `input` is the ranking input (catches, derbies, entrants, versions, members, crowns, badges, trips, rsvps)
-   plus `name(uid)`; `now` and `seasonStart` can be passed for tests. */
+   plus `name(uid)`; `now` can be passed for tests. */
 import { fishIn, measured, isStringer, speciesBoard, leagueCatches } from "./stats.js";
 import { derbyStatus, closesAt, standings } from "./derby.js";
-import { rankings, scoringTimeline, currentScoring, TITLES } from "./rank.js";
+import { scoringTimeline, currentScoring, TITLES } from "./rank.js";
+import { thisSeason, isPreseason, seasonOf } from "./season.js";
 import { BADGES } from "./badges.js";
 import { fmtWeight, fmtLength } from "./ui.js";
 import { goalWatch as goalNear, goalTitle, periodText } from "./goals.js";
@@ -58,20 +59,19 @@ function happening(x) {
   return null;
 }
 
-/* ---------- Your standing: this season's place, and the next title ---------- */
+/* ---------- Your standing: this season's place, and the next title (titles go by season points too) ---------- */
 function standing(x) {
-  const { me, input, name, seasonStart } = x;
-  const rows = rankings(input, { since: seasonStart }), i = rows.findIndex(r => r.uid === me);
+  const { me, input, name, now } = x;
+  const rows = thisSeason(input, now), i = rows.findIndex(r => r.uid === me);
   if (i < 0) return null;
-  const r = rows[i], parts = [];
-  if (!r.points) parts.push("No points yet this season.");
+  const r = rows[i], parts = [], when = isPreseason(seasonOf(now)) ? "in the Preseason" : "this season";
+  if (!r.points) parts.push(`No points yet ${when}.`);
   else if (i > 0) parts.push(`${pts(rows[i - 1].points - r.points)} pts behind ${name(rows[i - 1].uid)}.`);
   else if (rows[1]) parts.push(`${pts(r.points - rows[1].points)} pts ahead of ${name(rows[1].uid)}.`);
-  // Titles go by all-time points.
-  const all = rankings(input).find(a => a.uid === me), steps = currentScoring(scoringTimeline(input.versions)).titles;
-  const k = steps.findIndex(s => s > all.points);
-  if (k > 0 && k < TITLES.length) parts.push(`${Math.ceil(steps[k] - all.points)} pts to ${TITLES[k]}.`);
-  return { title: `#${i + 1} of ${rows.length} this season · ${plural(r.points, "pt", "pts")}`, detail: parts.join(" "), href: "#/leaders" };
+  const steps = currentScoring(scoringTimeline(input.versions)).titles;
+  const k = steps.findIndex(s => s > r.points);
+  if (k > 0 && k < TITLES.length) parts.push(`${Math.ceil(steps[k] - r.points)} pts to ${TITLES[k]}.`);
+  return { title: `#${i + 1} of ${rows.length} ${when} · ${plural(r.points, "pt", "pts")}`, detail: parts.join(" "), href: "#/leaders" };
 }
 
 /* ---------- Within reach: the league record you're closest to ---------- */
@@ -179,11 +179,11 @@ function getOutThere(x) {
   return { label: "Keep it going", title: `${plural(recent, "fish", "fish")} for you this week`, detail: `Last catch ${span(Math.max(0, now - last))} ago. Nice!`, href: "#/log" };
 }
 
-export function fishFinderCards(input, me, { now = Date.now(), seasonStart = new Date(new Date(now).getFullYear(), 0, 1).getTime() } = {}) {
+export function fishFinderCards(input, me, { now = Date.now() } = {}) {
   const derbies = asMap(input.derbies), catches = input.catches || [];
   const leagueCounted = counted(catches, derbies);
   const x = {
-    me, now, seasonStart, input, derbies, catches, name: input.name || (u => u),
+    me, now, input, derbies, catches, name: input.name || (u => u),
     entrants: input.entrants || new Map(), trips: input.trips || new Map(), rsvps: input.rsvps || new Map(),
     crowns: input.crowns || [], badges: input.badges || [],
     league: leagueCatches(catches).filter(c => !c.dq), leagueCounted, mineCounted: leagueCounted.filter(c => c.uid === me),

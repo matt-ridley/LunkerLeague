@@ -9,7 +9,8 @@ import { SPECIES, normalizeSpecies } from "./species.js";
 import { VERSION } from "./config.js";
 import { getTheme, setTheme } from "./theme.js";
 import { pbWall } from "./catches.js";
-import { rankings, badgesFor } from "./rank.js";
+import { badgesFor } from "./rank.js";
+import { seasonTables, seasonOf, seasonName, careerBest, ordinal } from "./season.js";
 import { rankInput, howPointsSheet } from "./leaders.js";
 import { crownScore } from "./crowns.js";
 import { BADGES } from "./badges.js";
@@ -59,11 +60,16 @@ export function renderProfile(main, id) {
       el("p", { class: "muted small", text: `Joined ${fmtDay(m.joinedAt || Date.now())}` }),
       store.league && (store.league.admins || []).includes(m.id) ? el("span", { class: "chip gold", text: store.league.ownerUid === m.id ? "League owner" : "Admin" }) : null));
 
-  const input = rankInput(), rows = rankings(input);
+  // This season's rank (it starts again every January 1), plus the best official title and finish, kept for good.
+  const input = rankInput(), now = Date.now(), tables = seasonTables(input, now), rows = tables.years.get(seasonOf(now)) || [];
   const place = rows.findIndex(r => r.uid === m.id), me = rows[place];
+  const best = careerBest(tables, m.id, now);
   const badges = badgesFor(m.id, input);
+  const bestLine = [best.title ? `Best title: ${best.title.name} (${best.title.year})` : null,
+    best.finish ? `Best finish: ${ordinal(best.finish.place)} (${best.finish.year})` : null].filter(Boolean).join(" · ");
   const rankCard = me ? el("button", { type: "button", class: "rank-card", onclick: howPointsSheet },
-    el("div", {}, el("div", { class: "eyebrow", text: "Angler rank" }), el("div", { class: "rank-card-title", text: me.title })),
+    el("div", {}, el("div", { class: "eyebrow", text: `${seasonName(seasonOf(now))} rank` }), el("div", { class: "rank-card-title", text: me.title }),
+      bestLine ? el("div", { class: "muted small", text: bestLine }) : null),
     el("div", { class: "rank-card-pts" }, el("b", { text: String(me.points) }), el("span", { text: `pts · #${place + 1} of ${rows.length}` }))) : null;
   const badgeRow = el("button", { type: "button", class: "badge-row badge-btn", "aria-label": `Badges: ${badges.length} of ${BADGES.length}. Show all`,
     onclick: () => badgeSheet(m, input) },

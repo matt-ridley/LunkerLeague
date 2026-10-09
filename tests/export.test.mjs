@@ -41,6 +41,7 @@ test("a row per catch, oldest first, with tackle, spot and derby filled in", () 
   assert.equal(col(perch, "Past catch"), true);
   assert.equal(col(perch, "Released"), null);
   assert.equal(col(walleye, "Caught"), "2026-Jun-02 07:05:00 PM");
+  assert.equal(col(walleye, "Season"), 2026);
   assert.equal(col(walleye, "Weight"), "5 lb 8 oz");
   assert.equal(col(walleye, "Weight (lb)"), 5.5);
   assert.equal(col(walleye, "Derby"), "Spring Fling");

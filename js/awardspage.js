@@ -4,6 +4,7 @@ import { el, fill, avatar, fmtDay, fmtWeight, fmtLength, toast } from "./ui.js";
 import { store, memberName } from "./cloud.js";
 import { rankInput } from "./leaders.js";
 import { seasonYears, seasonAwards } from "./awards.js";
+import { seasonName } from "./season.js";
 import { isStringer } from "./stats.js";
 
 const who = u => store.members.get(u) || { id: u, displayName: memberName(u) };
@@ -18,7 +19,7 @@ export function renderAwards(main, yearArg) {
   const s = seasonAwards(year, { ...rankInput(), fleet: store.fleet, tackle: store.tackle, now }, now);
   const podiumOrder = [s.podium[1], s.podium[0], s.podium[2]];
   fill(main,
-    el("h2", { class: "page-title", text: `🏆 ${year} season${s.ongoing ? " (so far)" : ""}` }),
+    el("h2", { class: "page-title", text: `🏆 ${seasonName(year)}${s.ongoing ? " (so far)" : ""}` }),
     years.length > 1 ? el("div", { class: "seg" }, ...years.map(y => el("button", { type: "button", "aria-pressed": String(y === year), text: String(y), onclick: () => { location.hash = `#/awards/${y}`; } }))) : null,
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading…" }) : null,
     s.podium.length ? el("section", { class: "card podium" }, ...podiumOrder.map((r, i) => r ? el("a", { class: `podium-step p${[2, 1, 3][i]}`, href: `#/u/${r.uid}` },
@@ -52,7 +53,7 @@ function drawRecap(s) {
   g.fillStyle = "#C5F23A"; g.fillRect(0, 0, W, 18); g.fillRect(0, H - 18, W, 18);
   g.textAlign = "center"; g.fillStyle = "#FFFFFF";
   g.font = font(40, 700); g.fillText((store.league && store.league.name) || "Lunker League", W / 2, 110);
-  g.font = font(84); g.fillText(`🏆 ${s.year} season${s.ongoing ? " so far" : ""}`, W / 2, 210);
+  g.font = font(84); g.fillText(`🏆 ${seasonName(s.year)}${s.ongoing ? " so far" : ""}`, W / 2, 210);
   // Podium
   // [podium place, x, y]: 1st in the middle and highest, 2nd on the left, 3rd on the right.
   for (const [i, x, y] of [[0, W / 2, 330], [1, W / 2 - 330, 390], [2, W / 2 + 330, 420]]) {
@@ -87,7 +88,7 @@ async function shareRecap(s) {
     const blob = await new Promise(r => drawRecap(s).toBlob(r, "image/png"));
     const file = new File([blob], `lunker-league-${s.year}-season.png`, { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: `${s.year} season` });
+      await navigator.share({ files: [file], title: seasonName(s.year) });
       return;
     }
     const url = URL.createObjectURL(blob), a = document.createElement("a");

@@ -4,6 +4,7 @@ import { el, field, avatar, fill, fmtDate, toast } from "./ui.js";
 import { store, isAdmin, memberName, saveScoring } from "./cloud.js";
 import { rankings, scoringTimeline, currentScoring, TITLES, DEFAULT_SCORING } from "./rank.js";
 import { rankInput } from "./leaders.js";
+import { seasonRange, seasonOf, seasonName } from "./season.js";
 
 let draft = null; // values being edited (kept while the preview redraws)
 
@@ -38,12 +39,13 @@ export function renderScoring(main) {
       ? "Every catch and derby so far is rescored with these values."
       : "Points already earned stay as they are; only catches and derbies from now on use these values. Record points always use the latest values.";
     const input = rankInput();
-    const before = rankings(input);
+    const since = seasonRange(seasonOf(Date.now())).from;
+    const before = rankings(input, { since });
     const candidate = { id: "preview", mode, effectiveFrom: mode === "retro" ? 0 : Date.now(), createdAt: Date.now() + 1, values: draft };
-    const after = rankings({ ...input, versions: [...store.scoring, candidate] });
+    const after = rankings({ ...input, versions: [...store.scoring, candidate] }, { since });
     const was = new Map(before.map((r, i) => [r.uid, { pts: r.points, place: i + 1 }]));
     fill(preview, el("h3", { text: "Preview" }),
-      el("p", { class: "hint", text: "How the all-time standings would look if you saved now." }),
+      el("p", { class: "hint", text: `How the ${seasonName(seasonOf(Date.now()))} standings would look if you saved now.` }),
       el("ol", { class: "board" }, ...after.map((r, i) => {
         const w = was.get(r.uid) || { pts: 0, place: i + 1 }, diff = Math.round((r.points - w.pts) * 10) / 10, move = w.place - (i + 1);
         return el("li", { class: "preview-row" }, el("span", { class: "rank", text: String(i + 1) }), avatar(store.members.get(r.uid) || { id: r.uid, displayName: memberName(r.uid) }, "sm"),

@@ -1,37 +1,19 @@
-/* End-of-season awards: a season is a calendar year. Worked out from the data every time (nothing is stored), like the
+/* End-of-season awards: a season is a calendar year (season.js). Worked out from the data every time (nothing is stored), like the
    rankings. The current season is "so far". Pure functions on plain data.
    `input` is the ranking input (catches, derbies, entrants, versions, members, crowns, badges, …) plus fleet, tackle,
    skunks, trips, rsvps and now. */
-import { rankings, rankEvents } from "./rank.js";
+import { seasonRange, seasonTables } from "./season.js";
 import { fishIn, measured, better } from "./stats.js";
 import { daysOut } from "./skunks.js";
 import { recordHistory, allReigns } from "./halloffame.js";
 import { lureKey, cleanLure } from "./tackle.js";
 
-export const seasonRange = year => ({ from: new Date(year, 0, 1).getTime(), to: new Date(year, 11, 31, 23, 59, 59, 999).getTime() });
+export { seasonRange, seasonYears } from "./season.js";
 
-/* The seasons there is something to show for, newest first: from the year of the first league catch to this year. */
-export function seasonYears(catches, now = Date.now()) {
-  const thisYear = new Date(now).getFullYear();
-  const first = catches.filter(c => !c.past).reduce((m, c) => Math.min(m, c.caughtAt), Infinity);
-  const start = isFinite(first) ? Math.min(new Date(first).getFullYear(), thisYear) : thisYear;
-  const out = [];
-  for (let y = thisYear; y >= start; y--) out.push(y);
-  return out;
-}
-
-/* Season points: the current season matches the Leaders' "This season" (records and crowns held now count); a finished
-   season counts what was earned during it (record and crown points only count while held, so they're left out). */
+/* Season points: the current season matches the Leaders (records and crowns held now count); a finished season
+   counts what was earned during it (record and crown points only count while held, so they're left out). */
 export function seasonPoints(year, input, now = Date.now()) {
-  const { from, to } = seasonRange(year);
-  if (now <= to) return rankings({ ...input, now }, { since: from }).filter(r => r.points > 0);
-  const by = new Map();
-  for (const e of rankEvents({ ...input, now })) {
-    if (e.standing || e.at < from || e.at > to) continue;
-    by.set(e.uid, Math.round(((by.get(e.uid) || 0) + e.pts) * 10) / 10);
-  }
-  return [...by].map(([uid, points]) => ({ uid, points })).filter(r => r.points > 0)
-    .sort((a, b) => b.points - a.points || a.uid.localeCompare(b.uid));
+  return (seasonTables(input, now).years.get(year) || []).filter(r => r.points > 0).map(r => ({ uid: r.uid, points: r.points }));
 }
 
 /* Who had the most of something: { uid, n } (ties go to whoever got there first, then by id), or null. */

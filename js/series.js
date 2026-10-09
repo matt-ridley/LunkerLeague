@@ -1,4 +1,4 @@
-/* Season series (Angler of the Year): a set of derbies with points by finishing place, added up across the season.
+/* Derby series: a set of derbies with points by finishing place, added up across the series.
    Admins set a series up; derby organisers put their derby in one (the derby's `seriesId`). Worked out from the data
    every time, like the rankings. Pure functions on plain data.
    A series: { id, name, start, end, points: [1st, 2nd, …], showUpPts, bestOf (0 = every derby counts) }. */

@@ -5,12 +5,13 @@
 import { fishIn } from "./stats.js";
 import { lureKey, cleanLure, techniqueName } from "./tackle.js";
 
-export const PERIODS = [["all", "All time"], ["year", "This year"], ["12m", "Last 12 months"]];
+export const PERIODS = [["all", "All time"], ["year", "This season"], ["last", "Last season"], ["12m", "Last 12 months"]];
 
 /* A period as { from, to } in ms, as of `now`. All time has no limits. */
 export function periodRange(period, now = Date.now()) {
   const d = new Date(now);
   if (period === "year") return { from: new Date(d.getFullYear(), 0, 1).getTime(), to: now };
+  if (period === "last") return { from: new Date(d.getFullYear() - 1, 0, 1).getTime(), to: new Date(d.getFullYear(), 0, 1).getTime() - 1 };
   if (period === "12m") return { from: new Date(d.getFullYear() - 1, d.getMonth(), d.getDate()).getTime(), to: now };
   return { from: 0, to: Infinity };
 }

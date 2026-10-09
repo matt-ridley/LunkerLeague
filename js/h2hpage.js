@@ -5,7 +5,8 @@ import { store, uid, isOwner, memberName, sendChallenge, acceptChallenge, declin
   vetoChallenge, subscribe } from "./cloud.js";
 import { WIN, MAX_DAYS, LATE_HOURS, challengeStatus, STATUS_LABEL, challengeBoard, stakeRoom, termsProblem, termsShort, winLabel,
   scoreText, stakesText, otherSide, involves, closesAt, changedTerms, h2hResults, h2hRecord, recordText, rematchTerms } from "./h2h.js";
-import { rankings, scoringTimeline, currentScoring } from "./rank.js";
+import { scoringTimeline, currentScoring } from "./rank.js";
+import { thisSeason } from "./season.js";
 import { rankInput } from "./leaders.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { focusStyle } from "./thumbfocus.js";
@@ -17,9 +18,9 @@ const scoring = () => currentScoring(scoringTimeline(store.scoring));
 const PILL = { open: "upcoming", upcoming: "upcoming", live: "active", closing: "closing", expired: "cancelled", declined: "cancelled",
   withdrawn: "cancelled", vetoed: "cancelled", done: "" };
 
-/* Points this angler can stake right now (their all-time points, less what's staked elsewhere, up to the league max). */
+/* Points this angler can stake right now (their points this season, less what's staked elsewhere, up to the league max). */
 function roomFor(u, except = null) {
-  const row = rankings(rankInput()).find(r => r.uid === u);
+  const row = thisSeason(rankInput()).find(r => r.uid === u);
   return stakeRoom(u, row ? row.points : 0, challenges(), scoring().h2hMaxStake, { except });
 }
 

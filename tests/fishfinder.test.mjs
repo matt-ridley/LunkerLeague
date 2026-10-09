@@ -46,7 +46,7 @@ test("happening now: a trip tomorrow asks if you're in", () => {
 test("your standing: place this season and the gap to the angler above", () => {
   const catches = [fish("bo", "Walleye", { weightOz: 90 }), fish("bo", "Perch", { weightOz: 9 }), fish("amy", "Walleye", { weightOz: 80 })];
   const st = byKind(cards(catches), "standing");
-  assert.match(st.title, /^#2 of 3 this season/);
+  assert.match(st.title, /^#2 of 3 in the Preseason/);
   assert.match(st.detail, /pts behind Bo\./);
 });
 

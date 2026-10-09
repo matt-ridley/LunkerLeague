@@ -1,4 +1,4 @@
-// Unit tests for season series (Angler of the Year). Run with: npm test
+// Unit tests for derby series. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { seriesStandings, seriesStatus, seriesDerbies, DEFAULT_SERIES } from "../js/series.js";
@@ -53,8 +53,8 @@ test("unfinished derbies don't count yet; the series is final after its end date
 test("the winner is announced in the feed and on their bell", () => {
   const data = { catches, derbies, entrants, series: new Map([["s1", S]]), name: u => u.toUpperCase(), now: NOW };
   const news = leagueEvents(data).find(e => e.id === "series:s1");
-  assert.equal(news.text, "BO won 2026 Walleye Trail: Angler of the Year!");
-  assert.ok(alertsFor("bo", data).some(a => a.text === "You won 2026 Walleye Trail: Angler of the Year!"));
+  assert.equal(news.text, "BO won the 2026 Walleye Trail series!");
+  assert.ok(alertsFor("bo", data).some(a => a.text === "You won the 2026 Walleye Trail series!"));
   assert.equal(leagueEvents({ ...data, series: new Map([["s1", { ...S, name: "2026 Angler of the Year" }]]) })
     .find(e => e.id === "series:s1").text, "BO won 2026 Angler of the Year!");
 });

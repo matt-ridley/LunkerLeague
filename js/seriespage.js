@@ -1,4 +1,4 @@
-/* Season series screens: the Events tab section, a series' page (Angler of the Year standings) and the admin form. */
+/* Derby series screens: the Events tab section, a series' page (its standings and champion) and the admin form. */
 import { el, field, avatar, fill, fmtDay, toast, confirmButton } from "./ui.js";
 import { store, isAdmin, memberName, saveSeries, deleteSeries, uid } from "./cloud.js";
 import { derbyStatus, STATUS_LABEL } from "./derby.js";
@@ -16,10 +16,10 @@ export function seriesSection() {
   const all = [...store.series.values()].sort((a, b) => b.start - a.start);
   if (!all.length && !isAdmin()) return null;
   return el("section", { class: "stack" },
-    el("div", { class: "row spread" }, el("h3", { text: "🏆 Season series" }),
+    el("div", { class: "row spread" }, el("h3", { text: "🏆 Derby series" }),
       isAdmin() ? el("a", { class: "btn small", href: "#/snew", text: "New series" }) : null),
     all.length ? el("div", { class: "card-list" }, ...all.map(seriesCard))
-      : el("p", { class: "muted", text: "No series yet. Group derbies into a season series to crown an Angler of the Year." }));
+      : el("p", { class: "muted", text: "No series yet. Group derbies into a series to crown a series champion." }));
 }
 
 function seriesCard(s) {
@@ -29,7 +29,7 @@ function seriesCard(s) {
     el("div", { class: "row spread" }, el("b", { class: "derby-name", text: s.name }),
       el("span", { class: `pill ${st === "final" ? "ended" : st === "active" ? "active" : "upcoming"}`, text: LABEL[st] })),
     el("div", { class: "muted small", text: `${datesText(s)} · ${n} ${n === 1 ? "derby" : "derbies"}` }),
-    top && top.total ? el("div", { class: "derby-leader" }, el("span", { text: st === "final" ? "🏆 Angler of the Year" : "👑 Leading" }),
+    top && top.total ? el("div", { class: "derby-leader" }, el("span", { text: st === "final" ? "🏆 Champion" : "👑 Leading" }),
       avatar(who(top.uid), "xs"), el("b", { text: who(top.uid).displayName }), el("span", { text: `${top.total} pts` })) : null);
 }
 
@@ -51,7 +51,7 @@ export function renderSeries(main, id) {
 
   const crown = champ ? el("section", { class: "card stack champion" },
     el("div", { class: "champion-trophy", text: "🏆" }), avatar(who(champ.uid), "lg"),
-    el("h3", { text: `${who(champ.uid).displayName} is Angler of the Year` }),
+    el("h3", { text: `${who(champ.uid).displayName} wins the series` }),
     el("p", { class: "muted", text: `${champ.total} points · ${champ.wins} ${champ.wins === 1 ? "win" : "wins"}` })) : null;
 
   const table = rows.length ? el("ol", { class: "board" }, ...rows.map((r, i) => el("li", {},
@@ -86,11 +86,11 @@ const toDate = ms => { const d = new Date(ms); return `${d.getFullYear()}-${pad(
 const fromDate = (v, endOfDay) => { const [y, m, d] = v.split("-").map(Number); return y ? new Date(y, m - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0).getTime() : NaN; };
 
 export function renderSeriesForm(main, id) {
-  if (!isAdmin()) return fill(main, el("div", { class: "card" }, el("p", { text: "Only league admins can set up a season series." })));
+  if (!isAdmin()) return fill(main, el("div", { class: "card" }, el("p", { text: "Only league admins can set up a derby series." })));
   const editing = id ? store.series.get(id) : null;
   if (id && !editing) return fill(main, el("div", { class: "card empty" }, el("p", { text: store.series.size ? "This series doesn't exist." : "Loading…" })));
   const year = new Date().getFullYear();
-  const s = { ...DEFAULT_SERIES, name: `${year} Angler of the Year`, start: new Date(year, 0, 1).getTime(), end: new Date(year, 11, 31, 23, 59, 59).getTime(), ...(editing || {}) };
+  const s = { ...DEFAULT_SERIES, name: `${year} Derby Series`, start: new Date(year, 0, 1).getTime(), end: new Date(year, 11, 31, 23, 59, 59).getTime(), ...(editing || {}) };
   const name = el("input", { type: "text", maxlength: 60, value: s.name });
   const start = el("input", { type: "date", value: toDate(s.start) }), end = el("input", { type: "date", value: toDate(s.end) });
   const points = el("input", { type: "text", inputmode: "numeric", value: s.points.join(", ") });
@@ -98,8 +98,8 @@ export function renderSeriesForm(main, id) {
   const bestOf = el("input", { type: "text", inputmode: "numeric", value: s.bestOf ? String(s.bestOf) : "", placeholder: "Every derby" });
   const msg = el("p", { class: "msg" });
   const form = el("form", { class: "stack", novalidate: true },
-    el("h2", { class: "page-title", text: editing ? "Edit series" : "New season series" }),
-    el("section", { class: "card stack" }, field("Name", name), field("Starts", start), field("Ends", end, "Angler of the Year is crowned once this date passes and the series' derbies have finished.")),
+    el("h2", { class: "page-title", text: editing ? "Edit series" : "New derby series" }),
+    el("section", { class: "card stack" }, field("Name", name), field("Starts", start), field("Ends", end, "The series champion is crowned once this date passes and the series' derbies have finished.")),
     el("section", { class: "card stack" }, el("h3", { text: "Points" }),
       field("Points for 1st, 2nd, 3rd…", points, "Places after the last number get none."),
       field("Points for fishing a derby", showUp, "Everyone who joined a finished derby, fish or no fish."),
