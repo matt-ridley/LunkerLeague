@@ -2,7 +2,7 @@
 import { el, fill, field, icon, avatar, fmtDay, fmtWeight, fmtLength, toast, confirmButton, openSheet, closeSheet } from "./ui.js";
 import { store, uid, memberName, isAdmin, newFleetId, saveFleetBoat, deleteFleetBoat, loadFleetPhoto, cachedFleetPhoto } from "./cloud.js";
 import { pickImage, tacklePhoto } from "./photos.js";
-import { boatStats, boatCatches, boatOutings, MOTOR_BRANDS, MAX_HP, motorText, BOAT_SORTS, NO_BOAT_FILTERS, listBoats } from "./fleet.js";
+import { boatStats, boatCatches, boatOutings, MOTOR_BRANDS, MAX_HP, MAX_LENGTH_FT, MAX_SEATS, MAX_CAPACITY_LB, motorText, specText, BOAT_SORTS, NO_BOAT_FILTERS, listBoats } from "./fleet.js";
 import { isStringer } from "./stats.js";
 import { catchCard } from "./catches.js";
 
@@ -49,7 +49,7 @@ export function renderFleet(main) {
       boatThumb(b, "box-thumb small"),
       el("div", { class: "grow stack-tight" },
         el("b", { text: b.name }),
-        el("span", { class: "muted small", text: [`${who(b.uid).displayName}'s`, motorText(b), b.retired ? "retired" : ""].filter(Boolean).join(" · ") })),
+        el("span", { class: "muted small", text: [`${who(b.uid).displayName}'s`, b.lengthFt ? `${b.lengthFt} ft` : "", motorText(b), b.retired ? "retired" : ""].filter(Boolean).join(" · ") })),
       el("span", { class: "list-row-n" }, el("b", { text: String(s.fish) }), el("small", { text: "fish" })))))
       : all.length && filtered ? el("div", { class: "card empty" }, el("p", { text: "No boats match." }),
           el("button", { class: "btn block", type: "button", text: "Show all boats", onclick: () => setF({ whose: "all", motor: "" }) }))
@@ -74,6 +74,7 @@ export function renderBoat(main, id) {
     el("dl", { class: "facts card" },
       el("div", { class: "fact" }, el("dt", { text: "Captain" }), el("dd", {}, chip(b.uid))),
       motorText(b) ? el("div", { class: "fact" }, el("dt", { text: "Motor" }), el("dd", { text: motorText(b) })) : null,
+      specText(b) ? el("div", { class: "fact" }, el("dt", { text: "Specs" }), el("dd", { text: specText(b) })) : null,
       (b.crew || []).length ? el("div", { class: "fact" }, el("dt", { text: "Crew" }), el("dd", {}, el("div", { class: "people" }, ...b.crew.map(chip)))) : null,
       b.notes ? el("div", { class: "fact" }, el("dt", { text: "Notes" }), el("dd", { text: b.notes })) : null,
       el("div", { class: "fact" }, el("dt", { text: "Caught" }), el("dd", { text: s.fish ? `${s.fish} fish, ${s.species} species` : "Nothing yet" })),
@@ -94,9 +95,10 @@ export function renderBoat(main, id) {
     list.length ? el("div", { class: "card-list" }, ...list.slice(0, 30).map(c => catchCard(c))) : null);
 }
 
-// The motor is only sent when it's set, so boats without one save the same as before.
-const motorFields = (hp, motor) => ({ ...(hp ? { hp } : {}), ...(motor ? { motor } : {}) });
-const strip = b => ({ name: b.name, crew: b.crew || [], notes: b.notes || "", retired: !!b.retired, ...motorFields(b.hp, b.motor) });
+// The motor and specs are only sent when they're set, so boats without them save the same as before.
+const SPEC_KEYS = ["hp", "motor", "lengthFt", "seats", "capacityLb"];
+const specFields = v => Object.fromEntries(SPEC_KEYS.filter(k => v[k]).map(k => [k, v[k]]));
+const strip = b => ({ name: b.name, crew: b.crew || [], notes: b.notes || "", retired: !!b.retired, ...specFields(b) });
 
 /* Add or edit a boat. */
 export function boatSheet(b = null) {
@@ -107,6 +109,9 @@ export function boatSheet(b = null) {
     const hp = el("input", { type: "number", inputmode: "numeric", min: 1, max: MAX_HP, step: 1, placeholder: "e.g. 150", value: b && b.hp ? b.hp : "" });
     const motor = el("select", {}, el("option", { value: "", text: "Pick a brand" }), ...MOTOR_BRANDS.map(m => el("option", { value: m, text: m })));
     motor.value = b && b.motor && MOTOR_BRANDS.includes(b.motor) ? b.motor : "";
+    const num = (key, max, placeholder, step = 1) => el("input", { type: "number", inputmode: step === 1 ? "numeric" : "decimal", min: step, max, step, placeholder,
+      value: b && b[key] ? b[key] : "" });
+    const lengthFt = num("lengthFt", MAX_LENGTH_FT, "e.g. 17.5", 0.5), seats = num("seats", MAX_SEATS, "e.g. 4"), capacity = num("capacityLb", MAX_CAPACITY_LB, "e.g. 1200");
     notes.value = b ? b.notes || "" : "";
     const others = [...store.members.values()].filter(m => m.id !== uid() && !m.suspended).sort((x, y) => x.displayName.localeCompare(y.displayName));
     const crew = el("div", { class: "stack-tight" }, ...others.map(m => {
@@ -138,6 +143,7 @@ export function boatSheet(b = null) {
       el("div", { class: "field" }, el("span", { class: "field-label", text: "Regular crew" }), others.length ? crew : el("p", { class: "muted small", text: "Nobody else in the league yet." }),
         el("span", { class: "hint", text: "Crew can pick this boat when they log a catch. Anyone with a seat on it for an outing gets it filled in." })),
       el("div", { class: "boat-tools" }, field("Motor (optional)", motor), field("Horsepower", hp)),
+      el("div", { class: "boat-specs" }, field("Length (ft)", lengthFt), field("Seats", seats), field("Capacity (lb)", capacity)),
       field("Notes (optional)", notes),
       msg,
       el("div", { class: "row" },
@@ -149,9 +155,15 @@ export function boatSheet(b = null) {
       if (!n) { msg.className = "msg err"; msg.textContent = "Give your boat a name."; return; }
       const h = hp.value.trim() ? Number(hp.value) : null;
       if (h !== null && !(Number.isInteger(h) && h > 0 && h <= MAX_HP)) { msg.className = "msg err"; msg.textContent = `Horsepower is a whole number from 1 to ${MAX_HP}.`; return; }
+      const len = lengthFt.value.trim() ? Math.round(Number(lengthFt.value) * 2) / 2 : null; // to the half foot
+      if (len !== null && !(len > 0 && len <= MAX_LENGTH_FT)) { msg.className = "msg err"; msg.textContent = `Length is up to ${MAX_LENGTH_FT} ft.`; return; }
+      const st_ = seats.value.trim() ? Number(seats.value) : null;
+      if (st_ !== null && !(Number.isInteger(st_) && st_ > 0 && st_ <= MAX_SEATS)) { msg.className = "msg err"; msg.textContent = `Seats is a whole number from 1 to ${MAX_SEATS}.`; return; }
+      const cap = capacity.value.trim() ? Number(capacity.value) : null;
+      if (cap !== null && !(Number.isInteger(cap) && cap > 0 && cap <= MAX_CAPACITY_LB)) { msg.className = "msg err"; msg.textContent = `Capacity is a whole number of pounds up to ${MAX_CAPACITY_LB.toLocaleString("en-US")}.`; return; }
       const id = b ? b.id : newFleetId();
       saveFleetBoat(id, { name: n, crew: [...st.crew].slice(0, 20), notes: notes.value.trim().slice(0, 200), retired: b ? !!b.retired : false,
-        ...motorFields(h, motor.value) }, st.photo);
+        ...specFields({ hp: h, motor: motor.value, lengthFt: len, seats: st_, capacityLb: cap }) }, st.photo);
       closeSheet(); toast(b ? "Boat saved." : "Boat added.");
       if (!b) location.hash = `#/boat/${id}`;
     });

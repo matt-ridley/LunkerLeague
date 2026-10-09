@@ -41,6 +41,18 @@ test("a boat's motor: optional horsepower (a whole number) and brand", async () 
   await assertFails(setDoc(doc(db, "fleet/b8"), boat("member", { motor: "M".repeat(31) })));
 });
 
+test("a boat's specs: optional length (feet), seats and capacity (lb)", async () => {
+  const db = as(env, "member");
+  await assertSucceeds(setDoc(doc(db, "fleet/b1"), boat("member", { lengthFt: 17.5, seats: 4, capacityLb: 1200 })));
+  await assertSucceeds(setDoc(doc(db, "fleet/b2"), boat("member", { lengthFt: null, seats: null, capacityLb: null })));
+  await assertFails(setDoc(doc(db, "fleet/b3"), boat("member", { lengthFt: 0 })));
+  await assertFails(setDoc(doc(db, "fleet/b4"), boat("member", { lengthFt: 101 })));
+  await assertFails(setDoc(doc(db, "fleet/b5"), boat("member", { seats: 2.5 })));
+  await assertFails(setDoc(doc(db, "fleet/b6"), boat("member", { seats: 31 })));
+  await assertFails(setDoc(doc(db, "fleet/b7"), boat("member", { capacityLb: 20001 })));
+  await assertFails(setDoc(doc(db, "fleet/b8"), boat("member", { capacityLb: "1200" })));
+});
+
 test("a boat's photo: only its owner, a sensible size", async () => {
   const db = as(env, "member");
   const b = writeBatch(db);

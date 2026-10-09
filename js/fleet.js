@@ -1,5 +1,5 @@
 /* Boat profiles: the league's saved boats (fleet/{id}: { uid (owner), name, crew: [uid], notes, thumb, retired,
-   createdAt, and optionally hp (horsepower) and motor (brand) }). A catch can say which boat it was caught from (`boatId`), and a boat brought on an outing can point to
+   createdAt, and optionally hp (horsepower), motor (brand), lengthFt, seats and capacityLb }). A catch can say which boat it was caught from (`boatId`), and a boat brought on an outing can point to
    a saved boat. Pure functions on plain data. (Saved boats are called the fleet in the code, because an outing's
    "boats" are the seats offered for that outing.) */
 import { fishIn, better, measured } from "./stats.js";
@@ -16,13 +16,17 @@ export const MOTOR_BRANDS = [
   "Mercury", "Yamaha", "Honda", "Suzuki", "Tohatsu", "Evinrude", "Johnson", "Mariner", "Nissan", "MerCruiser", "Volvo Penta", "Indmar",
   "Minn Kota", "MotorGuide", "Garmin", "Torqeedo", "Other",
 ];
-export const MAX_HP = 2000;
+export const MAX_HP = 2000, MAX_LENGTH_FT = 100, MAX_SEATS = 30, MAX_CAPACITY_LB = 20000;
 
 /* "150 hp Mercury", "Yamaha", "40 hp", or "" when neither is set. */
 export const motorText = b => [b.hp ? `${b.hp} hp` : "", b.motor || ""].filter(Boolean).join(" ");
 
+/* "17.5 ft · 4 seats · 1,200 lb capacity", whichever are set. */
+export const specText = b => [b.lengthFt ? `${b.lengthFt} ft` : "", b.seats ? `${b.seats} seat${b.seats === 1 ? "" : "s"}` : "",
+  b.capacityLb ? `${b.capacityLb.toLocaleString("en-US")} lb capacity` : ""].filter(Boolean).join(" · ");
+
 /* The Boats page: sorts, and the filters (whose boats, motor brand). */
-export const BOAT_SORTS = [["fish", "Most fish"], ["name", "Name"], ["hp", "Horsepower"], ["new", "Newest"]];
+export const BOAT_SORTS = [["fish", "Most fish"], ["name", "Name"], ["hp", "Horsepower"], ["length", "Length"], ["new", "Newest"]];
 export const NO_BOAT_FILTERS = { sort: "fish", whose: "all", motor: "" };
 
 /* rows: [{ b, s }] (s from boatStats). whose: "all" or "mine" (boats you own or crew on). motor: a brand, or "". */
@@ -32,6 +36,7 @@ export function listBoats(rows, { sort = "fish", whose = "all", motor = "" } = {
     fish: (x, y) => y.s.fish - x.s.fish || byName(x, y),
     name: byName,
     hp: (x, y) => (y.b.hp || 0) - (x.b.hp || 0) || byName(x, y),
+    length: (x, y) => (y.b.lengthFt || 0) - (x.b.lengthFt || 0) || byName(x, y),
     new: (x, y) => (y.b.createdAt || 0) - (x.b.createdAt || 0) || byName(x, y),
   }[sort] || byName;
   return rows.filter(({ b }) => (whose !== "mine" || b.uid === me || (b.crew || []).includes(me)) && (!motor || b.motor === motor)).sort(order);

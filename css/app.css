@@ -776,6 +776,8 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .list-row-n b { font: 800 22px/1.1 var(--f-display); }
 .list-row-n small { font-size: 12px; font-weight: 700; color: var(--muted); }
 .boat-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.boat-specs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.boat-specs .field-label { white-space: nowrap; }
 /* The Dock */
 .dock-head { margin-bottom: -6px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-family: inherit; }
 .dock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
