@@ -319,11 +319,18 @@ service cloud.firestore {
 
     // Saved boats (the fleet): everyone in the league can see them; only the owner changes one (admins can delete).
     function validFleetBoat(d) {
-      return d.keys().hasOnly(["uid", "name", "crew", "notes", "thumb", "retired", "createdAt"])
+      return d.keys().hasOnly(["uid", "name", "crew", "notes", "thumb", "retired", "createdAt", "hp", "motor", "lengthFt", "seats", "capacityLb"])
         && d.uid == me() && d.name is string && d.name.size() > 0 && d.name.size() <= 40
         && d.crew is list && d.crew.size() <= 20 && d.notes is string && d.notes.size() <= 200
         && (d.thumb == null || (d.thumb is string && d.thumb.size() < 20000))
-        && d.retired is bool && d.createdAt is number;
+        && d.retired is bool && d.createdAt is number
+        // Optional motor: horsepower (a whole number) and a brand picked from the app's list.
+        && (!("hp" in d) || d.hp == null || (d.hp is int && d.hp > 0 && d.hp <= 2000))
+        && (!("motor" in d) || d.motor == null || (d.motor is string && d.motor.size() > 0 && d.motor.size() <= 30))
+        // Optional specs: length in feet (halves allowed), seats, and capacity in lb.
+        && (!("lengthFt" in d) || d.lengthFt == null || (d.lengthFt is number && d.lengthFt > 0 && d.lengthFt <= 100))
+        && (!("seats" in d) || d.seats == null || (d.seats is int && d.seats > 0 && d.seats <= 30))
+        && (!("capacityLb" in d) || d.capacityLb == null || (d.capacityLb is int && d.capacityLb > 0 && d.capacityLb <= 20000));
     }
     function fleetPath(id) { return /databases/$(database)/documents/fleet/$(id); }
     match /fleet/{id} {

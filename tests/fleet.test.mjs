@@ -1,7 +1,7 @@
 // Unit tests for boat profiles. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { myBoats, boatStats, outingBoat, defaultBoat, boatOutings } from "../js/fleet.js";
+import { myBoats, boatStats, outingBoat, defaultBoat, boatOutings, motorText, MOTOR_BRANDS, listBoats, specText } from "../js/fleet.js";
 
 const fleet = new Map([
   ["b1", { id: "b1", uid: "amy", name: "Lund", crew: ["bo"] }],
@@ -46,4 +46,35 @@ test("a new catch starts with the outing boat, else the last boat you used (if y
   const outing = { trips: new Map([["t1", { id: "t1", at: now - 60000 }]]), rsvps: new Map([["t1", new Map([["amy", { answer: "in" }]])]]),
     tripBoats: new Map([["t1", new Map([["amy", { boatId: "b1" }]])]]), now };
   assert.equal(defaultBoat("amy", { fleet, catches, ...outing }), "b1");
+});
+
+test("motor text: horsepower and brand, either, or nothing", () => {
+  assert.equal(motorText({ hp: 150, motor: "Mercury" }), "150 hp Mercury");
+  assert.equal(motorText({ motor: "Yamaha" }), "Yamaha");
+  assert.equal(motorText({ hp: 40 }), "40 hp");
+  assert.equal(motorText({}), "");
+  assert.ok(MOTOR_BRANDS.includes("Mercury") && MOTOR_BRANDS.at(-1) === "Other");
+});
+
+test("the Boats page: sort by fish, name, horsepower or newest; filter to your boats or a motor brand", () => {
+  const rows = [
+    { b: { id: "a", uid: "amy", name: "Lund", hp: 90, motor: "Yamaha", lengthFt: 17.5, createdAt: 1, crew: [] }, s: { fish: 3 } },
+    { b: { id: "b", uid: "bo", name: "Crestliner", hp: 150, motor: "Mercury", createdAt: 3, crew: ["amy"] }, s: { fish: 3 } },
+    { b: { id: "c", uid: "cy", name: "Alumacraft", lengthFt: 18, createdAt: 2, crew: [] }, s: { fish: 9 } },
+  ];
+  const ids = (f, me = "amy") => listBoats(rows.slice(), f, me).map(r => r.b.id).join("");
+  assert.equal(ids({ sort: "fish" }), "cba");
+  assert.equal(ids({ sort: "name" }), "cba");
+  assert.equal(ids({ sort: "hp" }), "bac");
+  assert.equal(ids({ sort: "length" }), "cab");
+  assert.equal(ids({ sort: "new" }), "bca");
+  assert.equal(ids({ sort: "name", whose: "mine" }), "ba");
+  assert.equal(ids({ sort: "name", motor: "Mercury" }), "b");
+  assert.equal(ids({ sort: "fish", whose: "mine", motor: "Honda" }), "");
+});
+
+test("boat specs: length, seats and capacity, whichever are set", () => {
+  assert.equal(specText({ lengthFt: 17.5, seats: 4, capacityLb: 1200 }), "17.5 ft · 4 seats · 1,200 lb capacity");
+  assert.equal(specText({ seats: 1 }), "1 seat");
+  assert.equal(specText({}), "");
 });

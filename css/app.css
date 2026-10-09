@@ -765,6 +765,19 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .box-item { display: grid; gap: 4px; padding: 10px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); color: inherit; text-decoration: none; }
 .box-item.retired { opacity: .6; }
 .lucky-line { display: flex; align-items: center; min-width: 0; overflow: hidden; white-space: nowrap; }
+/* One-column lists (anglers, boats, tackle boxes): a picture, the name and a line, and a number on the right */
+.list-row { display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 8px 14px 8px 8px; color: inherit; text-decoration: none;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.list-row.me { border: 2px solid var(--primary); }
+.list-row.retired { opacity: .6; }
+.list-row .grow { min-width: 0; }
+.list-row b { overflow-wrap: anywhere; }
+.list-row-n { flex: none; display: grid; justify-items: end; text-align: right; line-height: 1.1; max-width: 76px; }
+.list-row-n b { font: 800 22px/1.1 var(--f-display); }
+.list-row-n small { font-size: 12px; font-weight: 700; color: var(--muted); }
+.boat-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.boat-specs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.boat-specs .field-label { white-space: nowrap; }
 /* The Dock */
 .dock-head { margin-bottom: -6px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-family: inherit; }
 .dock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -847,7 +860,7 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
   .nav-item:hover:not([aria-current="page"]):not(.log) { background: var(--surface-2); }
   .nav-item.log:hover { filter: brightness(1.05); }
   .btn:hover:not(:disabled), .icon-btn:hover, .toast-btn:hover { filter: brightness(.95); }
-  .catch-card:hover, .derby-card:hover, .board-row:hover, .member-row:hover, .record-card:hover, .box-item:hover, .dock-tile:hover, .chat-row:hover { border-color: var(--primary); }
+  .catch-card:hover, .derby-card:hover, .board-row:hover, .member-row:hover, .record-card:hover, .box-item:hover, .dock-tile:hover, .chat-row:hover, .list-row:hover { border-color: var(--primary); }
 }
 
 /* Phone view on a computer: the app in a phone-sized frame. */
