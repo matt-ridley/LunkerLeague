@@ -10,9 +10,9 @@ import { VERSION } from "./config.js";
 import { getTheme, setTheme } from "./theme.js";
 import { pbWall } from "./catches.js";
 import { badgesFor } from "./rank.js";
-import { seasonTables, seasonOf, seasonName, careerBest, ordinal } from "./season.js";
+import { seasonTables, seasonOf, seasonName, careerBest, ordinal, trophiesFor, defendingChamp } from "./season.js";
 import { rankInput, howPointsSheet } from "./leaders.js";
-import { crownScore } from "./crowns.js";
+import { crownScore, crownById } from "./crowns.js";
 import { SEASON_BADGES, CAREER_BADGES, badgeYears } from "./badges.js";
 import { profileRecord } from "./h2hpage.js";
 import { showRecord } from "./noshows.js";
@@ -72,7 +72,8 @@ export function renderProfile(main, id) {
       el("h2", { text: m.displayName }),
       m.homeWater ? el("p", { class: "muted", text: `Home water: ${m.homeWater}` }) : null,
       el("p", { class: "muted small", text: `Joined ${fmtDay(m.joinedAt || Date.now())}` }),
-      store.league && (store.league.admins || []).includes(m.id) ? el("span", { class: "chip gold", text: store.league.ownerUid === m.id ? "League owner" : "Admin" }) : null));
+      store.league && (store.league.admins || []).includes(m.id) ? el("span", { class: "chip gold", text: store.league.ownerUid === m.id ? "League owner" : "Admin" }) : null,
+      defendingChamp(store.seasons) === m.id ? el("span", { class: "chip gold", text: `🛡️ Defending champ (${seasonOf(Date.now()) - 1})` }) : null));
 
   // This season's rank (it starts again every January 1), plus the best official title and finish, kept for good.
   const input = rankInput(), now = Date.now(), tables = seasonTables(input, now), rows = tables.years.get(seasonOf(now)) || [];
@@ -101,7 +102,11 @@ export function renderProfile(main, id) {
   // Someone else's profile: challenge them head-to-head.
   const challenge = !mine && !m.suspended ? el("a", { class: "btn block", href: `#/hnew/${m.id}`, text: `⚔️ Challenge ${m.displayName}` }) : null;
   const statsLink = el("a", { class: "btn block", href: `#/stats/${m.id}`, text: mine ? "📊 Your stats and what's working" : `📊 ${m.displayName}'s stats` });
-  const parts = [cover, head, flair, challenge, rankCard, goalsSection(m.id, mine), profileRecord(m.id), outingRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
+  // Trophies from locked seasons: podium finishes, crowns held at the end, season awards. Theirs for good.
+  const trophies = trophiesFor(m.id, store.seasons, id => (crownById(id) || { name: id }).name);
+  const shelf = trophies.length ? el("section", { class: "stack-tight" }, el("span", { class: "eyebrow", text: `🏆 Trophy shelf · ${trophies.length}` }),
+    el("div", { class: "flair-row" }, ...trophies.map(t => el("a", { class: "chip", href: `#/awards/${t.year}` }, `${t.icon} ${t.text}`)))) : null;
+  const parts = [cover, head, flair, challenge, rankCard, shelf, goalsSection(m.id, mine), profileRecord(m.id), outingRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
     el("a", { class: "btn block", href: `#/box/${m.id}`, text: mine ? "🧰 Your tackle box" : `🧰 ${m.displayName}'s tackle box` }),
     // Opens the map on your own spots (private ones too); the Dock's map tile opens the league's.
     mine ? el("a", { class: "btn block", href: "#/map", text: "🗺️ Your spots", onclick: () => { try { sessionStorage.setItem("lunker-map-view", "mine"); } catch {} } }) : null,

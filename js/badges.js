@@ -116,6 +116,10 @@ export const BADGES = [
   { id: "veteran", icon: "🎗️", name: "Veteran", desc: "Fish 3 official seasons (a catch in each)", career: true, at: x => x.seasonsAt[2] ?? null },
   { id: "lifer", icon: "🧓", name: "Lifer", desc: "Fish 10 official seasons (a catch in each)", career: true, at: x => x.seasonsAt[9] ?? null },
   { id: "thousand", icon: "🏔️", name: "Thousand Club", desc: "1,000 fish over your career", career: true, at: x => nth(x.mine, 1000, fishIn) },
+  // Career: champions of official seasons, once the season is locked and saved
+  { id: "champion", icon: "🏆", name: "Champion", desc: "Win an official season", career: true, at: x => (x.titles[0] ? x.titles[0].at : null) },
+  { id: "repeat", icon: "✌️", name: "Repeat Champion", desc: "Win two official seasons in a row", career: true, at: x => runOf(x.titles, 2) },
+  { id: "dynasty", icon: "🏯", name: "Dynasty", desc: "Win three official seasons in a row", career: true, at: x => runOf(x.titles, 3) },
 ];
 export const CAREER_BADGES = BADGES.filter(b => b.career);
 export const SEASON_BADGES = BADGES.filter(b => !b.career);
@@ -156,6 +160,16 @@ function streakAt(list, len) {
     run = prev !== null && d === prev + 1 ? run + 1 : 1;
     prev = d;
     if (run >= len) return first.get(d);
+  }
+  return null;
+}
+/* Seasons won ([{ year, at }], oldest first): when `len` in a row was first reached. */
+function runOf(titles, len) {
+  let run = 0, prev = null;
+  for (const t of titles) {
+    run = prev !== null && t.year === prev + 1 ? run + 1 : 1;
+    prev = t.year;
+    if (run >= len) return t.at;
   }
   return null;
 }
@@ -229,7 +243,7 @@ function leagueContext(input) {
   return { counted, valid, finished, reactionList, commentList, records: recordPeriods(counted), crownPeriods: crownsAll.periods, crownSteals: crownsAll.steals,
     spots, spotsList: newSpots(counted, spots), trips, rsvps, allRsvps, noShows, now, catches, h2h: h2hResults([...asMap(challenges).values()], catches, now),
     fleet: fleetMap, ...boatCounts(counted, fleetMap), boatTrips: boatTrips({ trips, rsvps: allRsvps, tripBoats, noShows, now }),
-    joins: input.joins || new Map() };
+    joins: input.joins || new Map(), seasonDocs: input.seasonDocs || new Map() };
 }
 
 /* Crowns: holding periods and steals, from each crown's history (a season's last holder stops holding it when the
@@ -391,6 +405,9 @@ function anglerContext(u, L) {
     speciesAt: distinctAt(mine, c => c.species),
     seasonsAt: distinctAt(mine.filter(c => yearOf(c.caughtAt) >= FIRST_SEASON), c => yearOf(c.caughtAt)),
     joinedAt: L.joins.get(u) || null,
+    // Official seasons won, from the saved seasons (dated when each was locked).
+    titles: [...L.seasonDocs.values()].filter(d => d.champion === u && d.year >= FIRST_SEASON)
+      .map(d => ({ year: d.year, at: d.lockedAt || new Date(d.year + 1, 0, 1).getTime() })).sort((a, b) => a.year - b.year),
     limits: mine.filter(c => c.fishCount > 1 && c.limit),
     recordTakes: myRecords.map(p => p.from), recordSteals: myRecords.filter(p => p.stolen).map(p => p.from),
     recordPeriods: myRecords, doubleRecordAt,
@@ -409,7 +426,7 @@ export function badgeTimeline(input) {
   const people = new Set([...L.counted.map(c => c.uid), ...L.finished.flatMap(f => [...f.ent.keys(), f.d.organiserUid]),
     ...L.commentList.map(c => c.uid), ...L.reactionList.map(r => r.uid), ...[...L.trips.values()].map(t => t.uid),
     ...[...L.allRsvps.values()].flatMap(m => [...m.keys()]), ...[...L.fleet.values()].map(b => b.uid), ...L.crownPeriods.map(p => p.uid), ...L.crownSteals.map(s => s.uid), ...L.h2h.flatMap(r => [r.ch.from, r.ch.to]),
-    ...L.joins.keys()]);
+    ...L.joins.keys(), ...[...L.seasonDocs.values()].map(d => d.champion)]);
   for (const bad of [undefined, null, ""]) people.delete(bad);
   const out = [];
   for (const u of people) {

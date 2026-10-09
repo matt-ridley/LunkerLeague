@@ -55,6 +55,7 @@ export const store = {
   betPlayers: new Map(),  // bet id -> Map(uid -> { at, in })
   proofs: new Map(),      // bet id -> Map(uid -> { photo, thumb, takenAt, note, at }), loaded when the bet is opened
   series: new Map(),      // id -> derby series (derbies with points by place)
+  seasons: new Map(),     // year (number) -> the saved season (seasons/{year}), written when it locks
   rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at, boat, seatAt })
   boats: new Map(),       // trip id -> Map(owner uid -> { seats, name, at })
   noShows: new Map(),     // trip id -> Map(uid -> { by, at }): said "In" and didn't show up
@@ -212,6 +213,11 @@ function refreshMemberListeners() {
       by.get(derbyId).set(d.id, d.data());
     }
     store.entrants = by;
+    emit();
+  }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "seasons"), OPTS, snap => {
+    seen("seasons", snap);
+    store.seasons = new Map(snap.docs.map(d => [Number(d.id), d.data()]));
     emit();
   }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "series"), OPTS, snap => {
@@ -391,7 +397,7 @@ function resetSocial() {
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
   store.skunks = new Map(); store.weather = new Map(); store.box = new Map(); store.goals = new Map(); store.fleet = new Map();
-  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.noShows = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
+  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.noShows = new Map(); store.series = new Map(); store.seasons = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
 }
 
 function syncError(e) {
@@ -773,6 +779,20 @@ export function watchDerbyChat(derbyId) {
     emit();
   }, syncError));
 }
+
+/* ---------- Saved seasons ---------- */
+/* Has every listener heard from the server (not just the phone's cache)? A season is only saved from fresh data. */
+const SEASON_KEYS = ["league", "members", "catches", "derbies", "entrants", "scoring", "challenges", "seasons", "trips", "rsvps", "noShows",
+  "reactions", "comments", "spotsShared", "fleet", "boats", "skunks"];
+export const freshData = () => SEASON_KEYS.every(k => cloud.meta[k] && !cloud.meta[k].fromCache);
+/* Saves a locked season, only if nobody has yet (two admins' phones may try at once). Needs signal. */
+export function lockSeason(year, data) {
+  const { runTransaction, doc } = cloud.api, ref = doc(cloud.db, "seasons", String(year));
+  return runTransaction(cloud.db, async tx => { if (!(await tx.get(ref)).exists()) tx.set(ref, data); })
+    .catch(e => console.warn("Season not saved", e));
+}
+/* The league owner can save a locked season again (after fixing a mistake). */
+export const resaveSeason = (year, data) => write(cloud.api.setDoc(cloud.api.doc(cloud.db, "seasons", String(year)), data));
 
 /* ---------- Derby series ---------- */
 /* Admins only (the rules check). Returns the id. */

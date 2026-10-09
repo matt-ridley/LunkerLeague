@@ -177,6 +177,12 @@ service cloud.firestore {
     // approve, so an angler's own save is never approved, except one the organiser makes (their own entry or one they
     // entered for an angler). Changing what was approved (the fish, the photo, the time, the derby) takes the approval away.
     function proofChanged() { return changed().hasAny(["species", "weightOz", "lengthIn", "caughtAt", "thumb", "photoTakenAt", "derbyId", "fishCount"]); }
+    // A locked season's catches keep their fish: once the final whistle has gone, the fish, its size, the photo and
+    // the time can't change (past catches from before the league are the angler's logbook and stay editable).
+    function seasonOpen(caughtAt) { return request.time < lockTime(timestamp.value(int(caughtAt)).year()); }
+    function fishLocked(old) {
+      return proofChanged() && old.get("past", false) == false && old.caughtAt >= leagueStart() && !seasonOpen(old.caughtAt);
+    }
     function approvalOk(d, old) {
       return d.get("approved", false) == false
         || isOrganiserOf(d)
@@ -203,6 +209,7 @@ service cloud.firestore {
           && request.resource.data.createdAt == resource.data.createdAt
           && sameDq(request.resource.data, resource.data)
           && approvalOk(request.resource.data, resource.data)
+          && !fishLocked(resource.data)
           && (resource.data.get("derbyId", null) == null || !exists(derbyPath(resource.data.derbyId))
               || derbyOpen(get(derbyPath(resource.data.derbyId)).data)))
         // The angler (or the organiser who entered it) can move the thumbnail any time, even on a closed derby entry:
@@ -648,6 +655,28 @@ service cloud.firestore {
         && x.bestOf is number && x.bestOf >= 0 && x.bestOf <= 50
         && x.createdBy is string && x.createdAt is number;
     }
+    // ---------- Saved seasons ----------
+    // A season is the calendar year. Once it's over and the late-logging days have passed (the final whistle), an
+    // admin's phone saves its final standings, crowns, records and awards for good. Anyone in the league can read
+    // them; only the league owner can save one again or remove it.
+    function lockTime(year) { return timestamp.date(year + 1, 1, 1) + duration.value(league().get("graceDays", 7), "d"); }
+    function validSeason(year, d) {
+      return d.keys().hasOnly(["year", "lockedAt", "lockedBy", "champion", "standings", "crowns", "records", "awards"])
+        && d.year == year && d.lockedAt is number && d.lockedBy == me()
+        && (d.champion == null || d.champion is string)
+        && d.standings is list && d.standings.size() <= 500
+        && d.crowns is list && d.crowns.size() <= 50
+        && d.records is list && d.records.size() <= 1000
+        && d.awards is list && d.awards.size() <= 50;
+    }
+    match /seasons/{year} {
+      allow read: if isMember();
+      allow create: if isAdmin() && year.matches("^[0-9]{4}$") && request.time >= lockTime(int(year))
+        && validSeason(int(year), request.resource.data);
+      allow update: if isOwner() && request.time >= lockTime(int(year)) && validSeason(int(year), request.resource.data);
+      allow delete: if isOwner();
+    }
+
     match /series/{sid} {
       allow read: if isMember();
       allow create: if isAdmin() && validSeries(request.resource.data) && request.resource.data.createdBy == me();

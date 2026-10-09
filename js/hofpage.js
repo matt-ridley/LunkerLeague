@@ -3,7 +3,7 @@
 import { el, fill, fmtDay, fmtWeight, fmtLength } from "./ui.js";
 import { store, memberName } from "./cloud.js";
 import { FIELDS, recordHistory, reignLength, longestReigns, recordSetters } from "./halloffame.js";
-import { seasonTables, seasonChampions, seasonName, potLickers, FIRST_SEASON } from "./season.js";
+import { seasonTables, seasonChampions, seasonName, seasonState, potLickers, FIRST_SEASON } from "./season.js";
 import { rankInput } from "./leaders.js";
 
 const DAY = 86400000;
@@ -36,10 +36,12 @@ function reignRow(field, r, now) {
 const MEDALS = ["🥇", "🥈", "🥉"];
 function championsWall(now) {
   const wall = store.catchesLoaded ? seasonChampions(seasonTables(rankInput(), now), now) : [];
+  const grace = (store.league && store.league.graceDays) ?? 7;
   return el("section", { class: "card stack" },
     el("h3", { text: "🏆 Season champions" }),
     wall.length ? el("ol", { class: "hof-list" }, ...wall.map(s => el("li", {},
-      el("div", {}, el("a", { href: `#/awards/${s.year}` }, el("b", { text: seasonName(s.year) })), s.preseason ? el("span", { class: "muted small", text: " (unofficial)" }) : null),
+      el("div", {}, el("a", { href: `#/awards/${s.year}` }, el("b", { text: seasonName(s.year) })),
+        el("span", { class: "muted small", text: [s.preseason ? " (unofficial)" : "", seasonState(s.year, now, grace) === "provisional" ? " · provisional until the final whistle" : ""].join("") })),
       el("div", { class: "stack-tight" }, ...s.podium.map((r, i) => el("span", {}, `${MEDALS[i]} `, who(r.uid), el("span", { class: "muted small", text: ` · ${r.points} pts` })))))))
       : el("p", { class: "muted", text: `No season has finished yet. The ${new Date(now).getFullYear() < FIRST_SEASON ? `Preseason's top anglers go up here (unofficially) after December 31, and Season 1's champion after the ${FIRST_SEASON} Season` : "first champion goes up here when this season ends"}.` }));
 }

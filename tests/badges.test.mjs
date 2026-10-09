@@ -15,9 +15,9 @@ const ids = (uid, input) => badgesFor(uid, { derbies: [], entrants: new Map(), n
 const has = (uid, input, id) => ids(uid, input).includes(id);
 const whenEarned = (uid, input, id) => (badgeTimeline({ derbies: [], entrants: new Map(), now: NOW, ...input }).find(b => b.uid === uid && b.badge.id === id) || {}).at;
 
-test("83 badges with unique ids, the six originals kept", () => {
-  assert.equal(BADGES.length, 83);
-  assert.equal(new Set(BADGES.map(b => b.id)).size, 83);
+test("86 badges with unique ids, the six originals kept", () => {
+  assert.equal(BADGES.length, 86);
+  assert.equal(new Set(BADGES.map(b => b.id)).size, 86);
   for (const id of ["first", "ten", "champ", "release", "owl", "net"]) assert.ok(BADGES.some(b => b.id === id));
 });
 
@@ -254,5 +254,16 @@ test("Bless Your Bonnet: everyone who joined in the 2026 Preseason, fish or not;
   assert.deepEqual(bonnet, ["amy", "bo"]);
   assert.equal(tl.find(b => b.badge.id === "bonnet" && b.uid === "amy").at, y(2026, 9, 3));
   assert.equal(tl.find(b => b.badge.id === "veteran" && b.uid === "cy").at, y(2029, 5, 1));
-  assert.ok(CAREER_BADGES.some(b => b.id === "bonnet") && CAREER_BADGES.length === 12);
+  assert.ok(CAREER_BADGES.some(b => b.id === "bonnet") && CAREER_BADGES.length === 15);
+});
+
+test("Champion, Repeat Champion and Dynasty come from locked official seasons", () => {
+  const doc = (year, champion) => [year, { year, champion, lockedAt: new Date(year + 1, 0, 8).getTime(), standings: [] }];
+  const seasonDocs = new Map([doc(2026, "amy"), doc(2027, "amy"), doc(2028, "amy"), doc(2029, "bo"), doc(2030, "amy")]);
+  const tl = badgeTimeline({ catches: [], derbies: [], entrants: new Map(), seasonDocs, now: new Date(2031, 5, 1).getTime() });
+  const at = (u, id) => (tl.find(b => b.uid === u && b.badge.id === id) || {}).at;
+  assert.equal(at("amy", "champion"), new Date(2028, 0, 8).getTime());  // 2026 was the Preseason: unofficial
+  assert.equal(at("amy", "repeat"), new Date(2029, 0, 8).getTime());
+  assert.equal(at("amy", "dynasty"), undefined);                      // 2027, 2028, then bo won 2029
+  assert.equal(at("bo", "champion"), new Date(2030, 0, 8).getTime());
 });

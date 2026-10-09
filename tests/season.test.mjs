@@ -1,7 +1,7 @@
 // Unit tests for seasons. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIRST_SEASON, seasonOf, seasonName, seasonLong, isPreseason, seasonOver, ordinal, seasonTables, thisSeason, careerBest, seasonChampions, potLickers } from "../js/season.js";
+import { FIRST_SEASON, lockAt, seasonState, defendingChamp, seasonOf, seasonName, seasonLong, isPreseason, seasonOver, ordinal, seasonTables, thisSeason, careerBest, seasonChampions, potLickers, trophiesFor } from "../js/season.js";
 
 const at = (y, m, d, h = 12) => new Date(y, m, d, h).getTime();
 let n = 0;
@@ -20,15 +20,15 @@ test("names: 2026 is the Preseason and 2027 is Season 1", () => {
   assert.ok(!seasonOver(2026, at(2026, 11, 31, 23)) && seasonOver(2026, at(2027, 0, 1, 0)));
 });
 
-test("every season starts at 0; species are new again; records held now count in this season only", () => {
+test("every season starts at 0; species are new again; a finished season keeps the records it ended with", () => {
   const catches = [fish("amy", "Walleye", 60, at(2026, 9, 10)), fish("amy", "Walleye", 50, at(2027, 4, 1))];
   const now = at(2027, 5, 1);
   const t = seasonTables(base({ catches }), now);
-  // 2026: 1 catch + 3 species (no records: the board is held now, so its points are in 2027)
-  assert.equal(pts(t.years.get(2026), "amy"), 1 + 3);
+  // 2026, as it ended: 1 catch + 3 species + 5 for the walleye weight record held on December 31
+  assert.equal(pts(t.years.get(2026), "amy"), 1 + 3 + 5);
   // 2027: 1 catch + 3 species again + 5 for holding the walleye weight record
   assert.equal(pts(t.years.get(2027), "amy"), 1 + 3 + 5);
-  assert.equal(pts(t.career, "amy"), 4 + 9);
+  assert.equal(pts(t.career, "amy"), 9 + 9);
   assert.equal(pts(thisSeason(base({ catches }), now), "amy"), 9);
   assert.equal(pts(t.years.get(2027), "bo"), 0);   // every member is listed
   assert.equal(t.years.get(2027)[0].title, "Bait Bucket");      // 9 pts: titles go by season points
@@ -66,4 +66,32 @@ test("the Official Pot Lickers: anglers with a league fish in the Preseason, fir
     fish("cy", "Perch", null, at(2027, 0, 3)), { ...fish("di", "Perch", null, at(2026, 9, 1)), past: true }, { ...fish("ed", "Perch", null, at(2026, 9, 1)), dq: true }]);
   assert.deepEqual(list.map(r => r.uid), ["amy", "bo"]);
   assert.equal(list[1].at, at(2026, 9, 25));
+});
+
+test("the final whistle: provisional for the late-logging days, then locked; a saved season wins over working it out", () => {
+  assert.equal(seasonState(2027, at(2027, 11, 31, 23)), "live");
+  assert.equal(seasonState(2027, at(2028, 0, 5)), "provisional");
+  assert.equal(seasonState(2027, at(2028, 0, 8, 1)), "locked");
+  assert.equal(seasonState(2027, at(2028, 0, 3), 1), "locked");          // 1 late-logging day
+  assert.equal(lockAt(2027), new Date(2028, 0, 8).getTime());
+  const catches = [fish("amy", "Perch", null, at(2027, 5, 1))];
+  const docs = new Map([[2027, { year: 2027, champion: "bo", standings: [{ uid: "bo", place: 1, points: 50, title: "Weekend Warrior", byKind: { catch: 50 } },
+    { uid: "amy", place: 2, points: 4, title: "Bait Bucket", byKind: { catch: 1, species: 3 } }] }]]);
+  const t = seasonTables(base({ catches, seasonDocs: docs }), at(2028, 1, 1));
+  assert.deepEqual(t.years.get(2027).map(r => [r.uid, r.points]), [["bo", 50], ["amy", 4]]);
+  assert.equal(t.career[0].uid, "bo");
+  assert.equal(defendingChamp(docs, at(2028, 1, 1)), "bo");
+  assert.equal(defendingChamp(docs, at(2029, 1, 1)), null);
+  assert.equal(defendingChamp(new Map([[2026, { champion: "amy" }]]), at(2027, 1, 1)), null); // the Preseason is unofficial
+});
+
+test("the trophy shelf: podium finishes, crowns held at the end and awards won, from locked seasons", () => {
+  const docs = new Map([
+    [2026, { year: 2026, standings: [{ uid: "amy", place: 1, points: 30 }], crowns: [{ id: "grinder", uid: "amy" }], awards: [] }],
+    [2027, { year: 2027, standings: [{ uid: "bo", place: 1, points: 90 }, { uid: "amy", place: 2, points: 60 }], crowns: [{ id: "grinder", uid: "bo" }],
+      awards: [{ id: "biggest", icon: "🐋", title: "Biggest fish", uid: "amy" }, { id: "boat", icon: "🚤", title: "Top boat", uid: "amy", boatId: "b1" }] }],
+  ]);
+  assert.deepEqual(trophiesFor("amy", docs, id => id === "grinder" ? "Grinder" : id).map(t => `${t.icon} ${t.text}`),
+    ["🥈 2nd in the 2027 Season", "🐋 Biggest fish · 2027", "🥇 2026 Preseason champion", "👑 Grinder · 2026"]);
+  assert.deepEqual(trophiesFor("cy", docs), []);
 });
