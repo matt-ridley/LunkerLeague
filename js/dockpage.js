@@ -1,5 +1,5 @@
 /* The Dock (#/dock): the way in to the league's people, gear and water. Also its own pages: the anglers list
-   (#/anglers) and everyone's tackle boxes (#/tackle). Boats, the map, best bite and stats have their own pages. */
+   (#/anglers) and everyone's tackle boxes (#/tackle). Boats, the Fish Tank, the map and stats have their own pages. */
 import { el, fill, avatar, fmtDay } from "./ui.js";
 import { store, uid } from "./cloud.js";
 import { luckyLure } from "./tacklebox.js";
@@ -14,6 +14,7 @@ const mapView = view => () => { try { sessionStorage.setItem("lunker-map-view", 
 export function renderDock(main) {
   const boats = [...store.fleet.values()].filter(b => !b.retired).length;
   const items = [...store.box.values()].filter(i => !i.retired).length;
+  const catches = store.catchesLoaded ? store.catches.size : 0;
   const tile = (href, emoji, title, sub, onclick = null) => el("a", { class: "dock-tile", href, onclick },
     el("span", { class: "dock-icon", "aria-hidden": "true", text: emoji }),
     el("b", { text: title }), el("span", { class: "muted small", text: sub }));
@@ -26,8 +27,8 @@ export function renderDock(main) {
       tile("#/tackle", "🧰", "Tackle boxes", items ? `${plural(items, "item")} of tackle` : "Fill yours")),
     el("h3", { class: "dock-head", text: "On the water" }),
     el("div", { class: "dock-grid" },
-      tile("#/map", "🗺️", "Map", "The league's shared spots", mapView("league")),
-      tile("#/bite", "🎣", "Best bite", "The best times this week")),
+      tile("#/tank", "🐠", "Fish Tank", catches ? plural(catches, "catch", "catches") : "Every catch, your way"),
+      tile("#/map", "🗺️", "Map", "The league's shared spots", mapView("league"))),
     el("h3", { class: "dock-head", text: "You" }),
     el("div", { class: "dock-grid" },
       tile(`#/stats/${uid()}`, "📊", "Your stats", "What's working for you")));

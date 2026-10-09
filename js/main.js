@@ -6,13 +6,13 @@ import { renderGate } from "./gate.js";
 import { renderProfile } from "./profile.js";
 import { renderStats } from "./statspage.js";
 import { renderMap } from "./mappage.js";
-import { renderBite } from "./bitepage.js";
 import { renderBox, renderItem } from "./tackleboxpage.js";
 import { renderHof } from "./hofpage.js";
 import { renderFleet, renderBoat } from "./fleetpage.js";
 import { renderAwards } from "./awardspage.js";
 import { renderSystem } from "./systempage.js";
 import { renderDock, renderAnglers, renderTackleBoxes } from "./dockpage.js";
+import { renderTank } from "./fishtankpage.js";
 import { statusText } from "./sysinfo.js";
 import { phoneHost, showPhoneFrame, switchToPhone } from "./viewmode.js";
 import { renderAdmin } from "./admin.js";
@@ -51,7 +51,7 @@ const ROUTES = {
   anglers: { tab: "dock", live: true, render: main => renderAnglers(main) },
   tackle: { tab: "dock", live: true, render: main => renderTackleBoxes(main) },
   map: { tab: "dock", live: false, render: main => renderMap(main) },
-  bite: { tab: "dock", live: true, render: main => renderBite(main) },
+  tank: { tab: "dock", live: true, render: main => renderTank(main) },
   box: { tab: null, live: true, render: (main, id) => renderBox(main, id) },
   ti: { tab: null, live: true, render: renderItem },
   hof: { tab: "leaders", live: true, render: main => renderHof(main) },
