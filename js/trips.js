@@ -6,8 +6,6 @@ import { store, uid, isAdmin, memberName, saveTrip, setRsvp, setSeat, setBoat, d
 import { RSVP_ICON } from "./events.js";
 import { outingEnd, isBoatOuting, seating, outingRecap } from "./outings.js";
 import { isPersonalBest, recordKinds } from "./stats.js";
-import { biteTimes } from "./solunar.js";
-import { biteDay } from "./bitepage.js";
 import { myBoats, spareSeats } from "./fleet.js";
 import { focusStyle } from "./thumbfocus.js";
 import { canMark } from "./noshows.js";
@@ -126,19 +124,11 @@ export function renderTrip(main, id) {
       : el("section", { class: "card stack" }, el("h3", { text: "Are you in?" }), rsvpButtons(t)),
     isBoatOuting(t) ? boatsSection(t, past, me) : null,
     recapSection(t),
-    tripBite(t),
     el("section", { class: "card stack" }, inPeople(), people("maybe", "Maybe"), people("out", "Out"),
       waiting.length && !past ? el("p", { class: "hint", text: `Not answered yet: ${waiting.join(", ")}` }) : null),
     canManage(t) ? el("div", { class: "row" },
       el("a", { class: "btn", href: `#/tedit/${id}`, text: "Edit" }),
       confirmButton("Delete", "Tap again to delete", () => { deleteTrip(id); location.hash = "#/derbies"; toast("Outing deleted."); })) : null);
-}
-
-/* Best-bite times for the outing's day at the home water, with the periods during the outing marked. */
-function tripBite(t) {
-  const home = store.league && store.league.home;
-  if (!home || outingEnd(t) < Date.now() - 86400000) return null;
-  return biteDay(biteTimes(t.at, home), { title: "🎣 Best bite that day", window: { start: t.at, end: outingEnd(t) } });
 }
 
 /* Boats and seats: first to grab a seat gets it; a full boat has a waitlist. */

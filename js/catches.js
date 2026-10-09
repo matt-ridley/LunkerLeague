@@ -29,7 +29,7 @@ const sizeText = c => isStringer(c) ? `Stringer of ${c.fishCount}`
   : [fmtWeight(c.weightOz), fmtLength(c.lengthIn)].filter(Boolean).join(" · ");
 // An estimated weight (for fish measured but not weighed), only ever shown, never saved or counted.
 const estText = c => { const e = estimatedWeight(c); return e ? `~${fmtWeight(e)} est.` : ""; };
-const shownSize = c => [sizeText(c), estText(c)].filter(Boolean).join(" · ");
+export const shownSize = c => [sizeText(c), estText(c)].filter(Boolean).join(" · ");
 // Logged well after it was caught (within the grace days): the card says when it was posted too, since the feed
 // orders by that.
 const postedLate = c => !c.past && (c.createdAt || 0) - c.caughtAt > 12 * 3600 * 1000;
@@ -222,7 +222,7 @@ const FF_CLOSED = "lunker-ff-closed";
 const finderClosed = () => { try { return localStorage.getItem(FF_CLOSED) === "1"; } catch { return false; } };
 const CHEVRON = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
 function fishFinder(input, me) {
-  const cards = fishFinderCards({ ...input, home: store.league && store.league.home }, me);
+  const cards = fishFinderCards(input, me);
   if (!cards.length) return null;
   finderAt = Math.min(finderAt, cards.length - 1);
   const closed = finderClosed();
