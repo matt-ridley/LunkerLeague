@@ -25,6 +25,10 @@ export const motorText = b => [b.hp ? `${b.hp} hp` : "", b.motor || ""].filter(B
 export const specText = b => [b.lengthFt ? `${b.lengthFt} ft` : "", b.seats ? `${b.seats} seat${b.seats === 1 ? "" : "s"}` : "",
   b.capacityLb ? `${b.capacityLb.toLocaleString("en-US")} lb capacity` : ""].filter(Boolean).join(" · ");
 
+/* Spare seats to offer when bringing this boat on an outing: its seats less the captain's, 1 to 12; 3 when it has no
+   seats saved (the outing's usual default). */
+export const spareSeats = b => (b && b.seats ? Math.min(12, Math.max(1, b.seats - 1)) : 3);
+
 /* The Boats page: sorts, and the filters (whose boats, motor brand). */
 export const BOAT_SORTS = [["fish", "Most fish"], ["name", "Name"], ["hp", "Horsepower"], ["length", "Length"], ["new", "Newest"]];
 export const NO_BOAT_FILTERS = { sort: "fish", whose: "all", motor: "" };

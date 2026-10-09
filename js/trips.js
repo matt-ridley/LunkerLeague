@@ -8,7 +8,7 @@ import { outingEnd, isBoatOuting, seating, outingRecap } from "./outings.js";
 import { isPersonalBest, recordKinds } from "./stats.js";
 import { biteTimes } from "./solunar.js";
 import { biteDay } from "./bitepage.js";
-import { myBoats } from "./fleet.js";
+import { myBoats, spareSeats } from "./fleet.js";
 import { focusStyle } from "./thumbfocus.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
@@ -170,7 +170,12 @@ function boatSheet(t, b) {
       ...own.map(x => el("option", { value: x.id, text: x.name })));
     pick.value = prevId && own.some(x => x.id === prevId) ? prevId : own.length === 1 && !b ? own[0].id : "";
     if (pick.value && !name.value) name.value = store.fleet.get(pick.value).name;
-    pick.addEventListener("change", () => { if (pick.value) name.value = store.fleet.get(pick.value).name; });
+    // A new offer starts with the saved boat's own seats (less yours); changing a boat already offered keeps its seats.
+    if (!b) seats.value = String(spareSeats(pick.value && store.fleet.get(pick.value)));
+    pick.addEventListener("change", () => {
+      if (pick.value) name.value = store.fleet.get(pick.value).name;
+      if (!b) seats.value = String(spareSeats(pick.value && store.fleet.get(pick.value)));
+    });
     const msg = el("p", { class: "msg" });
     const form = el("form", { class: "stack" },
       el("h2", { text: b ? "Change your boat" : "Bring your boat" }),
