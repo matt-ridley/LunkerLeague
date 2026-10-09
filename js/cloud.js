@@ -54,7 +54,7 @@ export const store = {
   bets: new Map(),        // id -> bet
   betPlayers: new Map(),  // bet id -> Map(uid -> { at, in })
   proofs: new Map(),      // bet id -> Map(uid -> { photo, thumb, takenAt, note, at }), loaded when the bet is opened
-  series: new Map(),      // id -> season series (Angler of the Year)
+  series: new Map(),      // id -> derby series (derbies with points by place)
   rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at, boat, seatAt })
   boats: new Map(),       // trip id -> Map(owner uid -> { seats, name, at })
   noShows: new Map(),     // trip id -> Map(uid -> { by, at }): said "In" and didn't show up
@@ -774,7 +774,7 @@ export function watchDerbyChat(derbyId) {
   }, syncError));
 }
 
-/* ---------- Season series ---------- */
+/* ---------- Derby series ---------- */
 /* Admins only (the rules check). Returns the id. */
 export function saveSeries(id, data) {
   const { doc, collection, setDoc } = cloud.api;

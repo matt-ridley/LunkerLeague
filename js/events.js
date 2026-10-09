@@ -71,8 +71,9 @@ function postedTimes(catches) {
   };
 }
 
-const aoty = s => (/angler of the year/i.test(s.name) ? `${s.name}!` : `${s.name}: Angler of the Year!`);
-/* Finished season series and their winner: [{ s, uid, at }]. */
+// "won the Walleye Trail series!" (names that already say it are left as they are)
+const aoty = s => (/angler of the year|series/i.test(s.name) ? `${s.name}!` : `the ${s.name} series!`);
+/* Finished derby series and their winner: [{ s, uid, at }]. */
 function seriesWinners({ series, derbies, catches, entrants = new Map(), now }) {
   const out = [];
   for (const s of asMap(series).values()) {
@@ -315,7 +316,7 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     }
   }
 
-  // A season series you won.
+  // A derby series you won.
   for (const w of seriesWinners({ ...data, derbies: derbyMap, now })) if (w.uid === me) {
     add({ id: `series:${w.s.id}`, at: w.at, icon: "🏆", href: `#/s/${w.s.id}`, text: `You won ${aoty(w.s)}` });
   }

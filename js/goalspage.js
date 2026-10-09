@@ -74,7 +74,7 @@ export function goalSheet(g = null) {
           el("div", { class: "unit-row" }, inches, el("span", { text: "inches" }))) : null,
         st.kind === "pb" ? el("p", { class: "hint", text: "Beat your best from before the goal starts. With no PB yet, the first one you measure counts." }) : null,
         el("span", { class: "field-label", text: "When" }),
-        seg("year", [[true, `This year (${new Date().getFullYear()})`], [false, "Between dates"]]),
+        seg("year", [[true, `This season (${new Date().getFullYear()})`], [false, "Between dates"]]),
         st.year ? null : el("div", { class: "row" }, field("From", from), field("To", to)),
       ].filter(Boolean));
     };

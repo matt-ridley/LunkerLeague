@@ -43,7 +43,7 @@ function when(d, now = Date.now()) {
   return `Finished ${fmtDay(d.end)}`;
 }
 
-/* ---------- List (the Events tab: Derbies, with season series, and Outings) ---------- */
+/* ---------- List (the Events tab: Derbies, with derby series, and Outings) ---------- */
 // Which Events tab shows. Opening a derby or an outing remembers its tab, so "← Events" goes back to the right one.
 const EVENTS_TAB = "lunker-events-tab";
 const getEventsTab = () => { try { const t = sessionStorage.getItem(EVENTS_TAB); return t === "outings" || t === "h2h" ? t : "derbies"; } catch { return "derbies"; } };
@@ -381,7 +381,7 @@ function rulesView(d) {
     rule("Spot", d.requireLocation ? "GPS spot required and shared with the league" : "Optional"),
     rule("Release", d.catchRelease ? "Catch and release only" : "Keep or release"),
     rule("Boat crew", d.requireCrew ? "Captain and net man must be named on every entry" : "Optional"),
-    store.series.get(d.seriesId) ? rule("Season series", `Counts toward ${store.series.get(d.seriesId).name}: points by place on the main board`) : null,
+    store.series.get(d.seriesId) ? rule("Derby series", `Counts toward ${store.series.get(d.seriesId).name}: points by place on the main board`) : null,
     teamsOf(d) ? rule("Teams", `${teamsOf(d).map(t => t.name).join(", ")}. ${d.teamScoring === "boat" ? "Each boat is scored as one angler, its anglers' fish pooled together" : "A team's score is its anglers' scores added up"}${categoriesOf(d) ? ` (${categoriesOf(d)[0].name})` : ""}.`) : null,
     d.mystery && categoriesOf(d) && hasMoney(d) && d.mysteryPct ? rule("Mystery share", `${d.mysteryPct}% of the pot to the closest fish`) : null,
     d.mystery ? rule("Mystery weight", `A secret weight is set. Each angler's weighed fish closest to it wins${d.mysteryNote ? ` (${d.mysteryNote})` : ""}. It's revealed when final entries close.`) : null);
@@ -674,7 +674,7 @@ export function renderDerbyForm(main, id, copyId) {
     if (teamOn.checked) drawTeams();
   };
   teamOn.addEventListener("change", syncTeams); syncTeams();
-  // Season series: any series that hasn't finished yet (and the one it's already in).
+  // Derby series: any series that hasn't finished yet (and the one it's already in).
   const seriesOpts = [...store.series.values()].filter(x => x.end >= Date.now() - 30 * 86400000 || x.id === d.seriesId).sort((a, b) => b.start - a.start);
   const seriesSel = el("select", {}, el("option", { value: "", text: "Not part of a series" }), ...seriesOpts.map(x => el("option", { value: x.id, text: x.name })));
   seriesSel.value = store.series.has(d.seriesId) ? d.seriesId : "";
@@ -706,8 +706,8 @@ export function renderDerbyForm(main, id, copyId) {
       el("datalist", { id: "derby-species" }, ...SPECIES.map(s => el("option", { value: s }))),
       multiRow, multiHint, catList),
     el("section", { class: "card stack" }, el("h3", { text: "👥 Teams" }), teamRow, teamHint, teamScoringField, teamList),
-    seriesOpts.length ? el("section", { class: "card stack" }, el("h3", { text: "🏆 Season series" }),
-      field("Counts toward", seriesSel, "Places in this derby earn points toward the series' Angler of the Year. Test derbies never count.")) : null,
+    seriesOpts.length ? el("section", { class: "card stack" }, el("h3", { text: "🏆 Derby series" }),
+      field("Counts toward", seriesSel, "Places in this derby earn points toward the series champion. Test derbies never count.")) : null,
     el("section", { class: "card stack" }, el("h3", { text: "Rules" }),
       el("div", { class: "field" }, el("span", { class: "field-label", text: "Minimum weight" }),
         el("div", { class: "unit-row" }, minLb, el("span", { text: "lb" }), minOz, el("span", { text: "oz" }))),

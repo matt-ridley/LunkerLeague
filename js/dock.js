@@ -3,7 +3,7 @@ import { fishIn } from "./stats.js";
 
 const byName = (a, b) => (a.displayName || "").localeCompare(b.displayName || "");
 
-/* Every active angler, A to Z, with the fish they've caught this year (a stringer counts its fish) and when they
+/* Every active angler, A to Z, with the fish they've caught this season (the calendar year) (a stringer counts its fish) and when they
    caught their latest fish (null if they haven't logged one). Disqualified catches don't count. */
 export function anglerRoster({ members, catches = [], yearStart = new Date(new Date().getFullYear(), 0, 1).getTime() }) {
   return members.filter(m => !m.suspended).slice().sort(byName).map(m => {

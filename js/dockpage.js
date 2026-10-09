@@ -45,7 +45,7 @@ export function renderAnglers(main) {
       el("div", { class: "grow stack-tight" },
         el("b", { text: r.member.id === me ? `${r.member.displayName} (you)` : r.member.displayName }),
         el("span", { class: "muted small", text: r.lastAt ? `Last fish ${fmtDay(r.lastAt)}` : "No fish yet" })),
-      el("span", { class: "list-row-n" }, el("b", { text: String(r.ytdFish) }), el("small", { text: "fish this year" }))))));
+      el("span", { class: "list-row-n" }, el("b", { text: String(r.ytdFish) }), el("small", { text: "fish this season" }))))));
 }
 
 export function renderTackleBoxes(main) {

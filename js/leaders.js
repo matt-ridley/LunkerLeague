@@ -3,7 +3,8 @@
 import { el, avatar, fmtDay, fmtDate, fmtWeight, fmtLength, icon, fill, openSheet, closeSheet } from "./ui.js";
 import { store, memberName, uid, isAdmin, presentRsvps } from "./cloud.js";
 import { speciesRecords, speciesBoard, leagueStartOf } from "./stats.js";
-import { rankings, badgesFor, scoringTimeline, currentScoring, TITLES } from "./rank.js";
+import { seasonTables, seasonYears, seasonOf, seasonName, isPreseason, careerBest, FIRST_SEASON } from "./season.js";
+import { badgesFor, scoringTimeline, currentScoring, TITLES } from "./rank.js";
 import { crownStandings, crownScore } from "./crowns.js";
 import { badgeTimeline, BADGES } from "./badges.js";
 import { closesAt as derbyClosesAt } from "./derby.js";
@@ -59,9 +60,7 @@ export function crownsNow(input) {
   }
   return crownCache.value;
 }
-const seasonStart = () => new Date(new Date().getFullYear(), 0, 1).getTime();
-
-let leadersTab = "rank", season = "all";
+let leadersTab = "rank", season = null; // null: the current season; a year; or "career"
 export function renderLeaders(main, speciesArg, byArg) {
   // Tapping your crowns on a profile opens the Crowns tab.
   try { const t = sessionStorage.getItem("lunker-leaders-tab"); if (t) { leadersTab = t; sessionStorage.removeItem("lunker-leaders-tab"); } } catch {}
@@ -94,20 +93,33 @@ export function renderLeaders(main, speciesArg, byArg) {
 }
 
 /* ---------- Angler rankings ---------- */
+/* Opens on the current season (points, titles and places start again every January 1), with past seasons and
+   Career (every season added together) a tap away. */
 function rankView(main) {
-  const rows = rankings(rankInput(), { since: season === "season" ? seasonStart() : -Infinity });
-  const year = new Date().getFullYear();
+  const now = Date.now(), thisYear = seasonOf(now);
+  const years = seasonYears([...store.catches.values()], now);
+  const pick = season === "career" || years.includes(season) ? season : thisYear;
+  const tables = seasonTables(rankInput(), now);
+  const career = pick === "career";
+  const rows = career ? tables.career : tables.years.get(pick) || [];
+  const best = career ? new Map(rows.map(r => [r.uid, careerBest(tables, r.uid, now).title])) : null;
+  const note = career ? "Every season added together, the Preseason included. Titles start again every season, so this shows each angler's best one."
+    : pick === thisYear && isPreseason(pick) ? `🧪 ${seasonName(pick)}: points count, but unofficially. Everything starts again at 0 on January 1, ${FIRST_SEASON}, for Season 1.`
+    : pick === thisYear ? "Points, titles and places start again at 0 every January 1."
+    : "Final points: what was earned during the season. Record and crown points only count while they're held, so they're not in a finished season.";
   return el("div", { class: "stack" },
-    el("div", { class: "seg" }, ...[["all", "All-time"], ["season", `${year} season`]].map(([k, label]) =>
-      el("button", { type: "button", "aria-pressed": String(season === k), text: label, onclick: () => { season = k; renderLeaders(main); } }))),
-    el("a", { class: "btn block", href: "#/awards", text: `🏆 Season awards` }),
+    el("div", { class: "seg" }, ...[...years.map(y => [y, y === thisYear ? seasonName(y) : String(y)]), ["career", "Career"]].map(([k, label]) =>
+      el("button", { type: "button", "aria-pressed": String(pick === k), text: label, onclick: () => { season = k; renderLeaders(main); } }))),
+    el("p", { class: "muted small", text: note }),
+    el("a", { class: "btn block", href: career ? "#/awards" : `#/awards/${pick}`, text: `🏆 ${career ? "Season" : seasonName(pick)} awards` }),
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading…" }) : el("ol", { class: "board" }, ...rows.map((r, i) => {
-      const m = who(r.uid);
+      const m = who(r.uid), b = best && best.get(r.uid);
+      const sub = career ? (b ? `Best: ${b.name} (${b.year})` : "") : r.title;
       return el("li", {}, el("button", { type: "button", class: "board-row rank-row" + (i < 3 && r.points > 0 ? ` top${i + 1}` : "") + (r.uid === uid() ? " me" : ""),
-        onclick: () => breakdownSheet(r, i + 1) },
+        onclick: () => breakdownSheet(r, i + 1, career ? "Career" : seasonName(pick), sub) },
         el("span", { class: "rank", text: r.points > 0 && MEDALS[i] ? MEDALS[i] : String(i + 1) }),
         avatar(m),
-        el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), el("div", { class: "rank-title", text: r.title })),
+        el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), sub ? el("div", { class: "rank-title", text: sub }) : null),
         el("b", { class: "board-size", text: `${r.points} pts` })));
     })),
     el("div", { class: "row" },
@@ -116,13 +128,13 @@ function rankView(main) {
 }
 
 const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "🐟 Records held", crown: "👑 Crowns held", badge: "🏅 Badges", derby: "🏁 Derbies", h2h: "⚔️ Head-to-head", noshow: "🫥 No-shows" };
-function breakdownSheet(r, place) {
+function breakdownSheet(r, place, period, sub) {
   const m = who(r.uid);
   const badges = badgesFor(r.uid, rankInput());
   const recent = [...r.events].sort((a, b) => b.at - a.at).slice(0, 15);
   openSheet(box => box.append(el("div", { class: "stack" },
     el("div", { class: "row" }, avatar(m, "lg"), el("div", {}, el("h2", { text: m.displayName }),
-      el("div", { class: "rank-title", text: `${r.title} · #${place} · ${r.points} pts` }))),
+      el("div", { class: "rank-title", text: [period, sub, `#${place}`, `${r.points} pts`].filter(Boolean).join(" · ") }))),
     badges.length ? el("div", { class: "badge-row" }, ...badges.map(b => el("span", { class: "trophy", title: b.name }, el("span", { text: b.icon }), el("small", { text: b.name })))) : null,
     el("dl", { class: "facts card" }, ...Object.entries(KIND).filter(([k]) => k !== "noshow" || r.byKind.noshow).map(([k, label]) =>
       el("div", { class: "fact" }, el("dt", { text: label }), el("dd", { text: `${Math.round(r.byKind[k] * 10) / 10} pts` })))),
@@ -139,9 +151,10 @@ export function howPointsSheet() {
   openSheet(box => box.append(el("div", { class: "stack" },
     el("h2", { text: "How points work" }),
     el("ul", { class: "how-list" },
+      el("li", { text: `📅 Points, titles and places start again at 0 every season (January 1). ${new Date().getFullYear() < FIRST_SEASON ? `This year is the Preseason: it counts, but unofficially. Season 1 is ${FIRST_SEASON}.` : "Past seasons are kept, and Career adds them all up."}` }),
       el("li", { text: `🎣 ${v.catchPts} per catch (counting up to ${v.dailyCap} a day)` }),
       el("li", { text: `🪝 A stringer earns the day's full catch points (${v.catchPts * v.dailyCap}). If it's your limit, ${v.limitPts} more (once a day)` }),
-      el("li", { text: `🌈 ${v.speciesPts} for each species you catch for the first time` }),
+      el("li", { text: `🌈 ${v.speciesPts} for each species you catch for the first time in a season` }),
       el("li", { text: `🐟 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board, and the same again on its length board (changes as records fall)` }),
       el("li", { text: `👑 ${v.crownPts} for each crown you hold right now (they move when someone passes you)` }),
       el("li", { text: `🏅 ${v.badgePts} for each badge you earn (yours for good; ${BADGES.length} to collect). The no-show badges are worth nothing` }),
@@ -150,7 +163,7 @@ export function howPointsSheet() {
       v.noShowPts ? el("li", { text: `🫥 ${v.noShowPts} taken off each time you're marked a no-show for an outing you said you were In for` }) : null,
       el("li", { text: "Disqualified catches and test derbies don't count." }),
       el("li", { text: `📜 Past catches (caught before the league start, ${fmtDay(leagueStartOf(store.league))}, or logged more than ${(store.league && store.league.graceDays) ?? 7} days late) count for personal bests and the all-time record boards only: no points, badges or crowns. Record points go to the best league catches.` })),
-    el("h3", { text: "Titles" }),
+    el("h3", { text: "Titles (by season points)" }),
     el("ul", { class: "how-list" }, ...TITLES.map((t, i) => el("li", { text: `${t}: ${v.titles[i]}+ pts` }))),
     last ? el("p", { class: "hint", text: `Points last changed ${fmtDate(last.createdAt)} by ${memberName(last.createdBy)}${last.note ? ` ("${last.note}")` : ""}.` }) : null,
     el("button", { class: "btn block", type: "button", text: "Close", onclick: closeSheet }))));

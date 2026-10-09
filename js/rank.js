@@ -64,7 +64,8 @@ export function rankEvents(input) {
   const counted = catches.filter(c => countsForRank(c, derbyMap)).sort((a, b) => a.caughtAt - b.caughtAt);
   const events = [];
 
-  // Catches, with a daily cap per angler; and the first catch of each species.
+  // Catches, with a daily cap per angler; and the first catch of each species each season (points start again every
+  // January 1, so a species is new again too).
   // A stringer fills whatever is left of that day's cap, and a limit adds a bonus once a day.
   const perDay = new Map(), seen = new Map(), limitDays = new Set();
   for (const c of counted) {
@@ -82,9 +83,10 @@ export function rankEvents(input) {
       perDay.set(k, used + 1);
       if (used < v.dailyCap && v.catchPts) events.push({ uid: c.uid, at: c.caughtAt, pts: v.catchPts, kind: "catch", label: `Caught a ${c.species}` });
     }
-    if (!seen.has(c.uid)) seen.set(c.uid, new Set());
-    if (!seen.get(c.uid).has(c.species)) {
-      seen.get(c.uid).add(c.species);
+    const sk = c.uid + "|" + new Date(c.caughtAt).getFullYear();
+    if (!seen.has(sk)) seen.set(sk, new Set());
+    if (!seen.get(sk).has(c.species)) {
+      seen.get(sk).add(c.species);
       if (v.speciesPts) events.push({ uid: c.uid, at: c.caughtAt, pts: v.speciesPts, kind: "species", label: `First ${c.species}` });
     }
   }
@@ -143,9 +145,13 @@ export function rankEvents(input) {
 }
 
 /* Ranked table: [{ uid, points, byKind, events, title }], highest first. `since` limits to a season
-   (current standings for records always count). */
+   (current standings for records always count). Seasons (season.js) build every season's table in one pass. */
 export function rankings(input, { since = -Infinity } = {}) {
-  const events = rankEvents(input).filter(e => e.standing || e.at >= since);
+  return rankTable(rankEvents(input).filter(e => e.standing || e.at >= since), input);
+}
+
+/* The ranked table for some events: every active member (0 points if none), titles from the current values. */
+export function rankTable(events, input) {
   const cur = currentScoring(scoringTimeline(input.versions));
   const by = new Map();
   const blank = u => ({ uid: u, points: 0, byKind: { catch: 0, limit: 0, species: 0, record: 0, crown: 0, badge: 0, derby: 0, h2h: 0, noshow: 0 }, events: [] });
