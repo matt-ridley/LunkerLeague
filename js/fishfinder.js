@@ -130,20 +130,23 @@ const COUNTS = [
   ["species5", x => x.species, 5, "species", "species"], ["ten", x => x.species, 10, "species", "species"], ["species20", x => x.species, 20, "species", "species"],
   ["release", x => x.released, 10, "release", "releases"], ["limit10", x => x.limits, 10, "limit", "limits"],
 ];
+/* Season badges count this season's catches (they start again every January 1); career ones count every season. */
 function badgeWatch(x) {
-  const { me, mineCounted, badges } = x;
-  const got = new Set(badges.filter(b => b.uid === me).map(b => b.badge.id));
-  const have = {
-    fish: mineCounted.reduce((n, c) => n + fishIn(c), 0), species: new Set(mineCounted.map(c => c.species)).size,
-    released: mineCounted.filter(c => c.released && !isStringer(c)).length, limits: mineCounted.filter(c => isStringer(c) && c.limit).length,
-  };
-  const options = COUNTS.map(([id, of, need, one, many]) => ({ b: BADGES.find(b => b.id === id), n: of(have), need, one, many }))
+  const { me, mineCounted, badges, now } = x;
+  const year = new Date(now).getFullYear();
+  const got = new Set(badges.filter(b => b.uid === me && (b.season == null || b.season === year)).map(b => b.badge.id));
+  const tally = list => ({
+    fish: list.reduce((n, c) => n + fishIn(c), 0), species: new Set(list.map(c => c.species)).size,
+    released: list.filter(c => c.released && !isStringer(c)).length, limits: list.filter(c => isStringer(c) && c.limit).length,
+  });
+  const career = tally(mineCounted), season = tally(mineCounted.filter(c => new Date(c.caughtAt).getFullYear() === year));
+  const options = COUNTS.map(([id, of, need, one, many]) => { const b = BADGES.find(b => b.id === id); return { b, n: of(b && b.career ? career : season), need, one, many }; })
     .filter(o => o.b && !got.has(o.b.id) && o.n < o.need)
     .sort((a, b) => b.n / b.need - a.n / a.need || a.need - b.need);
   const o = options[0];
   if (!o) return null;
   const left = o.need - o.n;
-  return { title: `${left} more ${left === 1 ? o.one : o.many} for ${o.b.icon} ${o.b.name}`, detail: `${o.b.desc}. You have ${o.n} of ${o.need}.`, href: "#/me" };
+  return { title: `${left} more ${left === 1 ? o.one : o.many} for ${o.b.icon} ${o.b.name}`, detail: `${o.b.desc}${o.b.career ? "" : " this season"}. You have ${o.n} of ${o.need}.`, href: "#/me" };
 }
 
 /* ---------- Goal watch: your goal closest to done (at least half way) ---------- */

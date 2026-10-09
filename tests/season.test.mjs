@@ -1,7 +1,7 @@
 // Unit tests for seasons. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIRST_SEASON, seasonOf, seasonName, seasonLong, isPreseason, seasonOver, ordinal, seasonTables, thisSeason, careerBest, seasonChampions } from "../js/season.js";
+import { FIRST_SEASON, seasonOf, seasonName, seasonLong, isPreseason, seasonOver, ordinal, seasonTables, thisSeason, careerBest, seasonChampions, potLickers } from "../js/season.js";
 
 const at = (y, m, d, h = 12) => new Date(y, m, d, h).getTime();
 let n = 0;
@@ -59,4 +59,11 @@ test("the Champions wall lists finished seasons, newest first, the Preseason mar
   const now = at(2028, 2, 1), wall = seasonChampions(seasonTables(base({ catches }), now), now);
   assert.deepEqual(wall.map(s => [s.year, s.preseason, s.podium[0].uid]), [[2027, false, "bo"], [2026, true, "amy"]]);
   assert.equal(wall[0].podium.length, 1);   // only anglers with points
+});
+
+test("the Official Pot Lickers: anglers with a league fish in the Preseason, first fish first", () => {
+  const list = potLickers([fish("bo", "Perch", null, at(2026, 10, 2)), fish("amy", "Perch", null, at(2026, 9, 20)), fish("bo", "Pike", null, at(2026, 9, 25)),
+    fish("cy", "Perch", null, at(2027, 0, 3)), { ...fish("di", "Perch", null, at(2026, 9, 1)), past: true }, { ...fish("ed", "Perch", null, at(2026, 9, 1)), dq: true }]);
+  assert.deepEqual(list.map(r => r.uid), ["amy", "bo"]);
+  assert.equal(list[1].at, at(2026, 9, 25));
 });

@@ -1,4 +1,6 @@
-/* Badges: earned once and kept for good (unlike crowns). Each badge works out when an angler earned it, from the
+/* Badges. Most are season badges: earned within one season (the calendar year) and earned again every season,
+   so each one can be had once a year. A few are career badges (`career: true`): firsts, things you own, and
+   lifetime milestones, earned once and kept for good. Each badge works out when an angler earned it, from the
    league's data, so the feed and the bell can date it and season points count it in the right season.
    Pure functions on plain data. */
 import { fishIn, measured, better } from "./stats.js";
@@ -7,15 +9,17 @@ import { newSpots } from "./crowns.js";
 import { derbyMoney, hasMoney } from "./payout.js";
 import { h2hResults, involves, otherSide } from "./h2h.js";
 import { showRecord, boatTrips } from "./noshows.js";
+import { FIRST_SEASON } from "./config.js";
 
 const DAY = 24 * 3600 * 1000;
 const lb = n => n * 16;
 
 /* id, icon, name, how it's earned, and `at(ctx)`: when this angler earned it, or null. `noPoints`: a badge of shame,
-   worth no points. */
+   worth no points. `career`: earned once and kept for good (the rest are season badges). */
+const yearOf = ms => new Date(ms).getFullYear();
 export const BADGES = [
   // The originals
-  { id: "first", icon: "🐟", name: "First Fish", desc: "Log your first catch", at: x => nth(x.mine, 1) },
+  { id: "first", icon: "🐟", name: "First Fish", desc: "Log your first catch", career: true, at: x => nth(x.mine, 1) },
   { id: "ten", icon: "🌈", name: "10 Species", desc: "Catch 10 different species", at: x => x.speciesAt[9] ?? null },
   { id: "champ", icon: "🏆", name: "Derby Champ", desc: "Win a derby", at: x => x.wins[0] ?? null },
   { id: "release", icon: "🔄", name: "Catch & Release Hero", desc: "Release 10 fish", at: x => nth(x.mine.filter(c => c.released), 10) },
@@ -41,12 +45,12 @@ export const BADGES = [
   { id: "tiny", icon: "🐣", name: "Tiny Terror", desc: "A measured fish under 4 inches", at: x => nth(x.mine.filter(c => measured(c) && c.lengthIn > 0 && c.lengthIn < 4), 1) },
   { id: "pbMachine", icon: "📈", name: "PB Machine", desc: "Beat your own personal best 5 times", at: x => x.pbBeats[4] ?? null },
   // Records
-  { id: "recordSet", icon: "👑", name: "Record Setter", desc: "Hold your first league record", at: x => x.recordTakes[0] ?? null },
-  { id: "recordBreak", icon: "🥷", name: "Record Breaker", desc: "Take a record from someone else", at: x => x.recordSteals[0] ?? null },
-  { id: "untouchable", icon: "🏰", name: "Untouchable", desc: "Hold a league record for 30 days", at: x => heldFor(x.recordPeriods, 30 * DAY, x.now) },
-  { id: "doubleRecord", icon: "💎", name: "Double Record", desc: "Hold the weight and length record for the same species", at: x => x.doubleRecordAt },
+  { id: "recordSet", icon: "👑", name: "Record Setter", desc: "Hold a season record", at: x => x.recordTakes[0] ?? null },
+  { id: "recordBreak", icon: "🥷", name: "Record Breaker", desc: "Take a season record from someone else", at: x => x.recordSteals[0] ?? null },
+  { id: "untouchable", icon: "🏰", name: "Untouchable", desc: "Hold a season record for 30 days", at: x => heldFor(x.recordPeriods, 30 * DAY, x.now) },
+  { id: "doubleRecord", icon: "💎", name: "Double Record", desc: "Hold the season weight and length record for the same species", at: x => x.doubleRecordAt },
   // Stringers and limits
-  { id: "limit1", icon: "🪝", name: "First Limit", desc: "Your first limit stringer", at: x => nth(x.limits, 1) },
+  { id: "limit1", icon: "🪝", name: "First Limit", desc: "Your first limit stringer", career: true, at: x => nth(x.limits, 1) },
   { id: "limit10", icon: "🔁", name: "Limit Machine", desc: "10 limits", at: x => nth(x.limits, 10) },
   { id: "backToBack", icon: "📆", name: "Back-to-Back", desc: "Limits on two days in a row", at: x => streakAt(x.limits, 2) },
   { id: "fullStringer", icon: "🐟", name: "Full Stringer", desc: "A stringer of 50 or more fish", at: x => nth(x.mine.filter(c => c.fishCount >= 50), 1) },
@@ -60,7 +64,7 @@ export const BADGES = [
   { id: "streak3", icon: "🔥", name: "Hot Streak", desc: "Fished 3 days in a row", at: x => streakAt(x.mine, 3) },
   { id: "streak7", icon: "🗓️", name: "Week-Long Bender", desc: "Fished 7 days in a row", at: x => streakAt(x.mine, 7) },
   // Derbies
-  { id: "derby1", icon: "🏁", name: "First Derby", desc: "Finish your first derby", at: x => x.fished[0] ?? null },
+  { id: "derby1", icon: "🏁", name: "First Derby", desc: "Finish your first derby", career: true, at: x => x.fished[0] ?? null },
   { id: "podium", icon: "🥉", name: "Podium", desc: "A top-3 derby finish", at: x => x.podiums[0] ?? null },
   { id: "hatTrick", icon: "🎩", name: "Hat Trick", desc: "3 derby wins", at: x => x.wins[2] ?? null },
   { id: "derby10", icon: "🚤", name: "Derby Regular", desc: "Fish 10 derbies", at: x => x.fished[9] ?? null },
@@ -69,7 +73,7 @@ export const BADGES = [
   { id: "organiser", icon: "📋", name: "Organiser", desc: "Run a derby that finishes with 4 or more anglers", at: x => x.organised[0] ?? null },
   { id: "skunked", icon: "🦨", name: "Skunked", desc: "Finish a derby without a fish", at: x => x.skunks[0] ?? null },
   // Head-to-head
-  { id: "duelist", icon: "⚔️", name: "Duelist", desc: "Finish your first head-to-head challenge", at: x => x.h2h[0] ? x.h2h[0].at : null },
+  { id: "duelist", icon: "⚔️", name: "Duelist", desc: "Finish your first head-to-head challenge", career: true, at: x => x.h2h[0] ? x.h2h[0].at : null },
   { id: "gunslinger", icon: "🤠", name: "Gunslinger", desc: "Win a head-to-head challenge", at: x => x.h2hWins[0] ?? null },
   { id: "sharpshooter", icon: "🎯", name: "Sharpshooter", desc: "Win 5 head-to-head challenges", at: x => x.h2hWins[4] ?? null },
   { id: "onARoll", icon: "🎳", name: "On a Roll", desc: "Win 3 head-to-head challenges in a row", at: x => x.h2hStreak3 },
@@ -95,18 +99,26 @@ export const BADGES = [
   { id: "noShow3", icon: "⛅", name: "Fair-Weather Fisherman", desc: "Marked a no-show 3 times. Worth no points", noPoints: true, at: x => x.noShows[2] ?? null },
   { id: "noShow5", icon: "🏴‍☠️", name: "Walked the Plank", desc: "Marked a no-show 5 times. Worth no points", noPoints: true, at: x => x.noShows[4] ?? null },
   // Boats
-  { id: "skipper", icon: "🧑‍✈️", name: "Skipper", desc: "Save your first boat", at: x => x.myFleet[0] ? x.myFleet[0].createdAt : null },
-  { id: "admiral", icon: "🎖️", name: "Admiral", desc: "Own 3 saved boats", at: x => x.myFleet[2] ? x.myFleet[2].createdAt : null },
-  { id: "christening", icon: "🍾", name: "Christening", desc: "Catch the first fish ever logged from a boat", at: x => x.christenings[0] ?? null },
+  { id: "skipper", icon: "🧑‍✈️", name: "Skipper", desc: "Save your first boat", career: true, at: x => x.myFleet[0] ? x.myFleet[0].createdAt : null },
+  { id: "admiral", icon: "🎖️", name: "Admiral", desc: "Own 3 saved boats", career: true, at: x => x.myFleet[2] ? x.myFleet[2].createdAt : null },
+  { id: "christening", icon: "🍾", name: "Christening", desc: "Catch the first fish ever logged from a boat", career: true, at: x => x.christenings[0] ?? null },
   { id: "waterTaxi", icon: "🚕", name: "Water Taxi", desc: "Give 10 seats on your boats to anglers who showed up for outings", at: x => nth(x.ridesGiven, 10) },
   { id: "hitchhiker", icon: "🎒", name: "Hitchhiker", desc: "Ride in 5 different anglers' boats on outings", at: x => x.hitchhikerAt },
   { id: "fullHouse", icon: "🎟️", name: "Full House", desc: "Bring a boat on an outing with every seat taken and everyone there", at: x => x.fullHouses[0] ?? null },
   { id: "luckyHull", icon: "🛥️", name: "Lucky Hull", desc: "50 fish caught from one of your boats, by everyone aboard", at: x => x.luckyHullAt },
-  { id: "recordDeck", icon: "🛳️", name: "Record Deck", desc: "A league record caught from your boat", at: x => x.recordDecks[0] ?? null },
-  { id: "littleBoat", icon: "🛶", name: "Little Boat, Big Fish", desc: "Catch a league record from a boat 14 ft or shorter", at: x => x.littleBoats[0] ?? null },
-  { id: "bigIron", icon: "🐎", name: "Big Iron", desc: "Own a boat with 200 hp or more", at: x => x.bigIronAt },
+  { id: "recordDeck", icon: "🛳️", name: "Record Deck", desc: "A season record caught from your boat", at: x => x.recordDecks[0] ?? null },
+  { id: "littleBoat", icon: "🛶", name: "Little Boat, Big Fish", desc: "Catch a season record from a boat 14 ft or shorter", at: x => x.littleBoats[0] ?? null },
+  { id: "bigIron", icon: "🐎", name: "Big Iron", desc: "Own a boat with 200 hp or more", career: true, at: x => x.bigIronAt },
   { id: "shorePounder", icon: "🏖️", name: "Shore Pounder", desc: "25 catches logged with no boat", at: x => nth(x.mine.filter(c => !c.boatId), 25) },
+  // Career: the long haul (official seasons; the 2026 Preseason doesn't count toward these), and the founders
+  { id: "bonnet", icon: "👒", name: "Bless Your Bonnet", desc: "Founding member: joined the league in the 2026 Preseason. Nobody can earn this one again", career: true,
+    at: x => (x.joinedAt && yearOf(x.joinedAt) < FIRST_SEASON ? x.joinedAt : null) },
+  { id: "veteran", icon: "🎗️", name: "Veteran", desc: "Fish 3 official seasons (a catch in each)", career: true, at: x => x.seasonsAt[2] ?? null },
+  { id: "lifer", icon: "🧓", name: "Lifer", desc: "Fish 10 official seasons (a catch in each)", career: true, at: x => x.seasonsAt[9] ?? null },
+  { id: "thousand", icon: "🏔️", name: "Thousand Club", desc: "1,000 fish over your career", career: true, at: x => nth(x.mine, 1000, fishIn) },
 ];
+export const CAREER_BADGES = BADGES.filter(b => b.career);
+export const SEASON_BADGES = BADGES.filter(b => !b.career);
 export const badgeById = id => BADGES.find(b => b.id === id);
 
 /* ---------- Helpers (lists are sorted by time; items have `at` or `caughtAt`) ---------- */
@@ -212,28 +224,40 @@ function leagueContext(input) {
     if (c) for (const cm of list) if (cm.uid !== c.uid) commentList.push({ uid: cm.uid, at: cm.at || 0 });
   }
   commentList.sort((a, b) => a.at - b.at);
-  // Crowns: holding periods and steals, from each crown's history in every season (a season's last holder stops
-  // holding it when the season ends).
-  const crownPeriods = [], crownSteals = [];
-  for (const s of input.crownHistory || crowns) {
+  const crownsAll = crownPeriodsFrom(input.crownHistory || crowns, counted);
+  const fleetMap = asMap(fleet);
+  return { counted, valid, finished, reactionList, commentList, records: recordPeriods(counted), crownPeriods: crownsAll.periods, crownSteals: crownsAll.steals,
+    spots, spotsList: newSpots(counted, spots), trips, rsvps, allRsvps, noShows, now, catches, h2h: h2hResults([...asMap(challenges).values()], catches, now),
+    fleet: fleetMap, ...boatCounts(counted, fleetMap), boatTrips: boatTrips({ trips, rsvps: allRsvps, tripBoats, noShows, now }),
+    joins: input.joins || new Map() };
+}
+
+/* Crowns: holding periods and steals, from each crown's history (a season's last holder stops holding it when the
+   season ends). Crowns only count for Royalty and Long Reign once 3 anglers have logged a catch: the first angler in
+   a new league (or season) claims a pile of crowns just by being first. */
+function crownPeriodsFrom(crowns, counted) {
+  const periods = [], steals = [];
+  for (const s of crowns) {
     let open = null;
     for (const h of s.history) {
       if (open) open.to = h.at;
       open = h.uid ? { uid: h.uid, from: h.at, to: null } : null;
-      if (open) crownPeriods.push(open);
-      if (h.uid && h.from) crownSteals.push({ uid: h.uid, at: h.at });
+      if (open) periods.push(open);
+      if (h.uid && h.from) steals.push({ uid: h.uid, at: h.at });
     }
   }
-  // Crowns only count for Royalty and Long Reign once 3 anglers have logged a catch: the first angler in a new league
-  // claims a pile of crowns just by being first.
   const firsts = [...new Map([...counted].reverse().map(c => [c.uid, c.caughtAt]))].map(([, t]) => t).sort((a, b) => a - b);
   const contested = firsts.length >= 3 ? firsts[2] : Infinity;
-  for (const p of crownPeriods) {
+  for (const p of periods) {
     p.from = Math.max(p.from, contested);
     if (p.to != null && p.to <= p.from) p.gone = true;
   }
-  // Boats: the first fish from each saved boat, and each boat's running fish count.
-  const fleetMap = asMap(fleet), firstFrom = new Map(), boatFish = new Map();
+  return { periods: periods.filter(p => !p.gone && p.from !== Infinity), steals };
+}
+
+/* Boats: the first fish from each saved boat, and each boat's running fish count. */
+function boatCounts(counted, fleetMap) {
+  const firstFrom = new Map(), boatFish = new Map();
   for (const c of counted) {
     if (!c.boatId || !fleetMap.has(c.boatId)) continue;
     if (!firstFrom.has(c.boatId)) firstFrom.set(c.boatId, c);
@@ -242,9 +266,21 @@ function leagueContext(input) {
     if (n.n >= 50 && n.at50 == null) n.at50 = c.caughtAt;
     boatFish.set(c.boatId, n);
   }
-  return { counted, valid, finished, reactionList, commentList, records: recordPeriods(counted), crownPeriods: crownPeriods.filter(p => !p.gone && p.from !== Infinity), crownSteals,
-    spotsList: newSpots(counted, spots), trips, rsvps, allRsvps, noShows, now, catches, h2h: h2hResults([...asMap(challenges).values()], catches, now),
-    fleet: fleetMap, firstFrom, boatFish, boatTrips: boatTrips({ trips, rsvps: allRsvps, tripBoats, noShows, now }) };
+  return { firstFrom, boatFish };
+}
+
+/* The league's data for one season: everything that happened between January 1 and December 31 of `year`, with
+   that season's records and crowns. Season badges are worked out from this, so they start again every year.
+   (Christening and the personal-best bar still look back through every season.) */
+function seasonContext(L, input, year) {
+  const from = new Date(year, 0, 1).getTime(), to = new Date(year, 11, 31, 23, 59, 59, 999).getTime(), inY = t => t >= from && t <= to;
+  const counted = L.counted.filter(c => inY(c.caughtAt));
+  const crowns = crownPeriodsFrom((input.crownHistory || input.crowns || []).filter(s => s.year == null || s.year === year), counted);
+  return { ...L, from, to, now: Math.min(L.now, to), counted, finished: L.finished.filter(f => inY(f.at)),
+    reactionList: L.reactionList.filter(r => inY(r.at)), commentList: L.commentList.filter(c => inY(c.at)),
+    records: recordPeriods(counted), crownPeriods: crowns.periods, crownSteals: crowns.steals, spotsList: newSpots(counted, L.spots),
+    trips: new Map([...L.trips].filter(([, t]) => inY(t.at || 0))), h2h: L.h2h.filter(r => inY(r.at)),
+    boatFish: boatCounts(counted, L.fleet).boatFish, boatTrips: L.boatTrips.filter(b => inY(b.at)) };
 }
 
 /* Per-angler data for the badge rules. */
@@ -272,7 +308,7 @@ function anglerContext(u, L) {
   for (const c of L.valid.filter(c => c.uid === u)) {
     if (!measured(c)) continue;
     const cur = pb.get(c.species);
-    if (cur && better(cur, c) === c && !c.past) pbBeats.push(c.caughtAt);
+    if (cur && better(cur, c) === c && !c.past && (L.from == null || (c.caughtAt >= L.from && c.caughtAt <= L.to))) pbBeats.push(c.caughtAt);
     if (!cur || better(cur, c) === c) pb.set(c.species, c);
   }
   // Records: taken, stolen, held, and both records of one species at the same time.
@@ -353,6 +389,8 @@ function anglerContext(u, L) {
     recordDecks, littleBoats, bigIronAt: big.length ? big[0].createdAt : null,
     mine, now: L.now, wins, h2h, h2hWins, h2hShutouts, h2hHighRoll, h2hStreak3, h2hRivalAt, podiums, fished, skunks, luckyNets, captainWins, organised, moneyAt, pbBeats,
     speciesAt: distinctAt(mine, c => c.species),
+    seasonsAt: distinctAt(mine.filter(c => yearOf(c.caughtAt) >= FIRST_SEASON), c => yearOf(c.caughtAt)),
+    joinedAt: L.joins.get(u) || null,
     limits: mine.filter(c => c.fishCount > 1 && c.limit),
     recordTakes: myRecords.map(p => p.from), recordSteals: myRecords.filter(p => p.stolen).map(p => p.from),
     recordPeriods: myRecords, doubleRecordAt,
@@ -364,25 +402,55 @@ function anglerContext(u, L) {
   };
 }
 
-/* Every badge every angler has earned: [{ uid, badge, at }], oldest first. */
+/* Every badge every angler has earned: [{ uid, badge, at, season? }], oldest first. A season badge has one entry
+   for each season it was earned in (`season` is the year); a career badge has one entry and no `season`. */
 export function badgeTimeline(input) {
   const L = leagueContext(input);
   const people = new Set([...L.counted.map(c => c.uid), ...L.finished.flatMap(f => [...f.ent.keys(), f.d.organiserUid]),
     ...L.commentList.map(c => c.uid), ...L.reactionList.map(r => r.uid), ...[...L.trips.values()].map(t => t.uid),
-    ...[...L.allRsvps.values()].flatMap(m => [...m.keys()]), ...[...L.fleet.values()].map(b => b.uid), ...L.crownPeriods.map(p => p.uid), ...L.crownSteals.map(s => s.uid), ...L.h2h.flatMap(r => [r.ch.from, r.ch.to])]);
+    ...[...L.allRsvps.values()].flatMap(m => [...m.keys()]), ...[...L.fleet.values()].map(b => b.uid), ...L.crownPeriods.map(p => p.uid), ...L.crownSteals.map(s => s.uid), ...L.h2h.flatMap(r => [r.ch.from, r.ch.to]),
+    ...L.joins.keys()]);
+  for (const bad of [undefined, null, ""]) people.delete(bad);
   const out = [];
   for (const u of people) {
-    if (!u) continue;
     const x = anglerContext(u, L);
-    for (const badge of BADGES) {
+    for (const badge of CAREER_BADGES) {
       const at = badge.at(x);
       if (at != null && at <= L.now) out.push({ uid: u, badge, at });
+    }
+  }
+  // Season badges, season by season: from the first year anything happened to this one.
+  const times = [...L.counted.map(c => c.caughtAt), ...L.finished.map(f => f.at), ...L.h2h.map(r => r.at), ...L.reactionList.map(r => r.at),
+    ...L.commentList.map(c => c.at), ...[...L.trips.values()].map(t => t.at || 0)].filter(t => t > 0);
+  const thisYear = yearOf(L.now);
+  const first = times.length ? Math.min(thisYear, yearOf(times.reduce((a, b) => Math.min(a, b)))) : thisYear;
+  for (let y = first; y <= thisYear; y++) {
+    const S = seasonContext(L, input, y);
+    for (const u of people) {
+      const x = anglerContext(u, S);
+      for (const badge of SEASON_BADGES) {
+        const at = badge.at(x);
+        if (at != null && at >= S.from && at <= S.now) out.push({ uid: u, badge, at, season: y });
+      }
     }
   }
   return out.sort((a, b) => a.at - b.at || BADGES.indexOf(a.badge) - BADGES.indexOf(b.badge));
 }
 
-/* The badges one angler has, in the order they were earned. */
-export function badgesFor(uid, input) {
-  return (input.badges || badgeTimeline(input)).filter(b => b.uid === uid).map(b => b.badge);
+/* The badges one angler has in a season (default: this one), career badges included, in the order they were earned. */
+export function badgesFor(uid, input, year = yearOf(input.now ?? Date.now())) {
+  return (input.badges || badgeTimeline(input)).filter(b => b.uid === uid && (b.season == null || b.season === year)).map(b => b.badge);
+}
+
+/* The seasons an angler earned each badge in: Map(badgeId -> { at (latest), years: [year…] }) (career badges: years []). */
+export function badgeYears(uid, timeline) {
+  const out = new Map();
+  for (const b of timeline) {
+    if (b.uid !== uid) continue;
+    const e = out.get(b.badge.id) || { at: 0, years: [] };
+    e.at = Math.max(e.at, b.at);
+    if (b.season != null) e.years.push(b.season);
+    out.set(b.badge.id, e);
+  }
+  return out;
 }

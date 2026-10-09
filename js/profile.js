@@ -13,24 +13,38 @@ import { badgesFor } from "./rank.js";
 import { seasonTables, seasonOf, seasonName, careerBest, ordinal } from "./season.js";
 import { rankInput, howPointsSheet } from "./leaders.js";
 import { crownScore } from "./crowns.js";
-import { BADGES } from "./badges.js";
+import { SEASON_BADGES, CAREER_BADGES, badgeYears } from "./badges.js";
 import { profileRecord } from "./h2hpage.js";
 import { showRecord } from "./noshows.js";
 
-/* Every badge: the ones earned (with when), then the rest with how to get them. */
+/* Every badge: this season's (with when, and every season each was earned), the career ones, then the rest with how
+   to get them. */
 function badgeSheet(m, input) {
-  const earned = new Map(input.badges.filter(b => b.uid === m.id).map(b => [b.badge.id, b.at]));
-  const row = b => el("li", { class: "badge-line" + (earned.has(b.id) ? " got" : "") },
-    el("span", { class: "badge-line-icon", text: b.icon }),
-    el("span", { class: "grow" }, el("b", { text: b.name }), el("span", { class: "muted small", text: b.desc })),
-    earned.has(b.id) ? el("span", { class: "muted small", text: fmtDay(earned.get(b.id)) }) : null);
-  const got = BADGES.filter(b => earned.has(b.id)).sort((a, b) => earned.get(b.id) - earned.get(a.id)), todo = BADGES.filter(b => !earned.has(b.id));
+  const year = seasonOf(Date.now()), years = badgeYears(m.id, input.badges);
+  const now = new Map(input.badges.filter(b => b.uid === m.id && (b.season === year || b.season == null)).map(b => [b.badge.id, b.at]));
+  const row = b => {
+    // Every season it was earned in, when that's more than just this one ("×3: 2026, 2027, 2028", "Earned 2026").
+    const y = years.get(b.id), ys = y ? y.years : [], showYears = ys.length > 1 || (ys.length === 1 && ys[0] !== year);
+    return el("li", { class: "badge-line" + (now.has(b.id) ? " got" : "") },
+      el("span", { class: "badge-line-icon", text: b.icon }),
+      el("span", { class: "grow" }, el("b", { text: b.name }), el("span", { class: "muted small", text: b.desc }),
+        showYears ? el("span", { class: "muted small", text: `${ys.length > 1 ? `×${ys.length}: ` : "Earned "}${ys.join(", ")}` }) : null),
+      now.has(b.id) ? el("span", { class: "muted small", text: fmtDay(now.get(b.id)) }) : null);
+  };
+  const byLatest = list => list.sort((a, b) => now.get(b.id) - now.get(a.id));
+  const got = byLatest(SEASON_BADGES.filter(b => now.has(b.id))), todo = SEASON_BADGES.filter(b => !now.has(b.id));
+  const careerGot = byLatest(CAREER_BADGES.filter(b => now.has(b.id))), careerTodo = CAREER_BADGES.filter(b => !now.has(b.id));
   openSheet(box => box.append(el("div", { class: "stack" },
     el("h2", { text: `🏅 ${m.displayName}'s badges` }),
-    el("p", { class: "muted", text: `${got.length} of ${BADGES.length}. Badges are kept for good, and all but the no-show ones are worth points.` }),
+    el("p", { class: "muted", text: `${got.length} of ${SEASON_BADGES.length} season badges in the ${seasonName(year)}, and ${careerGot.length} of ${CAREER_BADGES.length} career badges. Season badges start again every January 1; career badges are kept for good. All but the no-show ones are worth points.` }),
+    got.length ? el("h3", { text: `This season` }) : null,
     got.length ? el("ul", { class: "badge-list" }, ...got.map(row)) : null,
-    todo.length ? el("h3", { text: "Still to earn" }) : null,
+    careerGot.length ? el("h3", { text: "Career" }) : null,
+    careerGot.length ? el("ul", { class: "badge-list" }, ...careerGot.map(row)) : null,
+    todo.length ? el("h3", { text: "Still to earn this season" }) : null,
     todo.length ? el("ul", { class: "badge-list" }, ...todo.map(row)) : null,
+    careerTodo.length ? el("h3", { text: "Career badges still to earn" }) : null,
+    careerTodo.length ? el("ul", { class: "badge-list" }, ...careerTodo.map(row)) : null,
     el("button", { class: "btn quiet block", type: "button", text: "Close", onclick: closeSheet }))));
 }
 
@@ -71,9 +85,10 @@ export function renderProfile(main, id) {
     el("div", {}, el("div", { class: "eyebrow", text: `${seasonName(seasonOf(now))} rank` }), el("div", { class: "rank-card-title", text: me.title }),
       bestLine ? el("div", { class: "muted small", text: bestLine }) : null),
     el("div", { class: "rank-card-pts" }, el("b", { text: String(me.points) }), el("span", { text: `pts · #${place + 1} of ${rows.length}` }))) : null;
-  const badgeRow = el("button", { type: "button", class: "badge-row badge-btn", "aria-label": `Badges: ${badges.length} of ${BADGES.length}. Show all`,
+  const seasonN = badges.filter(b => !b.career).length, careerN = badges.length - seasonN;
+  const badgeRow = el("button", { type: "button", class: "badge-row badge-btn", "aria-label": `Badges: ${seasonN} of ${SEASON_BADGES.length} this season, ${careerN} career. Show all`,
     onclick: () => badgeSheet(m, input) },
-    el("span", { class: "eyebrow badge-count", text: `🏅 ${badges.length} of ${BADGES.length} badges · see all` }),
+    el("span", { class: "eyebrow badge-count", text: `🏅 ${seasonN} of ${SEASON_BADGES.length} this season${careerN ? ` · ${careerN} career` : ""} · see all` }),
     ...(badges.length
       ? badges.map(b => el("span", { class: "trophy", title: b.name }, el("span", { text: b.icon }), el("small", { text: b.name })))
       : [el("span", { class: "muted small", text: "No badges yet. First Fish is one catch away!" })]));

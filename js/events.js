@@ -5,6 +5,7 @@
    Pure functions on plain data. `name(uid)` turns a user id into a display name. */
 import { measured, fishIn } from "./stats.js";
 import { badgeTimeline } from "./rank.js";
+import { FIRST_SEASON } from "./config.js";
 import { derbyStatus, closesAt, standings, awaitingApproval } from "./derby.js";
 import { crownSteals } from "./crowns.js";
 import { seriesStatus, seriesStandings, seriesFinalAt } from "./series.js";
@@ -38,6 +39,19 @@ export function recordSteals(catches) {
   }
   return out.sort((a, b) => a.c.caughtAt - b.c.caughtAt);
 }
+
+/* Badges in time order, each marked `more` when the angler had already earned it in an earlier season. */
+function badgesAgain(timeline) {
+  const seen = new Set();
+  return [...timeline].sort((a, b) => a.at - b.at).map(b => {
+    const k = b.uid + "|" + b.badge.id, more = seen.has(k);
+    seen.add(k);
+    return { b, more };
+  });
+}
+/* News ids for badges: Preseason and career badges keep the ids they had before seasons (so cleared alerts stay
+   cleared); a season badge from Season 1 on adds its year, since it can be earned every season. */
+const badgeNewsId = (b, uid) => `badge:${uid ? uid + ":" : ""}${b.badge.id}${b.season >= FIRST_SEASON ? ":" + b.season : ""}`;
 
 /* Finished derbies with their podium: [{ d, rows, at }]. */
 function finishedDerbies({ catches, derbies, entrants, now }) {
@@ -103,10 +117,11 @@ export function leagueEvents(data) {
       cid: r.catchId || undefined, short: r.catchId ? `Reached a goal: ${goalTitle(r.g)} ${periodText(r.g)}` : undefined,
       text: `${name(r.g.uid)} reached a goal: ${goalTitle(r.g)} ${periodText(r.g)}` });
   }
-  for (const b of data.badges || badgeTimeline({ ...data, derbies: derbyMap })) {
-    out.push({ id: `badge:${b.uid}:${b.badge.id}`, at: posted.at(b.at, [b.uid]), icon: b.badge.icon, href: `#/u/${b.uid}`, uids: [b.uid],
-      cid: posted.cid(b.at, [b.uid]), short: `Earned the ${b.badge.name} badge`, badge: b.badge,
-      text: `${name(b.uid)} earned the ${b.badge.name} badge` });
+  const again = badgesAgain(data.badges || badgeTimeline({ ...data, derbies: derbyMap }));
+  for (const { b, more } of again) {
+    out.push({ id: badgeNewsId(b, b.uid), at: posted.at(b.at, [b.uid]), icon: b.badge.icon, href: `#/u/${b.uid}`, uids: [b.uid],
+      cid: posted.cid(b.at, [b.uid]), short: `Earned the ${b.badge.name} badge${more ? " again" : ""}`, badge: b.badge,
+      text: `${name(b.uid)} earned the ${b.badge.name} badge${more ? ` again (${b.season})` : ""}` });
   }
   for (const s of crownSteals(data.crownHistory || crowns)) {
     out.push({ id: `crown:${s.crown.id}:${s.at}`, at: posted.at(s.at, [s.uid]), icon: s.crown.icon, href: "#/leaders", uids: [s.uid, s.from],
@@ -224,8 +239,8 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
   for (const r of goalsReached((data.goals || []).filter(g => g.uid === me), data)) {
     add({ id: `goal:${r.g.id}`, at: posted.at(r.at, [me]), icon: "🎯", href: "#/me", text: `You reached your goal: ${goalTitle(r.g)} ${periodText(r.g)}` });
   }
-  for (const b of data.badges || badgeTimeline({ ...data, derbies: derbyMap })) if (b.uid === me) {
-    add({ id: `badge:${b.badge.id}`, at: posted.at(b.at, [me]), icon: b.badge.icon, href: "#/me", text: `You earned the ${b.badge.name} badge` });
+  for (const { b, more } of badgesAgain(data.badges || badgeTimeline({ ...data, derbies: derbyMap }))) if (b.uid === me) {
+    add({ id: badgeNewsId(b), at: posted.at(b.at, [me]), icon: b.badge.icon, href: "#/me", text: `You earned the ${b.badge.name} badge${more ? ` again (${b.season})` : ""}` });
   }
 
   // Crowns you took (claimed or stole) and crowns stolen from you.

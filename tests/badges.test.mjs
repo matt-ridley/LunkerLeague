@@ -1,7 +1,7 @@
 // Unit tests for badges. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BADGES, badgeTimeline, badgesFor } from "../js/badges.js";
+import { BADGES, CAREER_BADGES, badgeTimeline, badgesFor, badgeYears } from "../js/badges.js";
 import { rankings, DEFAULT_SCORING } from "../js/rank.js";
 import { crownStandings } from "../js/crowns.js";
 import { DEFAULTS } from "../js/derby.js";
@@ -15,9 +15,9 @@ const ids = (uid, input) => badgesFor(uid, { derbies: [], entrants: new Map(), n
 const has = (uid, input, id) => ids(uid, input).includes(id);
 const whenEarned = (uid, input, id) => (badgeTimeline({ derbies: [], entrants: new Map(), now: NOW, ...input }).find(b => b.uid === uid && b.badge.id === id) || {}).at;
 
-test("79 badges with unique ids, the six originals kept", () => {
-  assert.equal(BADGES.length, 79);
-  assert.equal(new Set(BADGES.map(b => b.id)).size, 79);
+test("83 badges with unique ids, the six originals kept", () => {
+  assert.equal(BADGES.length, 83);
+  assert.equal(new Set(BADGES.map(b => b.id)).size, 83);
   for (const id of ["first", "ten", "champ", "release", "owl", "net"]) assert.ok(BADGES.some(b => b.id === id));
 });
 
@@ -217,4 +217,42 @@ test("outing boat badges: Water Taxi, Hitchhiker and Full House", () => {
   assert.equal(whenEarned("o1", input, "fullHouse"), at(5, 1, 12));
   assert.equal(whenEarned("o1", input, "waterTaxi"), at(6, 4, 12));     // 2 + 2 + 2 + 2 + 2 = 10th seat on u3
   assert.ok(!has("o1", input, "hitchhiker"));
+});
+
+test("season badges start again every season and can be earned again; career badges are earned once", () => {
+  const y = (yr, m, d) => new Date(yr, m, d, 10).getTime();
+  const ten = (uid, yr) => Array.from({ length: 10 }, (_, i) => fish(uid, "Perch", y(yr, 5, 1 + i)));
+  const catches = [...ten("amy", 2026), ...ten("amy", 2027).slice(0, 9), fish("amy", "Perch", y(2027, 7, 1))];
+  const now = y(2027, 11, 1), tl = badgeTimeline({ catches, derbies: [], entrants: new Map(), now });
+  const of = id => tl.filter(b => b.uid === "amy" && b.badge.id === id);
+  assert.deepEqual(of("fish10").map(b => b.season), [2026, 2027]);        // Ten Fish, once a season
+  assert.equal(of("fish10")[1].at, y(2027, 7, 1));                          // the 10th fish of 2027
+  assert.deepEqual(of("first").map(b => b.season), [undefined]);            // First Fish: career, once
+  assert.equal(of("fish50").length, 0);                                     // 20 fish over two seasons isn't 50 in one
+  assert.deepEqual(badgeYears("amy", tl).get("fish10").years, [2026, 2027]);
+  const input = { catches, derbies: [], entrants: new Map(), now };
+  assert.ok(badgesFor("amy", input).some(b => b.id === "first"));
+  assert.ok(badgesFor("amy", input, 2027).some(b => b.id === "fish10"));
+  assert.ok(!badgesFor("amy", { ...input, catches: catches.slice(0, 10) }, 2027).some(b => b.id === "fish10"));
+});
+
+test("a season badge earned again is worth points again; a career badge only once", () => {
+  const y = (yr, m, d) => new Date(yr, m, d, 12, 30).getTime();   // 12:30: Lunch Break
+  const catches = [fish("amy", "Perch", y(2026, 5, 1)), fish("amy", "Perch", y(2027, 5, 1))];
+  const rows = rankings({ catches, derbies: [], entrants: new Map(), versions: [], members: ["amy"], now: y(2027, 6, 1) });
+  const labels = rows[0].events.filter(e => e.kind === "badge").map(e => e.label);
+  assert.equal(labels.filter(l => l.includes("Lunch Break")).length, 2);
+  assert.equal(labels.filter(l => l.includes("First Fish")).length, 1);
+});
+
+test("Bless Your Bonnet: everyone who joined in the 2026 Preseason, fish or not; Veteran after 3 official seasons", () => {
+  const y = (yr, m, d) => new Date(yr, m, d, 10).getTime();
+  const joins = new Map([["amy", y(2026, 9, 3)], ["bo", y(2026, 11, 30)], ["cy", y(2027, 0, 2)]]);
+  const catches = [2027, 2028, 2029].map(yr => fish("cy", "Perch", y(yr, 5, 1)));
+  const tl = badgeTimeline({ catches, derbies: [], entrants: new Map(), joins, now: y(2029, 11, 1) });
+  const bonnet = tl.filter(b => b.badge.id === "bonnet").map(b => b.uid).sort();
+  assert.deepEqual(bonnet, ["amy", "bo"]);
+  assert.equal(tl.find(b => b.badge.id === "bonnet" && b.uid === "amy").at, y(2026, 9, 3));
+  assert.equal(tl.find(b => b.badge.id === "veteran" && b.uid === "cy").at, y(2029, 5, 1));
+  assert.ok(CAREER_BADGES.some(b => b.id === "bonnet") && CAREER_BADGES.length === 12);
 });
