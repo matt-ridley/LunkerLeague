@@ -212,9 +212,10 @@ function leagueContext(input) {
     if (c) for (const cm of list) if (cm.uid !== c.uid) commentList.push({ uid: cm.uid, at: cm.at || 0 });
   }
   commentList.sort((a, b) => a.at - b.at);
-  // Crowns: holding periods and steals, from each crown's history.
+  // Crowns: holding periods and steals, from each crown's history in every season (a season's last holder stops
+  // holding it when the season ends).
   const crownPeriods = [], crownSteals = [];
-  for (const s of crowns) {
+  for (const s of input.crownHistory || crowns) {
     let open = null;
     for (const h of s.history) {
       if (open) open.to = h.at;

@@ -56,8 +56,8 @@ test("within reach: the record you're closest to, by how close", () => {
     fish("cy", "Walleye", { weightOz: 100 }), fish("amy", "Walleye", { weightOz: 50 }),
   ];
   const r = byKind(cards(catches), "reach");
-  assert.equal(r.title, 'Pike: 4" short of the record');
-  assert.equal(r.detail, 'Yours: 25". Bo\'s record: 29".');
+  assert.equal(r.title, 'Pike: 4" short of the season record');
+  assert.equal(r.detail, 'Yours: 25". Bo\'s season record: 29".');
   assert.equal(r.href, "#/leaders/Pike/length");
 });
 

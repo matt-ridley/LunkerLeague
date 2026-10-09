@@ -1,4 +1,5 @@
-/* Crowns: a crown sits with whoever has the most of something right now. Another angler only takes it by passing the
+/* Crowns: a crown sits with whoever has the most of something right now, this season: every January 1 the counts
+   start again, and whoever held each crown at the end of a season keeps it in that season's history. Another angler only takes it by passing the
    holder (a tie isn't enough), and the feed announces it was stolen. Worked out from the data every time, like the
    rankings: each crown is a stream of score changes in time order, replayed to see who held it when.
    Pure functions on plain data. */
@@ -15,7 +16,7 @@ export const CROWNS = [
   { id: "stringerFiller", icon: "🪝", name: "Stringer Filler", desc: "Most limits (stringers marked as a limit)", unit: ["limit", "limits"] },
   { id: "speciesHunter", icon: "🌈", name: "Species Hunter", desc: "Most different species", unit: ["species", "species"] },
   { id: "grinder", icon: "⚙️", name: "Grinder", desc: "Most catches logged (a stringer counts as one)", unit: ["catch", "catches"] },
-  { id: "recordHolder", icon: "👑", name: "Record Holder", desc: "Most species records held right now (weight or length)", unit: ["record", "records"] },
+  { id: "recordHolder", icon: "👑", name: "Record Holder", desc: "Most season records held right now (weight or length)", unit: ["record", "records"] },
   { id: "earlyBird", icon: "🌅", name: "Early Bird", desc: "Most fish caught at dawn (4 to 8 AM)", unit: ["fish", "fish"] },
   { id: "nightStalker", icon: "🌙", name: "Night Stalker", desc: "Most fish caught at night (9 PM to 4 AM)", unit: ["fish", "fish"] },
   { id: "ironAngler", icon: "💪", name: "Iron Angler", desc: "Most days fished (days with a catch logged)", unit: ["day", "days"] },
@@ -68,22 +69,26 @@ export function crownChanges({ catches, derbies, entrants = new Map(), comments 
     if (h >= 4 && h < 8) add("earlyBird", at, c.uid, n);
     if (h >= 21 || h < 4) add("nightStalker", at, c.uid, n);
     if (c.netman && c.netman.uid && c.netman.uid !== c.uid) add("goldenNet", at, c.netman.uid);
-    const sp = species.get(c.uid) || new Set(); species.set(c.uid, sp);
+    // Species are new again every season (crowns start again each January 1).
+    const sk = c.uid + "|" + yearOf(at), sp = species.get(sk) || new Set(); species.set(sk, sp);
     if (!sp.has(c.species)) { sp.add(c.species); add("speciesHunter", at, c.uid); }
     const dy = days.get(c.uid) || new Set(); days.set(c.uid, dy);
     const k = dayKey(at);
     if (!dy.has(k)) { dy.add(k); add("ironAngler", at, c.uid); }
   }
-  for (const s of newSpots(counted, spots)) add("explorer", s.at, s.uid);
+  // New spots, counted afresh every season.
+  for (const y of new Set(counted.map(c => yearOf(c.caughtAt)))) {
+    for (const s of newSpots(counted.filter(c => yearOf(c.caughtAt) === y), spots)) add("explorer", s.at, s.uid);
+  }
 
-  // Records held: +1 when an angler takes a species' weight or length record, -1 for the angler who loses it.
+  // Season records held: +1 when an angler takes a species' weight or length record, -1 for the angler who loses it.
   for (const field of ["weightOz", "lengthIn"]) {
-    const best = new Map();
+    const best = new Map(); // species|season -> holding catch
     for (const c of counted) {
       if (!(c[field] > 0) || c.fishCount > 1) continue;
-      const cur = best.get(c.species);
+      const key = c.species + "|" + yearOf(c.caughtAt), cur = best.get(key);
       if (cur && c[field] <= cur[field]) continue;
-      best.set(c.species, c);
+      best.set(key, c);
       if (cur && cur.uid === c.uid) continue;
       add("recordHolder", c.caughtAt, c.uid, 1);
       if (cur) add("recordHolder", c.caughtAt, cur.uid, -1);
@@ -146,11 +151,35 @@ export function replayCrown(changes) {
   return { holder, score: holder ? score.get(holder) : 0, board, history };
 }
 
-/* Every crown, now: [{ crown, holder, score, board, history }]. */
-export function crownStandings(input) {
-  const ch = crownChanges(input);
-  return CROWNS.map(crown => ({ crown, ...replayCrown(ch.get(crown.id)) }));
+const yearOf = ms => new Date(ms).getFullYear();
+const yearEnd = y => new Date(y, 11, 31, 23, 59, 59, 999).getTime();
+
+/* Every season's crowns: Map(year -> [{ crown, year, holder, score, board, history }]), from the first season with a
+   score change to this one. Each season is replayed on its own changes only. A finished season's holder, score and
+   board are where it ended, and its history ends with { at: just after the season, uid: null, from: holder, ended }
+   so holding periods stop there. */
+export function crownSeasons(input) {
+  const now = input.now ?? Date.now(), thisYear = yearOf(now), ch = crownChanges(input);
+  let first = thisYear;
+  for (const list of ch.values()) if (list.length) first = Math.min(first, yearOf(list[0].at));
+  const out = new Map();
+  for (let y = thisYear; y >= first; y--) {
+    out.set(y, CROWNS.map(crown => {
+      const r = replayCrown(ch.get(crown.id).filter(e => yearOf(e.at) === y));
+      if (y < thisYear && r.holder) r.history.push({ at: yearEnd(y) + 1, uid: null, from: r.holder, ended: true });
+      return { crown, year: y, ...r };
+    }));
+  }
+  return out;
 }
+
+/* Every crown, this season: [{ crown, year, holder, score, board, history }]. */
+export function crownStandings(input) {
+  return crownSeasons(input).get(yearOf(input.now ?? Date.now()));
+}
+
+/* Every season's crowns in one list (for news and badges, which go back through every season). */
+export const allSeasonCrowns = seasons => [...seasons.values()].flat();
 
 /* Crowns changing hands (not the first claim), newest first: [{ at, crown, uid, from }]. */
 export function crownSteals(standingsNow) {

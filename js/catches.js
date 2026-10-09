@@ -8,7 +8,7 @@ import { SPECIES, normalizeSpecies } from "./species.js";
 import { reactionBar, commentsSection, reactionSummary, chatUnread } from "./social.js";
 import { derbyStatus, entryProblem, awaitingApproval, PROOF } from "./derby.js";
 import { crewText } from "./derbies.js";
-import { personalBests, isPersonalBest, checkNewPB, recordKinds, anglerStats, isStringer, pastCatch, loggedLate, leagueStartOf, DEFAULT_GRACE_DAYS } from "./stats.js";
+import { personalBests, isPersonalBest, isSeasonBest, checkNewPB, recordOf, recordKinds, seasonRecordKinds, measured, anglerStats, isStringer, pastCatch, loggedLate, leagueStartOf, DEFAULT_GRACE_DAYS } from "./stats.js";
 import { leagueEvents, postedAt } from "./events.js";
 import { NO_FILTERS, SHOW, WHEN, SORT, filterFeed, activeCount } from "./feedfilter.js";
 import { fishFinderCards } from "./fishfinder.js";
@@ -20,6 +20,7 @@ import { pickerItems, lastTackle } from "./tacklebox.js";
 import { myBoats, defaultBoat } from "./fleet.js";
 import { itemSheet, itemThumb } from "./tackleboxpage.js";
 import { focusStyle } from "./thumbfocus.js";
+import { seasonName } from "./season.js";
 import { pickFocus } from "./focuspick.js";
 import { browseFrom, returningTo, scrollBackTo, browseSpot, markViewed } from "./browse.js";
 import { TECHNIQUES, cleanLure, parseDepth, hasTackle, tackleText, lureSuggestions } from "./tackle.js";
@@ -37,9 +38,26 @@ const postedLate = c => !c.past && (c.createdAt || 0) - c.caughtAt > 12 * 3600 *
 const mapsUrl = s => `https://www.google.com/maps/search/?api=1&query=${s.lat.toFixed(6)},${s.lng.toFixed(6)}`;
 
 /* ---------- Cards ---------- */
+/* Record flair: a season record (worth points), a league record (the best league catch ever) or, for a past
+   catch, an all-time record. [long label, short label] for a card, or null. */
+const thisYear = () => new Date(Date.now()).getFullYear();
+function recordFlair(rec) {
+  if (!rec) return null;
+  if (rec.level === "past") return ["📜 All-time record", "📜 All-time"];
+  if (rec.level === "league") return ["🏛️ League record", "🏛️ Record"];
+  return rec.year === thisYear() ? ["👑 Season record", "👑 Season"] : [`👑 ${seasonName(rec.year)} record`, `👑 ${rec.year}`];
+}
+/* "Heaviest this season", "Longest in the league ever", "Heaviest in the 2026 Preseason" */
+function recordText(rec, by) {
+  const word = by === "weight" ? "Heaviest" : "Longest";
+  if (rec.level === "past") return `📜 All-time ${word.toLowerCase()}`;
+  if (rec.level === "league") return `🏛️ ${word} in the league ever`;
+  return `👑 ${word} ${rec.year === thisYear() ? "this season" : `in the ${seasonName(rec.year)}`}`;
+}
+
 /* `news`: league news this catch caused (badges, records, crowns), shown on the card instead of as cards of their own. */
 export function catchCard(c, all = allCatches(), news = []) {
-  const pb = isPersonalBest(c, all), rec = recordKinds(c, all);
+  const pb = isPersonalBest(c, all), rec = recordOf(c, all), flair = recordFlair(rec), sb = !pb && measured(c) && isSeasonBest(c, all);
   const m = store.members.get(c.uid) || { id: c.uid, displayName: memberName(c.uid) };
   return el("a", { class: "catch-card", href: `#/c/${c.id}` },
     el("img", { class: "thumb", src: c.thumb, alt: `${c.species} photo`, loading: "lazy", style: focusStyle(c) }),
@@ -47,15 +65,16 @@ export function catchCard(c, all = allCatches(), news = []) {
       // Record and PB flair sits top right, beside the species.
       el("div", { class: "catch-top" },
         el("div", { class: "catch-species", text: c.species }),
-        rec.length || pb ? el("div", { class: "flair" },
-          rec.length ? flairBadge("badge record", c.past ? "📜 All-time record" : "👑 League record", c.past ? "📜 All-time" : "👑 Record") : null,
-          pb ? el("span", { class: "badge pb", title: "Personal best", text: "PB" }) : null) : null),
+        flair || pb || sb ? el("div", { class: "flair" },
+          flair ? flairBadge("badge record", ...flair) : null,
+          pb ? el("span", { class: "badge pb", title: "Personal best", text: "PB" }) : null,
+          sb ? el("span", { class: "badge pb sb", title: `Season best (${seasonName(new Date(c.caughtAt).getFullYear())})`, text: "SB" }) : null) : null),
       el("div", { class: "catch-size" + (sizeText(c) ? "" : " unmeasured"), text: shownSize(c) || "Not measured" }),
       el("div", { class: "catch-who" }, avatar(m, "xs"), el("span", { text: `${m.displayName} · ${c.past ? fmtDay(c.caughtAt) : fmtAgo(c.caughtAt)}` })),
       postedLate(c) ? el("div", { class: "catch-posted", text: `Posted ${fmtAgo(c.createdAt)}` }) : null,
       // Chips for the rest that matters (limits, derbies, problems); quieter facts go in the line below.
       el("div", { class: "badges" },
-        c.past && !rec.length ? el("span", { class: "badge past", text: "📜 Past catch" }) : null,
+        c.past && !rec ? el("span", { class: "badge past", text: "📜 Past catch" }) : null,
         isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limit" }) : null,
         c.derbyId && store.derbies.get(c.derbyId) ? el("span", { class: "badge derby", text: `🏁 ${store.derbies.get(c.derbyId).name}` }) : null,
         c.dq ? el("span", { class: "badge dq", text: "Disqualified" }) : null,
@@ -295,7 +314,11 @@ export function renderCatch(main, id) {
   }
   const all = allCatches(), mine = c.uid === uid();
   const m = store.members.get(c.uid) || { id: c.uid, displayName: memberName(c.uid) };
-  const pb = isPersonalBest(c, all), rec = recordKinds(c, all), spotDoc = store.spots.get(c.id);
+  const pb = isPersonalBest(c, all), spotDoc = store.spots.get(c.id);
+  // Each measurement shows its biggest record: all-time (a past catch), league (ever), or its season's.
+  const top = recordKinds(c, all), season = seasonRecordKinds(c, all), year = new Date(c.caughtAt).getFullYear();
+  const recFor = by => (top.includes(by) ? { level: c.past ? "past" : "league", year } : season.includes(by) ? { level: "season", year } : null);
+  const sb = !pb && measured(c) && isSeasonBest(c, all);
   // Opened from the Fish Tank or the feed: step to the next or previous fish in that list.
   const spot = browseSpot(c.id, x => store.catches.has(x));
   if (spot) { markViewed(c.id); browseKeys(); }
@@ -325,9 +348,9 @@ export function renderCatch(main, id) {
       sizeText(c) ? el("div", { class: "catch-size big", text: shownSize(c) }) : el("div", { class: "muted", text: "Not measured" }),
       el("div", { class: "muted small", text: `${m.displayName} · ${fmtDate(c.caughtAt)}` }),
       el("div", { class: "badges" },
-        rec.includes("weight") ? el("span", { class: "badge record", text: c.past ? "📜 All-time heaviest" : "👑 Heaviest in the league" }) : null,
-        rec.includes("length") ? el("span", { class: "badge record", text: c.past ? "📜 All-time longest" : "👑 Longest in the league" }) : null,
+        ...["weight", "length"].map(by => recFor(by) ? el("span", { class: "badge record", text: recordText(recFor(by), by) }) : null),
         pb ? el("span", { class: "badge pb", text: `${mine ? "Your" : "Their"} PB` }) : null,
+        sb ? el("span", { class: "badge pb sb", text: `${mine ? "Your" : "Their"} season best${year === thisYear() ? "" : ` (${year})`}` }) : null,
         isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limited out" }) : null,
         store.pending.has(c.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null)),
     reactionBar(c.id),
@@ -541,7 +564,7 @@ function wallParts(memberId, choose) {
   const mine = all.filter(c => c.uid === memberId);
   const st = anglerStats(all.filter(c => !c.past), memberId); // league catches; past ones are noted below
   const pastN = mine.filter(c => c.past && !c.dq).length;
-  const records = mine.filter(c => recordKinds(c, all).length).sort(byNewest);
+  const records = mine.filter(c => recordOf(c, all)).sort(byNewest);
   const filter = (key, n, label) => el("button", { type: "button", class: "stat", "aria-pressed": String(view === key),
     "aria-label": `Show ${label}`, onclick: () => choose(key) }, el("b", { text: String(n) }), el("span", { text: label }));
   const parts = [el("div", { class: "hero-stats plain filters" },
@@ -560,15 +583,18 @@ function wallParts(memberId, choose) {
   } else if (view === "records") {
     parts.push(el("section", { class: "stack" }, el("h3", { text: "Records" }),
       records.length ? el("div", { class: "card-list" }, ...records.map(c => catchCard(c, all)))
-        : el("p", { class: "muted", text: "No league records held right now." })));
+        : el("p", { class: "muted", text: "No records held right now (season, league or all-time)." })));
   } else {
     const pbs = [...personalBests(all, memberId).values()].sort((a, b) => a.species.localeCompare(b.species));
+    // This season's best of each species, shown under the PB when it's a different fish.
+    const sbs = personalBests(all.filter(c => new Date(c.caughtAt).getFullYear() === thisYear()), memberId);
     const recent = [...mine].sort(byNewest).slice(0, 10);
     parts.push(el("section", { class: "stack" },
       el("h3", { text: "Personal bests" }),
       pbs.length ? el("div", { class: "pb-wall" }, ...pbs.map(c => el("a", { class: "pb-tile", href: `#/c/${c.id}` },
         el("img", { src: c.thumb, alt: "", loading: "lazy", style: focusStyle(c) }),
-        el("div", { class: "pb-text" }, el("b", { text: c.species }), el("span", { text: shownSize(c) })))))
+        el("div", { class: "pb-text" }, el("b", { text: c.species }), el("span", { text: shownSize(c) }),
+          sbs.get(c.species) && sbs.get(c.species) !== c ? el("small", { class: "muted", text: `SB ${shownSize(sbs.get(c.species))}` }) : null))))
         : el("p", { class: "muted", text: "No catches yet." })),
     recent.length ? el("section", { class: "stack" }, el("h3", { text: "Recent catches" }),
       el("div", { class: "card-list" }, ...recent.map(c => catchCard(c, all)))) : null);

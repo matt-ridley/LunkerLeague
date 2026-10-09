@@ -1,6 +1,6 @@
 /* Feed filters and sort. Pure functions on plain data, so they can be tested without the app.
    A filter is { q (words in notes or spot name), angler, species, show, when, derby, sort }; NO_FILTERS is "show everything, newest first". */
-import { isPersonalBest, recordKinds, measured } from "./stats.js";
+import { isPersonalBest, recordOf, measured } from "./stats.js";
 
 export const NO_FILTERS = { q: "", angler: "", species: "", show: "all", when: "any", derby: "", sort: "new" };
 
@@ -36,7 +36,7 @@ export function filterFeed({ catches, news, f, now = Date.now() }) {
     && (!f.species || c.species === f.species)
     && (!f.derby || c.derbyId === f.derby)
     && c.caughtAt >= since
-    && (f.show !== "records" || isPersonalBest(c, catches) || recordKinds(c, catches).length > 0)
+    && (f.show !== "records" || isPersonalBest(c, catches) || recordOf(c, catches))
     && (f.show !== "past" || c.past)
     && (f.show !== "current" || !c.past)
     && (!ws.length || matches(`${c.notes || ""} ${c.locShared ? c.spotName || "" : ""}`, ws)));

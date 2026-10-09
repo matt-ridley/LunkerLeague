@@ -1,6 +1,6 @@
 /* End-of-season awards: a season is a calendar year (season.js). Worked out from the data every time (nothing is stored), like the
    rankings. The current season is "so far". Pure functions on plain data.
-   `input` is the ranking input (catches, derbies, entrants, versions, members, crowns, badges, …) plus fleet, tackle,
+   `input` is the ranking input (catches, derbies, entrants, versions, members, crownHistory, badges, …) plus fleet, tackle,
    skunks, trips, rsvps and now. */
 import { seasonRange, seasonTables } from "./season.js";
 import { fishIn, measured, better } from "./stats.js";
@@ -53,7 +53,8 @@ export function seasonAwards(year, input, now = Date.now()) {
   const skunks = most(new Map([...outs].map(([u, d]) => [u, d.skunkDays])));
   if (skunks) awards.push({ id: "skunks", icon: "🦨", title: "Most skunks", uid: skunks.uid, n: skunks.n, text: `${skunks.n} skunked days` });
 
-  const records = allReigns(recordHistory(input.catches)).filter(r => r.from >= from && r.from <= to).sort((a, b) => a.from - b.from);
+  // Season records set: the record history of this season's catches alone (the boards start again every year).
+  const records = allReigns(recordHistory(input.catches.filter(c => c.caughtAt >= from && c.caughtAt <= to))).sort((a, b) => a.from - b.from);
   const breaker = most(records.reduce((m, r) => m.set(r.c.uid, (m.get(r.c.uid) || 0) + 1), new Map()));
   if (breaker) awards.push({ id: "records", icon: "👑", title: "Record breaker", uid: breaker.uid, n: breaker.n, text: `${breaker.n} record${breaker.n === 1 ? "" : "s"} set` });
   const badges = (input.badges || []).filter(b => b.at >= from && b.at <= to);
@@ -74,12 +75,8 @@ export function seasonAwards(year, input, now = Date.now()) {
   const lure = most(lures);
   if (lure) awards.push({ id: "lure", icon: "🪝", title: "Top lure", n: lure.n, text: `${names.get(lure.uid)}: ${lure.n} fish` });
 
-  // Crowns held at the end of the season (now, for the current one).
-  const end = Math.min(to, now);
-  const crowns = (input.crowns || []).map(s => {
-    const h = (s.history || []).filter(x => x.at <= end).pop();
-    return { crown: s.crown, uid: h ? h.uid : null };
-  }).filter(x => x.uid);
+  // Crowns held at the end of the season (now, for the current one): each season has its own crowns.
+  const crowns = (input.crownHistory || input.crowns || []).filter(s => s.year === year && s.holder).map(s => ({ crown: s.crown, uid: s.holder }));
 
   return { year, from, to, ongoing, podium: seasonPoints(year, input, now).slice(0, 3), awards, records, crowns };
 }

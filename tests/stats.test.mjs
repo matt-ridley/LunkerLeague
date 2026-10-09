@@ -1,9 +1,10 @@
 // Unit tests for personal bests and species leaderboards. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { better, personalBests, checkNewPB, speciesBoard, speciesRecords, recordKinds, anglerStats } from "../js/stats.js";
+import { better, personalBests, checkNewPB, speciesBoard, speciesRecords, recordKinds, anglerStats, recordOf, seasonRecordKinds, isSeasonBest } from "../js/stats.js";
 import { normalizeSpecies } from "../js/species.js";
 
+const Y0 = new Date(1).getFullYear(); // the year of the made-up catch times below
 const c = (id, uid, species, weightOz, lengthIn, caughtAt = 1) => ({ id, uid, species, weightOz, lengthIn, caughtAt });
 
 test("heavier wins, then longer, then whoever caught it first", () => {
@@ -49,7 +50,7 @@ test("species board shows each angler's best once, ranked, ties to the earlier c
 
 test("species records and record badges", () => {
   const all = [c("1", "amy", "Walleye", 90, 22), c("2", "bo", "Walleye", 80, 26), c("3", "bo", "Bluegill", 9, 8)];
-  const rec = speciesRecords(all);
+  const rec = speciesRecords(all, Y0);
   assert.deepEqual(rec.map(r => [r.species, r.count, r.weight.id, r.length.id]), [["Walleye", 2, "1", "2"], ["Bluegill", 1, "3", "3"]]);
   assert.deepEqual(recordKinds(all[0], all), ["weight"]);
   assert.deepEqual(recordKinds(all[1], all), ["length"]);
@@ -80,7 +81,7 @@ test("a stringer is never a PB or on a board, but its fish all count", () => {
   assert.deepEqual(speciesBoard(all, "Yellow Perch").map(x => x.id), ["a"]);
   assert.deepEqual(recordKinds(str, all), []);
   assert.deepEqual(anglerStats(all, "u"), { catches: 51, species: 1 });
-  assert.equal(speciesRecords(all)[0].count, 51);
+  assert.equal(speciesRecords(all, Y0)[0].count, 51);
 });
 
 test("a past PB measured one way isn't beaten by a smaller fish measured the other way", () => {
@@ -97,10 +98,28 @@ test("a past PB measured one way isn't beaten by a smaller fish measured the oth
 test("league records are league catches only; all-time records show a past catch that beats them", () => {
   const past = { id: "old", uid: "u", species: "Muskie", weightOz: 480, lengthIn: null, caughtAt: 1, past: true };
   const league = { id: "new", uid: "v", species: "Muskie", weightOz: 192, lengthIn: 40, caughtAt: 9 };
-  const [r] = speciesRecords([past, league]);
+  const [r] = speciesRecords([past, league], Y0);
   assert.equal(r.weight.id, "new"); assert.equal(r.allTimeWeight.id, "old");
   assert.equal(r.length.id, "new"); assert.equal(r.allTimeLength, null); // the past fish was never measured
   assert.equal(r.count, 1);
   assert.deepEqual(recordKinds(league, [past, league]), ["weight", "length"]); // the league record
   assert.deepEqual(recordKinds(past, [past, league]), ["weight"]);             // the all-time record
+});
+
+test("season records start again every year; league records and season bests", () => {
+  const y = (yr, m = 5) => new Date(yr, m, 1).getTime();
+  const big = c("big", "amy", "Walleye", 120, 28, y(2026));
+  const now = c("now", "bo", "Walleye", 90, 24, y(2027)), later = c("later", "bo", "Walleye", 80, 30, y(2027, 7));
+  const small = c("small", "amy", "Walleye", 60, 20, y(2027, 8));
+  const all = [big, now, later, small];
+  const [r] = speciesRecords(all, 2027);
+  assert.equal(r.weight.id, "now"); assert.equal(r.length.id, "later");
+  assert.equal(r.leagueWeight.id, "big"); assert.equal(r.leagueLength, null); // the 2027 length record is the league's too
+  assert.equal(r.count, 3);
+  assert.deepEqual(recordOf(big, all), { level: "league", kinds: ["weight"], year: 2026 });
+  assert.deepEqual(recordOf(now, all), { level: "season", kinds: ["weight"], year: 2027 });
+  assert.deepEqual(recordOf(later, all), { level: "league", kinds: ["length"], year: 2027 });
+  assert.equal(recordOf(small, all), null);
+  assert.deepEqual(seasonRecordKinds(big, all), ["weight", "length"]);         // still the 2026 records
+  assert.ok(isSeasonBest(small, all) && !isSeasonBest(big, [...all, c("b2", "amy", "Walleye", 130, 29, y(2026, 7))]));
 });

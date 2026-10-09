@@ -252,6 +252,8 @@ body.gated .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 .badges:empty { display: none; }
 .badge { font-size: 12.5px; font-weight: 800; padding: 3px 8px; border-radius: 99px; background: var(--surface-2); color: var(--ink); }
 .badge.pb { background: var(--lime); color: var(--lime-ink); }
+/* Season best: a PB for this season only, so quieter than a PB. */
+.badge.pb.sb { background: var(--primary-soft); color: var(--ink); }
 .badge.record { background: var(--gold); color: #1A1205; }
 .badge.limit { background: var(--primary); color: var(--primary-ink); }
 .pts-tag { font-size: 12.5px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: var(--ok-soft); color: var(--ok); white-space: nowrap; }
@@ -351,6 +353,7 @@ textarea { resize: vertical; line-height: 1.4; }
 }
 .pb-text b { font: 800 17px/1.1 var(--f-display); }
 .pb-text span { font-size: 14px; font-weight: 700; }
+.pb-text small { font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .8); }
 
 /* ---------- Social ---------- */
 .nav-item { position: relative; }

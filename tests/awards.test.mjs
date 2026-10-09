@@ -52,11 +52,18 @@ test("superlatives: biggest fish, most fish and species, days out and skunks, re
   assert.equal(a.records.uid, "bo");                        // walleye weight, muskie length and weight… pike: bo sets more
 });
 
-test("crowns held at the end of a season come from each crown's history", () => {
-  const crowns = [{ crown: { id: "x", name: "X" }, history: [{ at: at(2025, 3, 1), uid: "amy" }, { at: at(2026, 2, 1), uid: "bo" }] },
-    { crown: { id: "y", name: "Y" }, history: [] }];
-  const s25 = seasonAwards(2025, base({ catches: [], crowns }), at(2026, 9, 8));
+test("crowns held at the end of a season are that season's crowns", () => {
+  const X = { id: "x", name: "X" }, Y = { id: "y", name: "Y" };
+  const crownHistory = [{ crown: X, year: 2025, holder: "amy" }, { crown: Y, year: 2025, holder: null },
+    { crown: X, year: 2026, holder: "bo" }, { crown: Y, year: 2026, holder: "bo" }];
+  const s25 = seasonAwards(2025, base({ catches: [], crownHistory }), at(2026, 9, 8));
   assert.deepEqual(s25.crowns.map(x => [x.crown.id, x.uid]), [["x", "amy"]]);
-  const s26 = seasonAwards(2026, base({ catches: [], crowns }), at(2026, 9, 8));
-  assert.deepEqual(s26.crowns.map(x => x.uid), ["bo"]);
+  const s26 = seasonAwards(2026, base({ catches: [], crownHistory }), at(2026, 9, 8));
+  assert.deepEqual(s26.crowns.map(x => x.uid), ["bo", "bo"]);
+});
+
+test("records set in a season are season records: last season's fish don't stand in the way", () => {
+  const catches = [c("old", "cy", "Walleye", at(2025, 4, 6), { weightOz: 500 }), c("a", "amy", "Walleye", at(2026, 4, 1), { weightOz: 80 })];
+  const s = seasonAwards(2026, base({ catches }), at(2026, 9, 8));
+  assert.deepEqual(s.records.map(r => r.c.id), ["a"]);
 });

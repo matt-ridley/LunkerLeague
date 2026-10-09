@@ -19,20 +19,21 @@ const PLACES = ["1st", "2nd", "3rd"];
 const MEDALS = ["🥇", "🥈", "🥉"];
 const snippet = t => { const s = String(t || "").replace(/\s+/g, " ").trim(); return s.length > 80 ? s.slice(0, 79) + "…" : s; };
 
-/* Every time a species record (weight or length) changed hands: [{ species, field, c, from }], oldest first.
-   Only a different angler beating the holder counts; beating your own record isn't news. */
+/* Every time a season record (weight or length) changed hands: [{ species, field, c, from }], oldest first.
+   Only a different angler beating the holder counts; beating your own record isn't news, and neither is the first
+   record of a new season. */
 export function recordSteals(catches) {
   const out = [];
   // League catches only: a past fish (logbook) on top of the all-time board isn't a record "taken".
   const list = catches.filter(c => !c.dq && !c.past && measured(c)).sort((a, b) => a.caughtAt - b.caughtAt);
   for (const field of ["weightOz", "lengthIn"]) {
-    const best = new Map(); // species -> holding catch
+    const best = new Map(); // species|season -> holding catch
     for (const c of list) {
       if (!(c[field] > 0)) continue;
-      const cur = best.get(c.species);
+      const key = c.species + "|" + new Date(c.caughtAt).getFullYear(), cur = best.get(key);
       if (cur && c[field] <= cur[field]) continue;
       if (cur && cur.uid !== c.uid) out.push({ species: c.species, field, c, from: cur });
-      best.set(c.species, c);
+      best.set(key, c);
     }
   }
   return out.sort((a, b) => a.c.caughtAt - b.c.caughtAt);
@@ -86,15 +87,15 @@ function seriesWinners({ series, derbies, catches, entrants = new Map(), now }) 
 
 /* Feed news: [{ id, at, icon, text, href, uids, cid?, short?, badge? }], newest first. `uids` are the anglers it's about.
    News caused by one catch also has `cid` (that catch) and `short` (the text to show on its card); badge news has `badge`.
-   `crowns` (from crownStandings) adds crowns changing hands. */
+   `crowns` (from crownStandings) adds crowns changing hands; `crownHistory` (every season's) is used when given. */
 export function leagueEvents(data) {
   const { catches, derbies, entrants = new Map(), crowns = [], name, now = Date.now() } = data;
   const derbyMap = asMap(derbies), out = [], posted = postedTimes(catches);
   for (const s of recordSteals(catches)) {
     const kind = s.field === "weightOz" ? "weight" : "length";
     out.push({ id: `rec:${s.c.id}:${s.field}`, at: postedAt(s.c), icon: "👑", href: `#/c/${s.c.id}`, uids: [s.c.uid, s.from.uid],
-      cid: s.c.id, short: `Took the ${kind} record from ${name(s.from.uid)}`,
-      text: `${name(s.c.uid)} took the ${s.species} ${kind} record from ${name(s.from.uid)}` });
+      cid: s.c.id, short: `Took the season ${kind} record from ${name(s.from.uid)}`,
+      text: `${name(s.c.uid)} took the season ${s.species} ${kind} record from ${name(s.from.uid)}` });
   }
   // Personal goals reached.
   for (const r of goalsReached(data.goals || [], data)) {
@@ -107,7 +108,7 @@ export function leagueEvents(data) {
       cid: posted.cid(b.at, [b.uid]), short: `Earned the ${b.badge.name} badge`, badge: b.badge,
       text: `${name(b.uid)} earned the ${b.badge.name} badge` });
   }
-  for (const s of crownSteals(crowns)) {
+  for (const s of crownSteals(data.crownHistory || crowns)) {
     out.push({ id: `crown:${s.crown.id}:${s.at}`, at: posted.at(s.at, [s.uid]), icon: s.crown.icon, href: "#/leaders", uids: [s.uid, s.from],
       cid: posted.cid(s.at, [s.uid]), short: `Stole the ${s.crown.name} crown from ${name(s.from)}`,
       text: `${name(s.uid)} stole the ${s.crown.name} crown from ${name(s.from)}` });
@@ -218,7 +219,7 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
   // Records taken from you, and badges you earned.
   for (const s of recordSteals(catches)) if (s.from.uid === me && s.c.uid !== me) {
     add({ id: `rec:${s.c.id}:${s.field}`, at: postedAt(s.c), icon: "😱", href: `#/c/${s.c.id}`,
-      text: `${name(s.c.uid)} took your ${s.species} ${s.field === "weightOz" ? "weight" : "length"} record` });
+      text: `${name(s.c.uid)} took your season ${s.species} ${s.field === "weightOz" ? "weight" : "length"} record` });
   }
   for (const r of goalsReached((data.goals || []).filter(g => g.uid === me), data)) {
     add({ id: `goal:${r.g.id}`, at: posted.at(r.at, [me]), icon: "🎯", href: "#/me", text: `You reached your goal: ${goalTitle(r.g)} ${periodText(r.g)}` });
@@ -228,7 +229,7 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
   }
 
   // Crowns you took (claimed or stole) and crowns stolen from you.
-  for (const s of crowns) for (const h of s.history) {
+  for (const s of data.crownHistory || crowns) for (const h of s.history) {
     if (h.uid === me) add({ id: `crown:${s.crown.id}:${h.from || "claim"}:${h.from ? h.at : ""}`, at: posted.at(h.at, [me]), icon: s.crown.icon, href: "#/leaders",
       text: h.from ? `You stole the ${s.crown.name} crown from ${name(h.from)}` : `You claimed the ${s.crown.name} crown` });
     else if (h.from === me && h.uid) add({ id: `crownlost:${s.crown.id}:${h.at}`, at: posted.at(h.at, [h.uid]), icon: "😤", href: "#/leaders",

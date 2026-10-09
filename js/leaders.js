@@ -2,10 +2,10 @@
    leaderboard of personal bests. */
 import { el, avatar, fmtDay, fmtDate, fmtWeight, fmtLength, icon, fill, openSheet, closeSheet } from "./ui.js";
 import { store, memberName, uid, isAdmin, presentRsvps } from "./cloud.js";
-import { speciesRecords, speciesBoard, leagueStartOf } from "./stats.js";
+import { speciesRecords, speciesBoard, seasonCatches, leagueStartOf } from "./stats.js";
 import { seasonTables, seasonYears, seasonOf, seasonName, isPreseason, careerBest, FIRST_SEASON } from "./season.js";
 import { badgesFor, scoringTimeline, currentScoring, TITLES } from "./rank.js";
-import { crownStandings, crownScore } from "./crowns.js";
+import { crownSeasons, allSeasonCrowns, crownScore, CROWNS } from "./crowns.js";
 import { badgeTimeline, BADGES } from "./badges.js";
 import { closesAt as derbyClosesAt } from "./derby.js";
 import { closesAt as h2hClosesAt } from "./h2h.js";
@@ -28,6 +28,7 @@ export function rankInput() {
     goals: [...store.goals.values()], skunks: [...store.skunks.values()],
   };
   input.crowns = crownsNow(input);
+  input.crownHistory = allSeasonCrowns(crownSeasonsNow(input));
   input.badges = badgesNow(input);
   return input;
 }
@@ -45,21 +46,24 @@ function finishedSoFar(now = Date.now()) {
 let badgeCache = { key: null, value: null };
 function badgesNow(input) {
   const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps, store.challenges, leagueStartOf(store.league), finishedSoFar(),
-    store.noShows, store.boats, store.fleet];
+    store.noShows, store.boats, store.fleet, seasonOf(Date.now())];
   if (!badgeCache.key || key.some((k, i) => k !== badgeCache.key[i])) badgeCache = { key, value: badgeTimeline(input) };
   return badgeCache.value;
 }
 
-/* Crowns are replayed from all the data, so work them out once per change of data, not on every redraw. */
+/* Crowns are replayed from all the data, so work them out once per change of data (or of season), not on every
+   redraw. crownsNow: this season's; crownSeasonsNow: Map(year -> crowns) for every season. */
 let crownCache = { key: null, value: null };
-export function crownsNow(input) {
-  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.challenges, leagueStartOf(store.league), finishedSoFar()];
+export function crownSeasonsNow(input) {
+  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.challenges, leagueStartOf(store.league), finishedSoFar(),
+    seasonOf(Date.now())];
   if (!crownCache.key || key.some((k, i) => k !== crownCache.key[i])) {
-    if (!input) return rankInput().crowns; // builds the input, which works the crowns out and caches them
-    crownCache = { key, value: crownStandings(input) };
+    if (!input) { rankInput(); return crownCache.value; } // builds the input, which works the crowns out and caches them
+    crownCache = { key, value: crownSeasons(input) };
   }
   return crownCache.value;
 }
+export const crownsNow = input => crownSeasonsNow(input).get(seasonOf(Date.now())) || [];
 let leadersTab = "rank", season = null; // null: the current season; a year; or "career"
 export function renderLeaders(main, speciesArg, byArg) {
   // Tapping your crowns on a profile opens the Crowns tab.
@@ -69,24 +73,56 @@ export function renderLeaders(main, speciesArg, byArg) {
   const tabs = el("div", { class: "seg tabs-4" }, ...[["rank", "🏆 Ranks"], ["crowns", "👑 Crowns"], ["badges", "🏅 Badges"], ["records", "🐟 Records"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(leadersTab === k), text: label, onclick: () => { leadersTab = k; renderLeaders(main); } })));
   if (leadersTab === "rank") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, rankView(main));
-  if (leadersTab === "crowns") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, crownsView());
+  if (leadersTab === "crowns") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, crownsView(main));
   if (leadersTab === "badges") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, badgesView());
-  const records = speciesRecords(all);
-  const v = currentScoring(scoringTimeline(store.scoring)), started = fmtDay(leagueStartOf(store.league));
-  fill(main,
-    el("h2", { class: "page-title", text: "Leaders" }), tabs,
+  fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, recordsView(main, all));
+}
+
+/* Seasons to pick from (this one, then past ones), plus an all-seasons choice when `extra` gives its label. */
+function seasonPicker(main, pick, extra) {
+  const now = Date.now(), thisYear = seasonOf(now), years = seasonYears([...store.catches.values()], now);
+  return el("div", { class: "seg" }, ...[...years.map(y => [y, y === thisYear ? seasonName(y) : String(y)]), ...(extra ? [["career", extra]] : [])].map(([k, label]) =>
+    el("button", { type: "button", "aria-pressed": String(pick === k), text: label, onclick: () => { season = k; renderLeaders(main); } })));
+}
+const pickedSeason = (allowCareer = true) => {
+  const thisYear = seasonOf(Date.now()), years = seasonYears([...store.catches.values()]);
+  return (allowCareer && season === "career") || years.includes(season) ? season : thisYear;
+};
+
+/* ---------- Records: each season's records (worth points this season), plus the league and all-time records ---------- */
+function recordsView(main, all) {
+  const pick = pickedSeason(), ever = pick === "career", thisYear = seasonOf(Date.now());
+  const year = ever ? thisYear : pick, records = speciesRecords(all, year);
+  if (ever) records.sort((a, b) => a.species.localeCompare(b.species));
+  const v = currentScoring(scoringTimeline(store.scoring)), live = !ever && year === thisYear;
+  const pts = live ? v.recordPts[0] : 0;
+  const shown = ever ? records.filter(r => r.weight || r.length || r.leagueWeight || r.leagueLength || r.allTimeWeight || r.allTimeLength) : records;
+  return el("div", { class: "stack" },
+    seasonPicker(main, pick, "All-time"),
     el("div", { class: "card stack points-note" },
-      el("p", {}, el("b", { text: "👑 League records" }), ` are from league catches since ${started}. ${v.recordPts.some(Boolean) ? `Holding 1st, 2nd or 3rd on a species' weight board or length board is worth ${v.recordPts.join(" / ")} points while you hold it (each board counts). Beat it to take the points.` : "They aren't worth points right now."}`),
+      ever ? el("p", {}, el("b", { text: "🏛️ League records" }), " are the best league catches ever, from every season. The glory, not points.")
+        : el("p", {}, el("b", { text: `👑 ${seasonName(year)} records` }), ` are the best league catches of the season. ${!live ? "Points only go to this season's records." : v.recordPts.some(Boolean) ? `Holding 1st, 2nd or 3rd on a species' weight board or length board is worth ${v.recordPts.join(" / ")} points while you hold it (each board counts). The boards start again every January 1.` : "They aren't worth points right now."} 🏛️ shows the league record (the best ever) when a fish from another season holds it.`),
       el("p", {}, el("b", { text: "📜 All-time records" }), " include past catches from before the league. Give them props, but they're not worth points.")),
     el("a", { class: "btn block", href: "#/hof", text: "🏛️ Hall of Fame: every record ever held" }),
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading…" })
-      : records.length ? el("div", { class: "card-list" }, ...records.map(r => el("a", { class: "record-card", href: `#/leaders/${encodeURIComponent(r.species)}` },
-          el("div", { class: "record-head" }, el("b", { text: r.species }), el("span", { class: "muted small", text: r.count ? `${r.count} caught in the league` : "Only past catches so far" })),
-          r.weight ? holder("👑", "Heaviest", r.weight, fmtWeight(r.weight.weightOz), v.recordPts[0]) : null,
-          r.length ? holder("👑", "Longest", r.length, fmtLength(r.length.lengthIn), v.recordPts[0]) : null,
-          !r.weight && !r.length && r.count ? el("p", { class: "muted small", text: "No league record yet: weigh or measure one to set it." }) : null,
-          r.allTimeWeight ? holder("📜", "All-time heaviest", r.allTimeWeight, fmtWeight(r.allTimeWeight.weightOz), 0) : null,
-          r.allTimeLength ? holder("📜", "All-time longest", r.allTimeLength, fmtLength(r.allTimeLength.lengthIn), 0) : null)))
+      : shown.length ? el("div", { class: "card-list" }, ...shown.map(r => {
+          const lw = r.leagueWeight || r.weight, ll = r.leagueLength || r.length;
+          return el("a", { class: "record-card", href: `#/leaders/${encodeURIComponent(r.species)}` },
+            el("div", { class: "record-head" }, el("b", { text: r.species }),
+              ever ? null : el("span", { class: "muted small", text: r.count ? `${r.count} caught this ${isPreseason(year) ? "Preseason" : "season"}` : "None caught yet" })),
+            ...(ever ? [
+              lw ? holder("🏛️", "Heaviest", lw, fmtWeight(lw.weightOz), 0, true) : null,
+              ll ? holder("🏛️", "Longest", ll, fmtLength(ll.lengthIn), 0, true) : null,
+            ] : [
+              r.weight ? holder("👑", "Heaviest", r.weight, fmtWeight(r.weight.weightOz), pts) : null,
+              r.length ? holder("👑", "Longest", r.length, fmtLength(r.length.lengthIn), pts) : null,
+              !r.weight && !r.length && r.count ? el("p", { class: "muted small", text: "No season record yet: weigh or measure one to set it." }) : null,
+              r.leagueWeight ? holder("🏛️", "Heaviest", r.leagueWeight, fmtWeight(r.leagueWeight.weightOz), 0, true) : null,
+              r.leagueLength ? holder("🏛️", "Longest", r.leagueLength, fmtLength(r.leagueLength.lengthIn), 0, true) : null,
+            ]),
+            r.allTimeWeight ? holder("📜", "All-time heaviest", r.allTimeWeight, fmtWeight(r.allTimeWeight.weightOz), 0) : null,
+            r.allTimeLength ? holder("📜", "All-time longest", r.allTimeLength, fmtLength(r.allTimeLength.lengthIn), 0) : null);
+        }))
       : el("div", { class: "card empty" }, el("div", { class: "empty-art", html: icon.trophy }),
           el("p", { text: "No records yet. Log a catch to set the first one." }),
           el("a", { class: "btn lime", href: "#/log", text: "Log a catch" })));
@@ -96,9 +132,7 @@ export function renderLeaders(main, speciesArg, byArg) {
 /* Opens on the current season (points, titles and places start again every January 1), with past seasons and
    Career (every season added together) a tap away. */
 function rankView(main) {
-  const now = Date.now(), thisYear = seasonOf(now);
-  const years = seasonYears([...store.catches.values()], now);
-  const pick = season === "career" || years.includes(season) ? season : thisYear;
+  const now = Date.now(), thisYear = seasonOf(now), pick = pickedSeason();
   const tables = seasonTables(rankInput(), now);
   const career = pick === "career";
   const rows = career ? tables.career : tables.years.get(pick) || [];
@@ -108,8 +142,7 @@ function rankView(main) {
     : pick === thisYear ? "Points, titles and places start again at 0 every January 1."
     : "Final points: what was earned during the season. Record and crown points only count while they're held, so they're not in a finished season.";
   return el("div", { class: "stack" },
-    el("div", { class: "seg" }, ...[...years.map(y => [y, y === thisYear ? seasonName(y) : String(y)]), ["career", "Career"]].map(([k, label]) =>
-      el("button", { type: "button", "aria-pressed": String(pick === k), text: label, onclick: () => { season = k; renderLeaders(main); } }))),
+    seasonPicker(main, pick, "Career"),
     el("p", { class: "muted small", text: note }),
     el("a", { class: "btn block", href: career ? "#/awards" : `#/awards/${pick}`, text: `🏆 ${career ? "Season" : seasonName(pick)} awards` }),
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading…" }) : el("ol", { class: "board" }, ...rows.map((r, i) => {
@@ -151,18 +184,18 @@ export function howPointsSheet() {
   openSheet(box => box.append(el("div", { class: "stack" },
     el("h2", { text: "How points work" }),
     el("ul", { class: "how-list" },
-      el("li", { text: `📅 Points, titles and places start again at 0 every season (January 1). ${new Date().getFullYear() < FIRST_SEASON ? `This year is the Preseason: it counts, but unofficially. Season 1 is ${FIRST_SEASON}.` : "Past seasons are kept, and Career adds them all up."}` }),
+      el("li", { text: `📅 Points, titles and places start again at 0 every season (January 1). ${seasonOf(Date.now()) < FIRST_SEASON ? `This year is the Preseason: it counts, but unofficially. Season 1 is ${FIRST_SEASON}.` : "Past seasons are kept, and Career adds them all up."}` }),
       el("li", { text: `🎣 ${v.catchPts} per catch (counting up to ${v.dailyCap} a day)` }),
       el("li", { text: `🪝 A stringer earns the day's full catch points (${v.catchPts * v.dailyCap}). If it's your limit, ${v.limitPts} more (once a day)` }),
       el("li", { text: `🌈 ${v.speciesPts} for each species you catch for the first time in a season` }),
-      el("li", { text: `🐟 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board, and the same again on its length board (changes as records fall)` }),
-      el("li", { text: `👑 ${v.crownPts} for each crown you hold right now (they move when someone passes you)` }),
+      el("li", { text: `🐟 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board this season, and the same again on its length board (changes as records fall; the boards start again every January 1)` }),
+      el("li", { text: `👑 ${v.crownPts} for each crown you hold right now (they move when someone passes you, and start again every season)` }),
       el("li", { text: `🏅 ${v.badgePts} for each badge you earn (yours for good; ${BADGES.length} to collect). The no-show badges are worth nothing` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),
       el("li", { text: `⚔️ ${v.h2hPts} for fishing a head-to-head challenge (at least one fish), ${v.h2hWinPts} more for winning it, and the winner takes the points staked (up to ${v.h2hMaxStake} each). A tie or a vetoed challenge moves nothing` }),
       v.noShowPts ? el("li", { text: `🫥 ${v.noShowPts} taken off each time you're marked a no-show for an outing you said you were In for` }) : null,
       el("li", { text: "Disqualified catches and test derbies don't count." }),
-      el("li", { text: `📜 Past catches (caught before the league start, ${fmtDay(leagueStartOf(store.league))}, or logged more than ${(store.league && store.league.graceDays) ?? 7} days late) count for personal bests and the all-time record boards only: no points, badges or crowns. Record points go to the best league catches.` })),
+      el("li", { text: `📜 Past catches (caught before the league start, ${fmtDay(leagueStartOf(store.league))}, or logged more than ${(store.league && store.league.graceDays) ?? 7} days late) count for personal bests and the all-time record boards only: no points, badges or crowns. Record points go to the best league catches of the season.` })),
     el("h3", { text: "Titles (by season points)" }),
     el("ul", { class: "how-list" }, ...TITLES.map((t, i) => el("li", { text: `${t}: ${v.titles[i]}+ pts` }))),
     last ? el("p", { class: "hint", text: `Points last changed ${fmtDate(last.createdAt)} by ${memberName(last.createdBy)}${last.note ? ` ("${last.note}")` : ""}.` }) : null,
@@ -219,12 +252,17 @@ function badgeHoldersSheet(b, list) {
 }
 
 /* ---------- Crowns ---------- */
-function crownsView() {
+/* This season's crowns (they start again every January 1), or who held each one when a past season ended. */
+function crownsView(main) {
   if (!store.catchesLoaded) return el("p", { class: "loading", text: "Loading…" });
-  const v = currentScoring(scoringTimeline(store.scoring));
+  const v = currentScoring(scoringTimeline(store.scoring)), year = pickedSeason(false), live = year === seasonOf(Date.now());
+  const list = crownSeasonsNow().get(year) || CROWNS.map(crown => ({ crown, holder: null, score: 0, board: [], history: [] }));
   return el("div", { class: "stack" },
-    el("p", { class: "muted", text: `Each crown sits with whoever has the most right now. Pass the holder to steal it.${v.crownPts ? ` Worth ${v.crownPts} points while you hold it.` : ""}` }),
-    el("div", { class: "card-list" }, ...crownsNow().map(s => {
+    seasonPicker(main, year),
+    el("p", { class: "muted", text: live
+      ? `Each crown sits with whoever has the most this season. Pass the holder to steal it. They start again every January 1.${v.crownPts ? ` Worth ${v.crownPts} points while you hold it.` : ""}`
+      : `Who held each crown when the ${seasonName(year)} ended. Theirs for good.` }),
+    el("div", { class: "card-list" }, ...list.map(s => {
       const h = s.holder && who(s.holder), next = s.board[1];
       return el("button", { type: "button", class: "crown-card" + (s.holder === uid() ? " mine" : ""), onclick: () => crownSheet(s) },
         el("span", { class: "crown-icon", text: s.crown.icon }),
@@ -232,7 +270,7 @@ function crownsView() {
           el("b", { class: "crown-name", text: s.crown.name }),
           el("span", { class: "muted small", text: s.crown.desc }),
           h ? el("span", { class: "crown-holder" }, avatar(h, "xs"), el("b", { text: h.displayName }), el("span", { text: crownScore(s.crown, s.score) }))
-            : el("span", { class: "muted small", text: "Up for grabs" }),
+            : el("span", { class: "muted small", text: live ? "Up for grabs" : "Nobody won it" }),
           next ? el("span", { class: "muted small", text: `Next: ${who(next.uid).displayName}, ${crownScore(s.crown, next.score)}` }) : null));
     })));
 }
@@ -250,32 +288,34 @@ function crownSheet(s) {
       : el("p", { class: "muted", text: "Nobody has this one yet." }),
     recent.length ? el("section", { class: "stack" }, el("h3", { text: "Crown history" }),
       el("ul", { class: "points-list" }, ...recent.map(h => el("li", {},
-        el("span", { class: "grow", text: h.uid ? (h.from ? `${who(h.uid).displayName} took it from ${who(h.from).displayName}` : `${who(h.uid).displayName} claimed it`) : "Nobody holds it" }),
-        el("span", { class: "muted small", text: fmtDay(h.at) }))))) : null,
+        el("span", { class: "grow", text: h.ended ? `Season over: ${who(h.from).displayName} kept it` : h.uid ? (h.from ? `${who(h.uid).displayName} took it from ${who(h.from).displayName}` : `${who(h.uid).displayName} claimed it`) : "Nobody holds it" }),
+        el("span", { class: "muted small", text: fmtDay(h.ended ? h.at - 1 : h.at) }))))) : null,
     el("button", { class: "btn quiet block", type: "button", text: "Close", onclick: closeSheet }))));
 }
 
-function holder(mark, label, c, size, pts) {
+function holder(mark, label, c, size, pts, showYear = false) {
   const m = who(c.uid);
   return el("div", { class: "record-row" + (c.past ? " past" : "") }, el("span", { class: "record-label", text: `${mark} ${label}` }), avatar(m, "xs"),
-    el("span", { class: "grow", text: m.displayName + (c.past ? ` (${new Date(c.caughtAt).getFullYear()})` : "") }),
+    el("span", { class: "grow", text: m.displayName + (c.past || showYear ? ` (${new Date(c.caughtAt).getFullYear()})` : "") }),
     pts ? el("span", { class: "pts-tag", text: `+${pts} pts` }) : null, el("b", { text: size }));
 }
 
-/* A species' board of personal bests: the league board (league catches, worth points by weight) or all-time
+/* A species' board of personal bests: this season's (worth points), the league's (every season) or all-time
    (past catches too, for props). */
-let boardScope = "league";
+let boardScope = "season";
 function speciesPage(main, all, species, by) {
-  const league = boardScope === "league";
-  const board = speciesBoard(league ? all.filter(c => !c.past) : all, species, by);
+  const year = seasonOf(Date.now()), scope0 = boardScope;
+  const pool = scope0 === "season" ? seasonCatches(all, year) : scope0 === "league" ? all.filter(c => !c.past) : all;
+  const board = speciesBoard(pool, species, by);
   const v = currentScoring(scoringTimeline(store.scoring));
-  const pts = i => (league ? v.recordPts[i] || 0 : 0);
+  const pts = i => (scope0 === "season" ? v.recordPts[i] || 0 : 0);
   const seg = el("div", { class: "seg" }, ...[["weight", "By weight"], ["length", "By length"]].map(([k, label]) =>
     el("a", { class: "seg-link", href: `#/leaders/${encodeURIComponent(species)}/${k}`, "aria-pressed": String(by === k), text: label })));
-  const scope = el("div", { class: "seg" }, ...[["league", "👑 League"], ["all", "📜 All-time"]].map(([k, label]) =>
+  const scope = el("div", { class: "seg" }, ...[["season", "👑 Season"], ["league", "🏛️ League"], ["all", "📜 All-time"]].map(([k, label]) =>
     el("button", { type: "button", "aria-pressed": String(boardScope === k), text: label, onclick: () => { boardScope = k; speciesPage(main, all, species, by); } })));
-  const note = league
-    ? (v.recordPts.some(Boolean) ? `League catches since ${fmtDay(leagueStartOf(store.league))}. 1st, 2nd and 3rd ${by === "length" ? "by length" : "by weight"} are worth ${v.recordPts.join(" / ")} points while held: beat them to take the points.` : "League catches only. Record points are turned off right now.")
+  const note = scope0 === "season"
+    ? (v.recordPts.some(Boolean) ? `League catches from the ${seasonName(year)}. 1st, 2nd and 3rd ${by === "length" ? "by length" : "by weight"} are worth ${v.recordPts.join(" / ")} points while held: beat them to take the points. The board starts again every January 1.` : `League catches from the ${seasonName(year)}. Record points are turned off right now.`)
+    : scope0 === "league" ? `Everyone's best league catch since ${fmtDay(leagueStartOf(store.league))}, from every season. The glory, not points.`
     : "Everyone's best ever, past catches (📜) included. For props: not worth points.";
   fill(main,
     el("h2", { class: "page-title", text: species }),
@@ -289,5 +329,5 @@ function speciesPage(main, all, species, by) {
         pts(i) ? el("span", { class: "pts-tag", text: `+${pts(i)}` }) : null,
         el("b", { class: "board-size", text: by === "length" ? fmtLength(c.lengthIn) : fmtWeight(c.weightOz) }),
         el("img", { class: "thumb sm", src: c.thumb, alt: "", loading: "lazy", style: focusStyle(c) })));
-    })) : el("p", { class: "muted", text: `No ${species} has been ${by === "length" ? "measured" : "weighed"} yet.` }));
+    })) : el("p", { class: "muted", text: `No ${species} has been ${by === "length" ? "measured" : "weighed"}${scope0 === "season" ? " this season" : ""} yet.` }));
 }

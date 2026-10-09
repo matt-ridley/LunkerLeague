@@ -1,7 +1,7 @@
 // Unit tests for seasons. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIRST_SEASON, seasonOf, seasonName, seasonLong, isPreseason, seasonOver, ordinal, seasonTables, thisSeason, careerBest } from "../js/season.js";
+import { FIRST_SEASON, seasonOf, seasonName, seasonLong, isPreseason, seasonOver, ordinal, seasonTables, thisSeason, careerBest, seasonChampions } from "../js/season.js";
 
 const at = (y, m, d, h = 12) => new Date(y, m, d, h).getTime();
 let n = 0;
@@ -51,4 +51,12 @@ test("best title and finish skip the Preseason, and a place only counts once its
   assert.equal(best.finish.place, 2);
   assert.equal(best.title.year, 2028);
   assert.equal(best.title.name, t.years.get(2028).find(r => r.uid === "amy").title);
+});
+
+test("the Champions wall lists finished seasons, newest first, the Preseason marked", () => {
+  const catches = [fish("amy", "Perch", null, at(2026, 9, 10)), fish("bo", "Perch", null, at(2027, 4, 1)), fish("bo", "Pike", null, at(2027, 4, 2)),
+    fish("amy", "Perch", null, at(2028, 1, 1))];
+  const now = at(2028, 2, 1), wall = seasonChampions(seasonTables(base({ catches }), now), now);
+  assert.deepEqual(wall.map(s => [s.year, s.preseason, s.podium[0].uid]), [[2027, false, "bo"], [2026, true, "amy"]]);
+  assert.equal(wall[0].podium.length, 1);   // only anglers with points
 });

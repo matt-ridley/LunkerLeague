@@ -5,7 +5,7 @@ import { el, field, avatar, fill, fmtDate, fmtDay, fmtWeight, fmtLength, toast, 
 import { store, uid, isAdmin, memberName, saveTrip, setRsvp, setSeat, setBoat, deleteTrip, setNoShow, presentRsvps } from "./cloud.js";
 import { RSVP_ICON } from "./events.js";
 import { outingEnd, isBoatOuting, seating, outingRecap } from "./outings.js";
-import { isPersonalBest, recordKinds } from "./stats.js";
+import { isPersonalBest, recordOf } from "./stats.js";
 import { myBoats, spareSeats } from "./fleet.js";
 import { focusStyle } from "./thumbfocus.js";
 import { canMark } from "./noshows.js";
@@ -215,8 +215,8 @@ function recapSection(t) {
   const r = outingRecap(t, allCatches(), presentRsvps().get(t.id) || new Map()); // no-shows weren't there
   if (!r.started) return null;
   const all = allCatches();
-  // Short tags on the photos: a personal best, and a record (👑 league, 📜 all-time).
-  const flags = c => [isPersonalBest(c, all) ? "PB" : "", recordKinds(c, all).length ? (c.past ? "📜" : "👑") : ""].filter(Boolean).join(" ");
+  // Short tags on the photos: a personal best, and a record (👑 season, 🏛️ league, 📜 all-time).
+  const flags = c => { const r = recordOf(c, all); return [isPersonalBest(c, all) ? "PB" : "", r ? { past: "📜", league: "🏛️", season: "👑" }[r.level] : ""].filter(Boolean).join(" "); };
   return el("section", { class: "card stack" },
     el("h3", { text: r.over ? "🐟 How it went" : "🐟 So far" }),
     !r.fish ? el("p", { class: "muted", text: r.over ? "No fish logged during this outing." : "No fish logged yet. Tight lines!" }) : [

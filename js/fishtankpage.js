@@ -3,7 +3,10 @@
 import { el, fill, field, icon, openSheet, closeSheet, fmtWeight } from "./ui.js";
 import { store, uid, memberName } from "./cloud.js";
 import { catchCard, shownSize } from "./catches.js";
-import { isPersonalBest, recordKinds } from "./stats.js";
+import { isPersonalBest, recordOf } from "./stats.js";
+
+const REC_ICON = { past: "📜", league: "🏛️", season: "👑" };
+const REC_TITLE = { past: "All-time record", league: "League record", season: "Season record" };
 import { WHEN } from "./feedfilter.js";
 import { NO_TANK, TANK_SHOW, RELEASED, TANK_SORT, tankActive, filterTank, tankStats, reactionCount, topReaction } from "./fishtank.js";
 import { focusStyle } from "./thumbfocus.js";
@@ -65,12 +68,12 @@ function statsText(s) {
 
 /* A photo with the species, size, angler and reactions under it; a crown or PB on the photo's corner. */
 function tile(c, all) {
-  const rec = recordKinds(c, all).length > 0, pb = !rec && isPersonalBest(c, all);
+  const rec = recordOf(c, all), pb = !rec && isPersonalBest(c, all);
   const n = reactionCount(store.reactions, c.id), m = store.members.get(c.uid);
   return el("a", { class: "tank-tile", href: `#/c/${c.id}` },
     el("span", { class: "tank-photo" },
       c.thumb ? el("img", { src: c.thumb, alt: `${c.species} photo`, loading: "lazy", style: focusStyle(c) }) : el("span", { class: "tank-nophoto", html: icon.fish }),
-      rec ? el("span", { class: "tank-flair", title: c.past ? "All-time record" : "League record", text: c.past ? "📜" : "👑" })
+      rec ? el("span", { class: "tank-flair", title: REC_TITLE[rec.level], text: REC_ICON[rec.level] })
         : pb ? el("span", { class: "tank-flair pb", title: "Personal best", text: "PB" }) : null),
     el("span", { class: "tank-cap" },
       el("b", { text: c.species }),
