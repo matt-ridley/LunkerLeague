@@ -2,7 +2,8 @@
    rankings. The current season is "so far". Pure functions on plain data.
    `input` is the ranking input (catches, derbies, entrants, versions, members, crownHistory, badges, …) plus fleet, tackle,
    skunks, trips, rsvps and now. */
-import { seasonRange, seasonTables } from "./season.js";
+import { seasonRange, seasonTables, finalTable } from "./season.js";
+import { speciesRecords } from "./stats.js";
 import { fishIn, measured, better } from "./stats.js";
 import { daysOut } from "./skunks.js";
 import { recordHistory, allReigns } from "./halloffame.js";
@@ -10,8 +11,7 @@ import { lureKey, cleanLure } from "./tackle.js";
 
 export { seasonRange, seasonYears } from "./season.js";
 
-/* Season points: the current season matches the Leaders (records and crowns held now count); a finished season
-   counts what was earned during it (record and crown points only count while held, so they're left out). */
+/* Season points, as on the Leaders: the current season live, a finished one as it ended (or as saved once locked). */
 export function seasonPoints(year, input, now = Date.now()) {
   return (seasonTables(input, now).years.get(year) || []).filter(r => r.points > 0).map(r => ({ uid: r.uid, points: r.points }));
 }
@@ -79,4 +79,24 @@ export function seasonAwards(year, input, now = Date.now()) {
   const crowns = (input.crownHistory || input.crowns || []).filter(s => s.year === year && s.holder).map(s => ({ crown: s.crown, uid: s.holder }));
 
   return { year, from, to, ongoing, podium: seasonPoints(year, input, now).slice(0, 3), awards, records, crowns };
+}
+
+/* What's saved for good when a season locks (seasons/{year}): the final standings (with titles and points by kind),
+   the champion, the crowns held at the end, the season records and the awards. Worked out on an admin's phone. */
+export function seasonSnapshot(input, year, { now = Date.now(), by = null } = {}) {
+  const rows = finalTable(input, year), a = seasonAwards(year, input, now);
+  const records = [];
+  for (const r of speciesRecords(input.catches, year)) {
+    if (r.weight) records.push({ species: r.species, field: "weightOz", catchId: r.weight.id, uid: r.weight.uid, value: r.weight.weightOz });
+    if (r.length) records.push({ species: r.species, field: "lengthIn", catchId: r.length.id, uid: r.length.uid, value: r.length.lengthIn });
+  }
+  return {
+    year, lockedAt: now, lockedBy: by,
+    champion: rows[0] && rows[0].points > 0 ? rows[0].uid : null,
+    standings: rows.map((r, i) => ({ uid: r.uid, place: i + 1, points: r.points, title: r.title, byKind: r.byKind })),
+    crowns: (input.crownHistory || []).filter(s => s.year === year && s.holder).map(s => ({ id: s.crown.id, uid: s.holder, score: s.score })),
+    records,
+    awards: a.awards.map(x => ({ id: x.id, icon: x.icon, title: x.title, uid: x.uid || null, n: x.n ?? null, text: x.text || null,
+      catchId: x.c ? x.c.id : null, boatId: x.boatId || null })),
+  };
 }

@@ -2,6 +2,7 @@
 import { VERSION } from "./config.js";
 import { $, el, avatar, icon, initToast, closeSheet, sheetOpen, toast, fill } from "./ui.js";
 import { cloud, store, subscribe, gate, syncStatus, initCloud, uid } from "./cloud.js";
+import { checkSeasonLocks } from "./seasonlock.js";
 import { renderGate } from "./gate.js";
 import { renderProfile } from "./profile.js";
 import { renderStats } from "./statspage.js";
@@ -184,7 +185,9 @@ function boot() {
   $("scrim").addEventListener("click", closeSheet);
   document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetOpen()) closeSheet(); });
   window.addEventListener("hashchange", () => { closeSheet(); render(true); });
-  subscribe(() => render());
+  // Data changes redraw the screen; once things settle, an admin's phone saves any season that has locked.
+  let lockTimer = null;
+  subscribe(() => { render(); clearTimeout(lockTimer); lockTimer = setTimeout(() => checkSeasonLocks(), 5000); });
   startWeather(cloudApi); // fills in weather on your catches when there's signal
   // Ask the phone not to clear saved data (catches waiting for signal live there) when storage runs low.
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});

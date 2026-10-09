@@ -1,7 +1,7 @@
 // Unit tests for end-of-season awards. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { seasonYears, seasonRange, seasonPoints, seasonAwards } from "../js/awards.js";
+import { seasonYears, seasonRange, seasonPoints, seasonAwards, seasonSnapshot } from "../js/awards.js";
 
 const at = (y, m, d, h = 12) => new Date(y, m, d, h).getTime();
 const c = (id, uid, species, caughtAt, extra = {}) => ({ id, uid, species, caughtAt, createdAt: caughtAt, ...extra });
@@ -66,4 +66,16 @@ test("records set in a season are season records: last season's fish don't stand
   const catches = [c("old", "cy", "Walleye", at(2025, 4, 6), { weightOz: 500 }), c("a", "amy", "Walleye", at(2026, 4, 1), { weightOz: 80 })];
   const s = seasonAwards(2026, base({ catches }), at(2026, 9, 8));
   assert.deepEqual(s.records.map(r => r.c.id), ["a"]);
+});
+
+test("the saved season: final standings with the records held at the end, the champion, records and awards", () => {
+  const catches = [c("a", "amy", "Walleye", at(2026, 4, 1), { weightOz: 80 }), c("b", "bo", "Walleye", at(2026, 4, 2), { weightOz: 90 }),
+    c("n", "amy", "Walleye", at(2027, 1, 1), { weightOz: 120 })];
+  const snap = seasonSnapshot(base({ catches }), 2026, { now: at(2027, 0, 9), by: "amy" });
+  assert.equal(snap.year, 2026); assert.equal(snap.lockedBy, "amy");
+  assert.equal(snap.champion, "bo");                                  // 1 + 3 + 5 for the record he held on Dec 31
+  assert.deepEqual(snap.standings.map(r => [r.uid, r.place, r.points]), [["bo", 1, 9], ["amy", 2, 7], ["cy", 3, 0]]); // amy: 2nd on the board, 3 more
+  assert.deepEqual(snap.records.map(r => [r.species, r.field, r.catchId]), [["Walleye", "weightOz", "b"]]);
+  assert.ok(snap.awards.some(x => x.id === "biggest" && x.catchId === "b"));
+  assert.doesNotThrow(() => JSON.stringify(snap));
 });

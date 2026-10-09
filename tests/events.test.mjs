@@ -147,3 +147,13 @@ test("the first record of a new season isn't taken from last season's holder", (
   assert.deepEqual(recordSteals([a, b]), []);
   assert.deepEqual(recordSteals([a, b, c]).map(s => [s.c.id, s.from.id]), [["c", "b"]]);
 });
+
+test("the final whistle and a new season are news", () => {
+  const t26 = new Date(2026, 9, 1).getTime(), now = new Date(2027, 0, 10).getTime();
+  const catches = [{ id: "a", uid: "amy", species: "Perch", weightOz: null, lengthIn: null, caughtAt: t26, createdAt: t26 }];
+  const seasonDocs = new Map([[2026, { year: 2026, champion: "amy", lockedAt: new Date(2027, 0, 8).getTime(), standings: [] }]]);
+  const ev = leagueEvents({ catches, derbies: [], entrants: new Map(), badges: [], crowns: [], seasonDocs, name: u => u.toUpperCase(), now });
+  assert.equal(ev.find(e => e.id === "season:2026").text, "Final whistle: the 2026 Preseason is locked. AMY finishes on top (unofficially)!");
+  assert.equal(ev.find(e => e.id === "seasonopen:2027").text, "Season 1 (2027) is open: points, titles, crowns, season records and season badges all start again. Tight lines!");
+  assert.equal(leagueEvents({ catches, derbies: [], entrants: new Map(), badges: [], crowns: [], name: u => u, now: t26 + 1 }).find(e => e.id.startsWith("seasonopen")), undefined);
+});

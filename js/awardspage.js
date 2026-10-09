@@ -1,9 +1,10 @@
 /* End-of-season awards (#/awards/{year}): the podium, superlatives, records set and crowns held, with a recap picture
    to share. */
-import { el, fill, avatar, fmtDay, fmtWeight, fmtLength, toast } from "./ui.js";
-import { store, memberName } from "./cloud.js";
-import { rankInput } from "./leaders.js";
-import { seasonYears, seasonAwards } from "./awards.js";
+import { el, fill, avatar, fmtDay, fmtWeight, fmtLength, toast, confirmButton } from "./ui.js";
+import { store, memberName, uid, isOwner, resaveSeason } from "./cloud.js";
+import { rankInput, finishedNote } from "./leaders.js";
+import { seasonYears, seasonAwards, seasonSnapshot } from "./awards.js";
+import { crownById } from "./crowns.js";
 import { seasonName } from "./season.js";
 import { isStringer } from "./stats.js";
 
@@ -16,7 +17,14 @@ export function renderAwards(main, yearArg) {
   const now = Date.now();
   const years = seasonYears([...store.catches.values()], now);
   const year = years.includes(Number(yearArg)) ? Number(yearArg) : years[0];
-  const s = seasonAwards(year, { ...rankInput(), fleet: store.fleet, tackle: store.tackle, now }, now);
+  const input = { ...rankInput(), fleet: store.fleet, tackle: store.tackle, now };
+  const s = seasonAwards(year, input, now), saved = store.seasons.get(year);
+  // A locked season shows what was saved for good: its awards and the crowns held at the end.
+  if (saved) {
+    s.awards = (saved.awards || []).map(a => ({ ...a, c: a.catchId ? store.catches.get(a.catchId) || null : null }))
+      .filter(a => a.c || a.text || !a.catchId);
+    s.crowns = (saved.crowns || []).map(c => ({ crown: crownById(c.id) || { icon: "👑", name: c.id }, uid: c.uid }));
+  }
   const podiumOrder = [s.podium[1], s.podium[0], s.podium[2]];
   fill(main,
     el("h2", { class: "page-title", text: `🏆 ${seasonName(year)}${s.ongoing ? " (so far)" : ""}` }),
@@ -26,7 +34,7 @@ export function renderAwards(main, yearArg) {
       el("span", { class: "podium-medal", text: MEDALS[[1, 0, 2][i]] }), avatar(who(r.uid), [2, 1, 3][i] === 1 ? "lg" : ""),
       el("b", { text: who(r.uid).displayName }), el("span", { class: "muted small", text: `${r.points} pts` })) : el("span", {})))
       : el("p", { class: "card empty", text: "No points yet this season." }),
-    s.ongoing ? null : el("p", { class: "hint", text: "Points earned during the season. Record and crown points only count while they're held, so they're not in a finished season." }),
+    s.ongoing ? null : el("p", { class: "hint", text: finishedNote(year) }),
     s.awards.length ? el("div", { class: "award-grid" }, ...s.awards.map(a => el("a", { class: "award-card", href: a.boatId ? `#/boat/${a.boatId}` : a.c ? `#/c/${a.c.id}` : a.uid ? `#/u/${a.uid}` : "#/leaders" },
       el("span", { class: "award-icon", text: a.icon }), el("span", { class: "eyebrow", text: a.title }),
       a.uid && !a.boatId ? el("b", { text: who(a.uid).displayName }) : null,
@@ -40,7 +48,12 @@ export function renderAwards(main, yearArg) {
     s.crowns.length ? el("section", { class: "card stack" },
       el("h3", { text: s.ongoing ? "👑 Crowns held now" : "👑 Crowns held at the end" }),
       el("div", { class: "flair-row" }, ...s.crowns.map(x => el("a", { class: "chip", href: `#/u/${x.uid}` }, `${x.crown.icon} ${x.crown.name}: ${who(x.uid).displayName}`)))) : null,
-    s.podium.length || s.awards.length ? el("button", { class: "btn primary block", type: "button", text: "📤 Share recap", onclick: () => shareRecap(s) }) : null);
+    s.podium.length || s.awards.length ? el("button", { class: "btn primary block", type: "button", text: "📤 Share recap", onclick: () => shareRecap(s) }) : null,
+    // The league owner can save a locked season again, for example after a disqualification was fixed.
+    saved && isOwner() ? confirmButton("💾 Save this season again", "Save again with today's data?", () => {
+      resaveSeason(year, seasonSnapshot(input, year, { now: Date.now(), by: uid() }));
+      toast(`${seasonName(year)} saved again.`);
+    }, "btn quiet block") : null);
 }
 
 /* ---------- The recap picture (made on the phone) ---------- */

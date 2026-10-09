@@ -6,6 +6,7 @@
 import { measured, fishIn } from "./stats.js";
 import { badgeTimeline } from "./rank.js";
 import { FIRST_SEASON } from "./config.js";
+import { seasonOf, seasonRange, seasonName, seasonLong, isPreseason } from "./season.js";
 import { derbyStatus, closesAt, standings, awaitingApproval } from "./derby.js";
 import { crownSteals } from "./crowns.js";
 import { seriesStatus, seriesStandings, seriesFinalAt } from "./series.js";
@@ -110,6 +111,17 @@ export function leagueEvents(data) {
     out.push({ id: `rec:${s.c.id}:${s.field}`, at: postedAt(s.c), icon: "👑", href: `#/c/${s.c.id}`, uids: [s.c.uid, s.from.uid],
       cid: s.c.id, short: `Took the season ${kind} record from ${name(s.from.uid)}`,
       text: `${name(s.c.uid)} took the season ${s.species} ${kind} record from ${name(s.from.uid)}` });
+  }
+  // The final whistle: a season locked and saved for good, with its champion.
+  for (const d of (data.seasonDocs || new Map()).values()) {
+    out.push({ id: `season:${d.year}`, at: d.lockedAt || seasonRange(d.year).to, icon: "🏁", href: `#/awards/${d.year}`, uids: d.champion ? [d.champion] : [],
+      text: `Final whistle: the ${seasonName(d.year)} is locked${d.champion ? `. ${name(d.champion)} finishes on top${isPreseason(d.year) ? " (unofficially)" : " and is the champion"}!` : "."}` });
+  }
+  // A new official season opens on January 1 (once the league has fished before it).
+  const year = seasonOf(now), opens = seasonRange(year).from;
+  if (year >= FIRST_SEASON && catches.some(c => !c.past && !c.dq && c.caughtAt < opens)) {
+    out.push({ id: `seasonopen:${year}`, at: opens, icon: "📅", href: "#/leaders", uids: [],
+      text: `${seasonLong(year)} is open: points, titles, crowns, season records and season badges all start again. Tight lines!` });
   }
   // Personal goals reached.
   for (const r of goalsReached(data.goals || [], data)) {

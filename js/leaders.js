@@ -3,7 +3,7 @@
 import { el, avatar, fmtDay, fmtDate, fmtWeight, fmtLength, icon, fill, openSheet, closeSheet } from "./ui.js";
 import { store, memberName, uid, isAdmin, presentRsvps } from "./cloud.js";
 import { speciesRecords, speciesBoard, seasonCatches, leagueStartOf } from "./stats.js";
-import { seasonTables, seasonYears, seasonOf, seasonName, isPreseason, careerBest, FIRST_SEASON } from "./season.js";
+import { seasonTables, seasonYears, seasonOf, seasonName, isPreseason, careerBest, seasonState, lockAt, defendingChamp, FIRST_SEASON } from "./season.js";
 import { badgesFor, scoringTimeline, currentScoring, TITLES } from "./rank.js";
 import { crownSeasons, allSeasonCrowns, crownScore, CROWNS } from "./crowns.js";
 import { badgeTimeline, BADGES, SEASON_BADGES, CAREER_BADGES } from "./badges.js";
@@ -27,6 +27,7 @@ export function rankInput() {
     challenges: store.challenges, bets: store.bets, betPlayers: store.betPlayers, name: memberName,
     goals: [...store.goals.values()], skunks: [...store.skunks.values()],
     joins: new Map([...store.members.values()].map(m => [m.id, m.joinedAt || 0])), // for Bless Your Bonnet
+    seasonDocs: store.seasons, // locked seasons, saved for good
   };
   input.crowns = crownsNow(input);
   input.crownHistory = allSeasonCrowns(crownSeasonsNow(input));
@@ -47,7 +48,7 @@ function finishedSoFar(now = Date.now()) {
 let badgeCache = { key: null, value: null };
 function badgesNow(input) {
   const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps, store.challenges, leagueStartOf(store.league), finishedSoFar(),
-    store.noShows, store.boats, store.fleet, store.members, seasonOf(Date.now())];
+    store.noShows, store.boats, store.fleet, store.members, store.seasons, seasonOf(Date.now())];
   if (!badgeCache.key || key.some((k, i) => k !== badgeCache.key[i])) badgeCache = { key, value: badgeTimeline(input) };
   return badgeCache.value;
 }
@@ -129,6 +130,14 @@ function recordsView(main, all) {
           el("a", { class: "btn lime", href: "#/log", text: "Log a catch" })));
 }
 
+/* What a finished season's numbers are: provisional until the final whistle, then saved for good. */
+export function finishedNote(year) {
+  const grace = (store.league && store.league.graceDays) ?? 7, state = seasonState(year, Date.now(), grace), saved = store.seasons.get(year);
+  if (saved) return `🔒 Final: saved for good on ${fmtDay(saved.lockedAt)}. Points as the season ended, records and crowns held on December 31 included.`;
+  if (state === "provisional") return `⏳ Provisional: points as the season ended on December 31. Fish logged late (within ${grace} days) can still change them until the final whistle on ${fmtDay(lockAt(year, grace))}.`;
+  return "🔒 Final: points as the season ended, records and crowns held on December 31 included. An admin's phone saves it for good next time it's online.";
+}
+
 /* ---------- Angler rankings ---------- */
 /* Opens on the current season (points, titles and places start again every January 1), with past seasons and
    Career (every season added together) a tap away. */
@@ -138,10 +147,11 @@ function rankView(main) {
   const career = pick === "career";
   const rows = career ? tables.career : tables.years.get(pick) || [];
   const best = career ? new Map(rows.map(r => [r.uid, careerBest(tables, r.uid, now).title])) : null;
+  const champ = defendingChamp(store.seasons, now);
   const note = career ? "Every season added together, the Preseason included. Titles start again every season, so this shows each angler's best one."
     : pick === thisYear && isPreseason(pick) ? `🧪 ${seasonName(pick)}: points count, but unofficially. Everything starts again at 0 on January 1, ${FIRST_SEASON}, for Season 1.`
-    : pick === thisYear ? "Points, titles and places start again at 0 every January 1."
-    : "Final points: what was earned during the season. Record and crown points only count while they're held, so they're not in a finished season.";
+    : pick === thisYear ? `Points, titles and places start again at 0 every January 1.${champ ? ` 🛡️ marks the defending champion, ${who(champ).displayName}.` : ""}`
+    : finishedNote(pick);
   return el("div", { class: "stack" },
     seasonPicker(main, pick, "Career"),
     el("p", { class: "muted small", text: note }),
@@ -153,7 +163,7 @@ function rankView(main) {
         onclick: () => breakdownSheet(r, i + 1, career ? "Career" : seasonName(pick), sub) },
         el("span", { class: "rank", text: r.points > 0 && MEDALS[i] ? MEDALS[i] : String(i + 1) }),
         avatar(m),
-        el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), sub ? el("div", { class: "rank-title", text: sub }) : null),
+        el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName + (pick === thisYear && r.uid === champ ? " 🛡️" : "") }), sub ? el("div", { class: "rank-title", text: sub }) : null),
         el("b", { class: "board-size", text: `${r.points} pts` })));
     })),
     el("div", { class: "row" },
