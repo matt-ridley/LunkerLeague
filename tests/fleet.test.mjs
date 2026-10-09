@@ -1,7 +1,7 @@
 // Unit tests for boat profiles. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { myBoats, boatStats, outingBoat, defaultBoat, boatOutings, motorText, MOTOR_BRANDS, listBoats, specText } from "../js/fleet.js";
+import { myBoats, boatStats, outingBoat, defaultBoat, boatOutings, motorText, MOTOR_BRANDS, listBoats, specText, spareSeats } from "../js/fleet.js";
 
 const fleet = new Map([
   ["b1", { id: "b1", uid: "amy", name: "Lund", crew: ["bo"] }],
@@ -77,4 +77,12 @@ test("boat specs: length, seats and capacity, whichever are set", () => {
   assert.equal(specText({ lengthFt: 17.5, seats: 4, capacityLb: 1200 }), "17.5 ft · 4 seats · 1,200 lb capacity");
   assert.equal(specText({ seats: 1 }), "1 seat");
   assert.equal(specText({}), "");
+});
+
+test("spare seats when bringing a saved boat: its seats less the captain's, 1 to 12, else 3", () => {
+  assert.equal(spareSeats({ seats: 5 }), 4);
+  assert.equal(spareSeats({ seats: 1 }), 1);
+  assert.equal(spareSeats({ seats: 20 }), 12);
+  assert.equal(spareSeats({}), 3);
+  assert.equal(spareSeats(null), 3);
 });
