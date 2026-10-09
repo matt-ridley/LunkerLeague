@@ -1,11 +1,11 @@
 /* Goals on a profile (with progress bars), and the sheet to set one. */
 import { el, field, fmtDay, openSheet, closeSheet, toast, confirmButton } from "./ui.js";
-import { store, uid, saveGoal, deleteGoal } from "./cloud.js";
+import { store, uid, saveGoal, deleteGoal, presentRsvps } from "./cloud.js";
 import { KINDS, COUNT_KINDS, goalTitle, goalProgress, periodText, yearPeriod } from "./goals.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 
 const DAY = 86400000;
-const data = () => ({ catches: [...store.catches.values()], skunks: [...store.skunks.values()], trips: store.trips, rsvps: store.rsvps });
+const data = () => ({ catches: [...store.catches.values()], skunks: [...store.skunks.values()], trips: store.trips, rsvps: presentRsvps() });
 
 /* The goals card on a profile: goals on now (and ones reached or ended in the last 30 days), newest first. */
 export function goalsSection(memberId, mine) {

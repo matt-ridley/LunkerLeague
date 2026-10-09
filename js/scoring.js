@@ -94,6 +94,8 @@ export function renderScoring(main) {
       num(() => draft.h2hPts, v => { draft.h2hPts = v; }, "Points for fishing a challenge", "Each angler who logs at least one fish that counts. Skunked gets nothing."),
       num(() => draft.h2hWinPts, v => { draft.h2hWinPts = v; }, "Bonus for winning", "Nobody gets it on a tie."),
       num(() => draft.h2hMaxStake, v => { draft.h2hMaxStake = Math.round(v); }, "Most points an angler can stake", "On one challenge. The winner takes the loser's stake. 0 turns off staking points.")),
+    el("section", { class: "card stack" }, el("h3", { text: "🫥 Outings" }),
+      num(() => draft.noShowPts, v => { draft.noShowPts = v; }, "Points lost per no-show", "Taken off each time an angler is marked a no-show for an outing they said they were In for. 0 to turn off.")),
     el("section", { class: "card stack" }, el("h3", { text: "🏅 Titles" }), titleInputs),
     el("section", { class: "card stack" }, el("h3", { text: "Apply to" }), modeSeg, modeHint, field("Note", note)),
     preview, msg, save,

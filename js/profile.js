@@ -14,6 +14,7 @@ import { rankInput, howPointsSheet } from "./leaders.js";
 import { crownScore } from "./crowns.js";
 import { BADGES } from "./badges.js";
 import { profileRecord } from "./h2hpage.js";
+import { showRecord } from "./noshows.js";
 
 /* Every badge: the ones earned (with when), then the rest with how to get them. */
 function badgeSheet(m, input) {
@@ -25,7 +26,7 @@ function badgeSheet(m, input) {
   const got = BADGES.filter(b => earned.has(b.id)).sort((a, b) => earned.get(b.id) - earned.get(a.id)), todo = BADGES.filter(b => !earned.has(b.id));
   openSheet(box => box.append(el("div", { class: "stack" },
     el("h2", { text: `🏅 ${m.displayName}'s badges` }),
-    el("p", { class: "muted", text: `${got.length} of ${BADGES.length}. Badges are kept for good, and each one is worth points.` }),
+    el("p", { class: "muted", text: `${got.length} of ${BADGES.length}. Badges are kept for good, and all but the no-show ones are worth points.` }),
     got.length ? el("ul", { class: "badge-list" }, ...got.map(row)) : null,
     todo.length ? el("h3", { text: "Still to earn" }) : null,
     todo.length ? el("ul", { class: "badge-list" }, ...todo.map(row)) : null,
@@ -79,7 +80,7 @@ export function renderProfile(main, id) {
   // Someone else's profile: challenge them head-to-head.
   const challenge = !mine && !m.suspended ? el("a", { class: "btn block", href: `#/hnew/${m.id}`, text: `⚔️ Challenge ${m.displayName}` }) : null;
   const statsLink = el("a", { class: "btn block", href: `#/stats/${m.id}`, text: mine ? "📊 Your stats and what's working" : `📊 ${m.displayName}'s stats` });
-  const parts = [cover, head, flair, challenge, rankCard, goalsSection(m.id, mine), profileRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
+  const parts = [cover, head, flair, challenge, rankCard, goalsSection(m.id, mine), profileRecord(m.id), outingRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
     el("a", { class: "btn block", href: `#/box/${m.id}`, text: mine ? "🧰 Your tackle box" : `🧰 ${m.displayName}'s tackle box` }),
     // Opens the map on your own spots (private ones too); the Dock's map tile opens the league's.
     mine ? el("a", { class: "btn block", href: "#/map", text: "🗺️ Your spots", onclick: () => { try { sessionStorage.setItem("lunker-map-view", "mine"); } catch {} } }) : null,
@@ -123,6 +124,17 @@ async function changePhoto(camera) {
   if (!file) return;
   try { updateMe({ avatar: await squareAvatar(file) }); toast("Photo updated."); }
   catch { toast("That file couldn't be opened as a photo."); }
+}
+
+/* Turning up: "Showed up to 12 of 13 outings (92%)" and any no-shows, once they've said In to an outing that's over. */
+function outingRecord(memberId) {
+  const r = showRecord(memberId, { trips: store.trips, rsvps: store.rsvps, noShows: store.noShows });
+  const n = r.shows.length + r.noShows.length;
+  if (!n) return null;
+  return el("section", { class: "card outing-record" },
+    el("span", { class: "eyebrow", text: "Outings" }),
+    el("b", { text: `Showed up to ${r.shows.length} of ${n} (${Math.round((r.shows.length / n) * 100)}%)` }),
+    r.noShows.length ? el("span", { class: "muted small", text: `🫥 ${r.noShows.length} no-show${r.noShows.length === 1 ? "" : "s"}` }) : null);
 }
 
 /* The boats an angler owns or crews on, linked; and the way to everyone's boats. */
