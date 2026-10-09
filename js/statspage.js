@@ -1,7 +1,7 @@
 /* An angler's stats page (#/stats/{uid}): days out and skunks, catches by month, time of day, species and lure, and
    what's working. Also the "Got skunked" sheet. */
 import { el, fill, field, fmtDay, openSheet, closeSheet, toast, confirmButton } from "./ui.js";
-import { store, uid, logSkunk, removeSkunk } from "./cloud.js";
+import { store, uid, logSkunk, removeSkunk, presentRsvps } from "./cloud.js";
 import { dayKey, dayAt, daysOut } from "./skunks.js";
 import { catchRows, toCsv, fileName, download } from "./export.js";
 import { PERIODS, MONTHS, periodRange, inPeriod, summary, byMonth, byDaypart, bySpecies, byLure, byTechnique, whatsWorking } from "./mystats.js";
@@ -31,7 +31,7 @@ function parts(m, mine, st, draw) {
   const everyone = [...store.catches.values()].filter(c => !c.dq);
   const theirs = inPeriod(everyone.filter(c => c.uid === m.id), st.period);
   const sum = summary(theirs);
-  const out_ = daysOut(m.id, { catches: everyone, skunks: [...store.skunks.values()], trips: store.trips, rsvps: store.rsvps,
+  const out_ = daysOut(m.id, { catches: everyone, skunks: [...store.skunks.values()], trips: store.trips, rsvps: presentRsvps(),
     ...periodRange(st.period) });
   const pastN = theirs.filter(c => c.past).length;
   const seg = (key, options, value) => el("div", { class: "seg" }, ...options.map(([k, label]) =>

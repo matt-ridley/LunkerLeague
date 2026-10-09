@@ -2,7 +2,7 @@
    On a boat outing, anglers bring boats and grab seats (first come, first seated); afterwards the outing shows what
    got caught. The Outings tab on the Events page. */
 import { el, field, avatar, fill, fmtDate, fmtDay, fmtWeight, fmtLength, toast, confirmButton, openSheet, closeSheet } from "./ui.js";
-import { store, uid, isAdmin, memberName, saveTrip, setRsvp, setSeat, setBoat, deleteTrip } from "./cloud.js";
+import { store, uid, isAdmin, memberName, saveTrip, setRsvp, setSeat, setBoat, deleteTrip, setNoShow, presentRsvps } from "./cloud.js";
 import { RSVP_ICON } from "./events.js";
 import { outingEnd, isBoatOuting, seating, outingRecap } from "./outings.js";
 import { isPersonalBest, recordKinds } from "./stats.js";
@@ -10,11 +10,13 @@ import { biteTimes } from "./solunar.js";
 import { biteDay } from "./bitepage.js";
 import { myBoats, spareSeats } from "./fleet.js";
 import { focusStyle } from "./thumbfocus.js";
+import { canMark } from "./noshows.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const ANSWERS = [["in", "In"], ["maybe", "Maybe"], ["out", "Out"]];
 const answersOf = id => store.rsvps.get(id) || new Map();
 const boatsOf = id => store.boats.get(id) || new Map();
+const noShowsOf = id => store.noShows.get(id) || new Map();
 const canManage = t => t.uid === uid() || isAdmin();
 const allCatches = () => [...store.catches.values()];
 // An outing stays under "Coming up" until it's over.
@@ -47,7 +49,7 @@ function seatsLine(t) {
 const recapLine = r => (r.fish ? `${r.fish} fish${r.biggest ? ` · biggest ${who(r.biggest.uid).displayName}'s ${sizeOf(r.biggest)} ${r.biggest.species}` : ""}` : "");
 
 function tripCard(t) {
-  const n = counts(t), past = isPast(t), recap = outingRecap(t, allCatches(), answersOf(t.id));
+  const n = counts(t), past = isPast(t), recap = outingRecap(t, allCatches(), presentRsvps().get(t.id) || new Map());
   return el("div", { class: "trip-card" + (past ? " past" : "") },
     el("a", { class: "trip-link", href: `#/t/${t.id}` },
       el("b", { class: "trip-title", text: `${kindIcon(t)} ${t.title}` }),
@@ -82,6 +84,25 @@ export function renderTrip(main, id) {
   const ans = answersOf(id), past = isPast(t), me = uid();
   const group = k => [...ans.entries()].filter(([, r]) => r.answer === k).map(([u]) => u)
     .sort((a, b) => who(a).displayName.localeCompare(who(b).displayName));
+  const marks = noShowsOf(id), started = Date.now() >= t.at;
+  // Once it's started, the In list says who didn't show, and the planner, an admin or a rider's captain can mark them.
+  const inPeople = () => {
+    const list = group("in");
+    const markable = u => canMark(t, u, me, { admin: isAdmin(), answers: ans });
+    if (!started || !(marks.size || list.some(markable))) return people("in", "In");
+    return el("section", { class: "stack-tight" }, el("h3", { text: `${RSVP_ICON.in} In (${list.length})` }),
+      el("ul", { class: "show-list" }, ...list.map(u => {
+        const gone = marks.has(u);
+        return el("li", { class: "show-row" + (gone ? " noshow" : "") },
+          el("a", { class: "person", href: `#/u/${u}` }, avatar(who(u), "sm"), el("span", { text: who(u).displayName })),
+          gone ? el("span", { class: "chip noshow-tag", text: "🫥 No-show" }) : null,
+          markable(u) ? (gone
+            ? el("button", { class: "btn small quiet", type: "button", text: "Undo", onclick: () => { setNoShow(id, u, false); toast(`${who(u).displayName} isn't a no-show any more.`); } })
+            : confirmButton("Didn't show", "Tap again to confirm", () => { setNoShow(id, u, true); toast(`${who(u).displayName} marked a no-show.`); }, "btn small"))
+            : null);
+      })),
+      list.some(markable) ? el("p", { class: "hint", text: "Mark anyone who said In and didn't turn up. It costs them points, and they don't count as being there. You can mark them until a week after the outing." }) : null);
+  };
   const people = (k, label) => {
     const list = group(k);
     return el("section", { class: "stack-tight" }, el("h3", { text: `${RSVP_ICON[k]} ${label} (${list.length})` }),
@@ -100,11 +121,13 @@ export function renderTrip(main, id) {
       el("div", { class: "fact" }, el("dt", { text: "Planned by" }), el("dd", { text: who(t.uid).displayName })),
       t.notes ? el("div", { class: "fact" }, el("dt", { text: "Notes" }), el("dd", { text: t.notes })) : null),
     past ? el("p", { class: "hint", text: `This outing was on ${fmtDay(t.at)}.` })
+      // Once it's started, an In stays In.
+      : started && (ans.get(me) || {}).answer === "in" ? el("p", { class: "hint", text: "You're In. Answers lock once the outing starts." })
       : el("section", { class: "card stack" }, el("h3", { text: "Are you in?" }), rsvpButtons(t)),
     isBoatOuting(t) ? boatsSection(t, past, me) : null,
     recapSection(t),
     tripBite(t),
-    el("section", { class: "card stack" }, people("in", "In"), people("maybe", "Maybe"), people("out", "Out"),
+    el("section", { class: "card stack" }, inPeople(), people("maybe", "Maybe"), people("out", "Out"),
       waiting.length && !past ? el("p", { class: "hint", text: `Not answered yet: ${waiting.join(", ")}` }) : null),
     canManage(t) ? el("div", { class: "row" },
       el("a", { class: "btn", href: `#/tedit/${id}`, text: "Edit" }),
@@ -199,7 +222,7 @@ function boatSheet(t, b) {
 
 /* What the people who were In caught during the outing. */
 function recapSection(t) {
-  const r = outingRecap(t, allCatches(), answersOf(t.id));
+  const r = outingRecap(t, allCatches(), presentRsvps().get(t.id) || new Map()); // no-shows weren't there
   if (!r.started) return null;
   const all = allCatches();
   // Short tags on the photos: a personal best, and a record (👑 league, 📜 all-time).

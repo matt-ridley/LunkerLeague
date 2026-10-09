@@ -49,3 +49,11 @@ test("the badge points are optional and must be sensible", async () => {
   await assertSucceeds(setDoc(doc(db, "scoring/b1"), version("admin2", { values: values({ badgePts: 1 }) })));
   await assertFails(setDoc(doc(db, "scoring/b2"), version("admin2", { values: values({ badgePts: -1 }) })));
 });
+
+test("points lost per no-show: optional, 0 to 1000", async () => {
+  const db = as(env, "admin2");
+  await assertSucceeds(setDoc(doc(db, "scoring/n1"), version("admin2", { values: values({ noShowPts: 1 }) })));
+  await assertSucceeds(setDoc(doc(db, "scoring/n2"), version("admin2", { values: values({ noShowPts: 0 }) })));
+  await assertFails(setDoc(doc(db, "scoring/n3"), version("admin2", { values: values({ noShowPts: -1 }) })));
+  await assertFails(setDoc(doc(db, "scoring/n4"), version("admin2", { values: values({ noShowPts: "1" }) })));
+});

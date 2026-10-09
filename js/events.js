@@ -265,6 +265,12 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     }
   }
 
+  // Marked a no-show for an outing you said you were In for.
+  for (const [tid, marks] of data.noShows || new Map()) {
+    const m = marks.get(me), t = trips.get(tid);
+    if (m && t) add({ id: `noshow:${tid}`, at: m.at || 0, icon: "🫥", href: `#/t/${tid}`, text: `${name(m.by)} marked you a no-show for ${t.title}` });
+  }
+
   // Head-to-head: your turn to answer, answers to your offers, results, vetoes; and other anglers' challenges.
   for (const ch of challengeList(data)) {
     const href = `#/h/${ch.id}`, st = challengeStatus(ch, now), mine = ch.from === me || ch.to === me;

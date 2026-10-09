@@ -1,7 +1,7 @@
 /* Leaders: angler rankings (points and titles), the league record for every species, and each species'
    leaderboard of personal bests. */
 import { el, avatar, fmtDay, fmtDate, fmtWeight, fmtLength, icon, fill, openSheet, closeSheet } from "./ui.js";
-import { store, memberName, uid, isAdmin } from "./cloud.js";
+import { store, memberName, uid, isAdmin, presentRsvps } from "./cloud.js";
 import { speciesRecords, speciesBoard, leagueStartOf } from "./stats.js";
 import { rankings, badgesFor, scoringTimeline, currentScoring, TITLES } from "./rank.js";
 import { crownStandings, crownScore } from "./crowns.js";
@@ -22,7 +22,7 @@ export function rankInput() {
   const input = {
     catches: [...store.catches.values()], derbies: store.derbies, entrants: store.entrants, versions: store.scoring,
     members: [...store.members.values()].filter(m => !m.suspended).map(m => m.id),
-    comments: store.comments, reactions, spots, trips: store.trips, rsvps: store.rsvps, leagueStart: leagueStartOf(store.league), series: store.series,
+    comments: store.comments, reactions, spots, trips: store.trips, rsvps: presentRsvps(), allRsvps: store.rsvps, noShows: store.noShows, tripBoats: store.boats, fleet: store.fleet, leagueStart: leagueStartOf(store.league), series: store.series,
     challenges: store.challenges, bets: store.bets, betPlayers: store.betPlayers, name: memberName,
     goals: [...store.goals.values()], skunks: [...store.skunks.values()],
   };
@@ -43,7 +43,8 @@ function finishedSoFar(now = Date.now()) {
 /* Badges are replayed from all the data too (some depend on crowns), so cache them the same way. */
 let badgeCache = { key: null, value: null };
 function badgesNow(input) {
-  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps, store.challenges, leagueStartOf(store.league), finishedSoFar()];
+  const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps, store.challenges, leagueStartOf(store.league), finishedSoFar(),
+    store.noShows, store.boats, store.fleet];
   if (!badgeCache.key || key.some((k, i) => k !== badgeCache.key[i])) badgeCache = { key, value: badgeTimeline(input) };
   return badgeCache.value;
 }
@@ -114,7 +115,7 @@ function rankView(main) {
       isAdmin() ? el("a", { class: "btn", href: "#/scoring", text: "Change points" }) : null));
 }
 
-const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "🐟 Records held", crown: "👑 Crowns held", badge: "🏅 Badges", derby: "🏁 Derbies", h2h: "⚔️ Head-to-head" };
+const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "🐟 Records held", crown: "👑 Crowns held", badge: "🏅 Badges", derby: "🏁 Derbies", h2h: "⚔️ Head-to-head", noshow: "🫥 No-shows" };
 function breakdownSheet(r, place) {
   const m = who(r.uid);
   const badges = badgesFor(r.uid, rankInput());
@@ -123,7 +124,7 @@ function breakdownSheet(r, place) {
     el("div", { class: "row" }, avatar(m, "lg"), el("div", {}, el("h2", { text: m.displayName }),
       el("div", { class: "rank-title", text: `${r.title} · #${place} · ${r.points} pts` }))),
     badges.length ? el("div", { class: "badge-row" }, ...badges.map(b => el("span", { class: "trophy", title: b.name }, el("span", { text: b.icon }), el("small", { text: b.name })))) : null,
-    el("dl", { class: "facts card" }, ...Object.entries(KIND).map(([k, label]) =>
+    el("dl", { class: "facts card" }, ...Object.entries(KIND).filter(([k]) => k !== "noshow" || r.byKind.noshow).map(([k, label]) =>
       el("div", { class: "fact" }, el("dt", { text: label }), el("dd", { text: `${Math.round(r.byKind[k] * 10) / 10} pts` })))),
     recent.length ? el("section", { class: "stack" }, el("h3", { text: "Latest points" }),
       el("ul", { class: "points-list" }, ...recent.map(e => el("li", {},
@@ -143,9 +144,10 @@ export function howPointsSheet() {
       el("li", { text: `🌈 ${v.speciesPts} for each species you catch for the first time` }),
       el("li", { text: `🐟 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board, and the same again on its length board (changes as records fall)` }),
       el("li", { text: `👑 ${v.crownPts} for each crown you hold right now (they move when someone passes you)` }),
-      el("li", { text: `🏅 ${v.badgePts} for each badge you earn (yours for good; ${BADGES.length} to collect)` }),
+      el("li", { text: `🏅 ${v.badgePts} for each badge you earn (yours for good; ${BADGES.length} to collect). The no-show badges are worth nothing` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),
       el("li", { text: `⚔️ ${v.h2hPts} for fishing a head-to-head challenge (at least one fish), ${v.h2hWinPts} more for winning it, and the winner takes the points staked (up to ${v.h2hMaxStake} each). A tie or a vetoed challenge moves nothing` }),
+      v.noShowPts ? el("li", { text: `🫥 ${v.noShowPts} taken off each time you're marked a no-show for an outing you said you were In for` }) : null,
       el("li", { text: "Disqualified catches and test derbies don't count." }),
       el("li", { text: `📜 Past catches (caught before the league start, ${fmtDay(leagueStartOf(store.league))}, or logged more than ${(store.league && store.league.graceDays) ?? 7} days late) count for personal bests and the all-time record boards only: no points, badges or crowns. Record points go to the best league catches.` })),
     el("h3", { text: "Titles" }),
@@ -167,7 +169,7 @@ function badgesView() {
   for (const e of earned) if (count.has(e.uid)) holders.get(e.badge.id).push(e);
   const v = currentScoring(scoringTimeline(store.scoring));
   return el("div", { class: "stack" },
-    el("p", { class: "muted", text: `Badges are kept for good${v.badgePts ? ` and worth ${v.badgePts} point${v.badgePts === 1 ? "" : "s"} each` : ""}. ${BADGES.length} to collect.` }),
+    el("p", { class: "muted", text: `Badges are kept for good${v.badgePts ? ` and worth ${v.badgePts} point${v.badgePts === 1 ? "" : "s"} each (the no-show ones are worth nothing)` : ""}. ${BADGES.length} to collect.` }),
     el("h3", { text: "Most badges" }),
     el("ol", { class: "board" }, ...rows.map(([u, n], i) => el("li", {},
       el("a", { class: "board-row" + (i < 3 && n > 0 ? ` top${i + 1}` : "") + (u === uid() ? " me" : ""), href: `#/u/${u}` },

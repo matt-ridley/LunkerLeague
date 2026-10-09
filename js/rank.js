@@ -22,6 +22,7 @@ export const DEFAULT_SCORING = {
   h2hPts: 1,            // for taking part in a head-to-head challenge (logging at least one fish)
   h2hWinPts: 3,         // bonus for winning one
   h2hMaxStake: 10,      // most points an angler can stake on one challenge
+  noShowPts: 1,         // points lost for each outing an angler said "In" to and didn't show up for
   titles: [0, 10, 25, 50, 100, 175, 275],
 };
 export const TITLES = ["Bait Bucket", "Minnow Wrangler", "Dock Dangler", "Weekend Warrior", "Lunker Hunter", "Hawg Boss", "Legend of the Lake"];
@@ -108,7 +109,17 @@ export function rankEvents(input) {
   // Badges: each one counts from when it was earned, with the values in effect then.
   for (const b of input.badges || badgeTimeline({ ...input, derbies: derbyMap })) {
     const v = scoringAt(line, b.at);
-    if (v.badgePts) events.push({ uid: b.uid, at: b.at, pts: v.badgePts, kind: "badge", label: `${b.badge.icon} ${b.badge.name} badge` });
+    if (v.badgePts && !b.badge.noPoints) events.push({ uid: b.uid, at: b.at, pts: v.badgePts, kind: "badge", label: `${b.badge.icon} ${b.badge.name} badge` });
+  }
+
+  // No-shows: points lost for each outing an angler said "In" to and didn't turn up for (from when it was marked).
+  for (const [tid, marks] of input.noShows || new Map()) {
+    const t = (input.trips || new Map()).get(tid);
+    if (!t) continue;
+    for (const [u, m] of marks) {
+      const v = scoringAt(line, m.at || 0);
+      if (v.noShowPts) events.push({ uid: u, at: m.at || 0, pts: -v.noShowPts, kind: "noshow", label: `🫥 No-show: ${t.title}` });
+    }
   }
 
   // Finished derbies (not cancelled, not tests): places, joining, and anglers beaten.
@@ -137,7 +148,7 @@ export function rankings(input, { since = -Infinity } = {}) {
   const events = rankEvents(input).filter(e => e.standing || e.at >= since);
   const cur = currentScoring(scoringTimeline(input.versions));
   const by = new Map();
-  const blank = u => ({ uid: u, points: 0, byKind: { catch: 0, limit: 0, species: 0, record: 0, crown: 0, badge: 0, derby: 0, h2h: 0 }, events: [] });
+  const blank = u => ({ uid: u, points: 0, byKind: { catch: 0, limit: 0, species: 0, record: 0, crown: 0, badge: 0, derby: 0, h2h: 0, noshow: 0 }, events: [] });
   for (const u of input.members || []) by.set(u, blank(u));
   for (const e of events) {
     if (!by.has(e.uid)) by.set(e.uid, blank(e.uid));

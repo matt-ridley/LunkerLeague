@@ -15,9 +15,9 @@ const ids = (uid, input) => badgesFor(uid, { derbies: [], entrants: new Map(), n
 const has = (uid, input, id) => ids(uid, input).includes(id);
 const whenEarned = (uid, input, id) => (badgeTimeline({ derbies: [], entrants: new Map(), now: NOW, ...input }).find(b => b.uid === uid && b.badge.id === id) || {}).at;
 
-test("63 badges with unique ids, the six originals kept", () => {
-  assert.equal(BADGES.length, 63);
-  assert.equal(new Set(BADGES.map(b => b.id)).size, 63);
+test("80 badges with unique ids, the six originals kept", () => {
+  assert.equal(BADGES.length, 80);
+  assert.equal(new Set(BADGES.map(b => b.id)).size, 80);
   for (const id of ["first", "ten", "champ", "release", "owl", "net"]) assert.ok(BADGES.some(b => b.id === id));
 });
 
@@ -128,4 +128,94 @@ test("royalty and long reign only count once 3 anglers are fishing", () => {
   const crowns3 = crownStandings({ catches: league, derbies: [], now: NOW });
   assert.equal(whenEarned("amy", { catches: league, crowns: crowns3 }, "royalty"), at(0, 6)); // cy made it 3 anglers
   assert.equal(whenEarned("amy", { catches: league, crowns: crowns3 }, "longReign"), at(0, 6) + 30 * DAY);
+});
+
+test("turning up: Present!, Old Reliable and Rock Solid at 5, 10 and 15 outings shown up to; no-shows don't count", () => {
+  const trips = new Map(), rsvps = new Map(), noShows = new Map();
+  for (let i = 0; i < 16; i++) {
+    const id = "t" + i;
+    trips.set(id, { id, uid: "plan", title: id, at: at(2, 1 + i, 6), endAt: at(2, 1 + i, 12), kind: "shore" });
+    rsvps.set(id, new Map([["amy", { answer: "in", at: 1 }]]));
+  }
+  noShows.set("t0", new Map([["amy", { by: "plan", at: at(2, 2) }]]));
+  const input = { catches: [], trips, rsvps, allRsvps: rsvps, noShows };
+  assert.equal(whenEarned("amy", input, "present5"), at(2, 6, 12));   // t1..t5 (t0 was a no-show)
+  assert.equal(whenEarned("amy", input, "reliable10"), at(2, 11, 12));
+  assert.equal(whenEarned("amy", input, "solid15"), at(2, 16, 12));
+  assert.equal(whenEarned("amy", input, "noShow1"), at(2, 2));
+  assert.ok(!has("amy", input, "noShow3"));
+});
+
+test("no-show badges at 1, 3 and 5 marks, and they're worth no points", () => {
+  const trips = new Map(), rsvps = new Map(), noShows = new Map();
+  for (let i = 0; i < 5; i++) {
+    const id = "t" + i;
+    trips.set(id, { id, uid: "plan", title: id, at: at(3, 1 + i, 6), endAt: at(3, 1 + i, 12), kind: "shore" });
+    rsvps.set(id, new Map([["bo", { answer: "in", at: 1 }]]));
+    noShows.set(id, new Map([["bo", { by: "plan", at: at(3, 1 + i, 13) }]]));
+  }
+  const input = { catches: [], trips, rsvps, allRsvps: rsvps, noShows };
+  assert.deepEqual(["noShow1", "noShow3", "noShow5"].map(id => whenEarned("bo", input, id)), [at(3, 1, 13), at(3, 3, 13), at(3, 5, 13)]);
+  for (const id of ["noShow1", "noShow3", "noShow5"]) assert.equal(BADGES.find(b => b.id === id).noPoints, true);
+  const row = rankings({ ...input, derbies: [], entrants: new Map(), members: ["bo"], now: NOW }).find(r => r.uid === "bo");
+  assert.equal(row.byKind.badge, 0);
+  assert.equal(row.byKind.noshow, -5 * DEFAULT_SCORING.noShowPts);
+});
+
+test("boat badges: Skipper, Admiral, Big Iron, Christening, Lucky Hull and Shore Pounder", () => {
+  const fleet = new Map([
+    ["b1", { id: "b1", uid: "amy", name: "Lund", createdAt: at(1, 1), lengthFt: 14 }],
+    ["b2", { id: "b2", uid: "amy", name: "Bass boat", createdAt: at(1, 5), hp: 225 }],
+    ["b3", { id: "b3", uid: "amy", name: "Canoe", createdAt: at(1, 9), retired: true }],
+  ]);
+  const catches = [
+    fish("bo", "Walleye", at(2, 1), { boatId: "b1", fishCount: 30 }),
+    fish("amy", "Perch", at(2, 2), { boatId: "b1", fishCount: 25 }),
+    ...Array.from({ length: 25 }, (_, i) => fish("cy", "Bluegill", at(4, 1, 6 + (i % 12)) + i * 60000)),
+  ];
+  const input = { catches, fleet };
+  assert.equal(whenEarned("amy", input, "skipper"), at(1, 1));
+  assert.equal(whenEarned("amy", input, "admiral"), at(1, 9));         // retired boats still count
+  assert.equal(whenEarned("amy", input, "bigIron"), at(1, 5));
+  assert.equal(whenEarned("bo", input, "christening"), at(2, 1));      // first fish ever from b1
+  assert.ok(!has("amy", input, "christening"));
+  assert.equal(whenEarned("amy", input, "luckyHull"), at(2, 2));       // 30 + 25 fish from b1, by everyone aboard
+  assert.ok(has("cy", input, "shorePounder"));
+  assert.ok(!has("bo", input, "shorePounder"));
+});
+
+test("record badges from boats: Record Deck for the owner, Little Boat, Big Fish for a record from a boat 14 ft or shorter", () => {
+  const fleet = new Map([["b1", { id: "b1", uid: "amy", name: "Tin", createdAt: 1, lengthFt: 14 }], ["b2", { id: "b2", uid: "amy", name: "Big", createdAt: 2, lengthFt: 20 }]]);
+  const catches = [
+    fish("bo", "Pike", at(2, 1), { boatId: "b1", weightOz: 160 }),
+    fish("cy", "Bass", at(2, 2), { boatId: "b2", weightOz: 64 }),
+  ];
+  const input = { catches, fleet };
+  assert.equal(whenEarned("amy", input, "recordDeck"), at(2, 1));
+  assert.equal(whenEarned("bo", input, "littleBoat"), at(2, 1));
+  assert.ok(!has("cy", input, "littleBoat"));
+});
+
+test("outing boat badges: Water Taxi, Hitchhiker and Full House", () => {
+  const trips = new Map(), rsvps = new Map(), tripBoats = new Map();
+  const owners = ["o1", "o2", "o3", "o4", "o5"];
+  for (let i = 0; i < 5; i++) {
+    const id = "t" + i, owner = owners[i];
+    trips.set(id, { id, uid: owner, title: id, at: at(5, 1 + i, 6), endAt: at(5, 1 + i, 12), kind: "boat" });
+    rsvps.set(id, new Map([[owner, { answer: "in", at: 1 }], ["hiker", { answer: "in", at: 1, boat: owner, seatAt: 1 }],
+      ["x" + i, { answer: "in", at: 1, boat: owner, seatAt: 2 }]]));
+    tripBoats.set(id, new Map([[owner, { seats: 2, at: 1 }]]));
+  }
+  // o1 takes 2 riders on 5 more outings: 2 + 10 seats given
+  for (let i = 0; i < 4; i++) {
+    const id = "u" + i;
+    trips.set(id, { id, uid: "o1", title: id, at: at(6, 1 + i, 6), endAt: at(6, 1 + i, 12), kind: "boat" });
+    rsvps.set(id, new Map([["o1", { answer: "in", at: 1 }], ["p", { answer: "in", at: 1, boat: "o1", seatAt: 1 }], ["q", { answer: "in", at: 1, boat: "o1", seatAt: 2 }]]));
+    tripBoats.set(id, new Map([["o1", { seats: 3, at: 1 }]]));
+  }
+  const input = { catches: [], trips, rsvps, allRsvps: rsvps, tripBoats };
+  assert.equal(whenEarned("hiker", input, "hitchhiker"), at(5, 5, 12));
+  assert.equal(whenEarned("o1", input, "fullHouse"), at(5, 1, 12));
+  assert.equal(whenEarned("o1", input, "waterTaxi"), at(6, 4, 12));     // 2 + 2 + 2 + 2 + 2 = 10th seat on u3
+  assert.ok(!has("o1", input, "hitchhiker"));
 });

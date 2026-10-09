@@ -5,6 +5,7 @@
 import { FIREBASE_CONFIG, FIREBASE_SDK } from "./config.js";
 import { outboxPut, outboxRemove, outboxAll } from "./outbox.js";
 import { leagueStartOf } from "./stats.js";
+import { attended } from "./noshows.js";
 
 /* Add ?emulator to a localhost address to use the local Firebase emulator (npm run emulators) instead of the real project. */
 export const USE_EMULATOR = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).has("emulator");
@@ -56,6 +57,7 @@ export const store = {
   series: new Map(),      // id -> season series (Angler of the Year)
   rsvps: new Map(),       // trip id -> Map(uid -> { answer: "in" | "maybe" | "out", at, boat, seatAt })
   boats: new Map(),       // trip id -> Map(owner uid -> { seats, name, at })
+  noShows: new Map(),     // trip id -> Map(uid -> { by, at }): said "In" and didn't show up
 };
 
 const subs = new Set();
@@ -281,6 +283,18 @@ function refreshMemberListeners() {
     store.boats = by;
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "noShows"), OPTS, snap => {
+    seen("noShows", snap);
+    const by = new Map();
+    for (const d of snap.docs) {
+      const tripId = d.ref.parent.parent && d.ref.parent.parent.id;
+      if (!tripId) continue;
+      if (!by.has(tripId)) by.set(tripId, new Map());
+      by.get(tripId).set(d.id, d.data());
+    }
+    store.noShows = by;
+    emit();
+  }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "rsvps"), OPTS, snap => {
     seen("rsvps", snap);
     const by = new Map();
@@ -377,7 +391,7 @@ function resetSocial() {
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
   store.skunks = new Map(); store.weather = new Map(); store.box = new Map(); store.goals = new Map(); store.fleet = new Map();
-  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
+  store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.noShows = new Map(); store.series = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
 }
 
 function syncError(e) {
@@ -808,12 +822,26 @@ export function setBoat(tripId, seats, name = "", boatId = null) {
   write(setDoc(ref, { seats, name: String(name).trim().slice(0, 40), at: prev ? prev.at : Date.now(), boatId: boatId || null }));
   setSeat(tripId, null); // In, and not in anyone else's seat
 }
+/* Marks someone who said "In" as a no-show for an outing, or takes it back. */
+export function setNoShow(tripId, who, on) {
+  const { setDoc, deleteDoc, doc } = cloud.api;
+  const ref = doc(cloud.db, "trips", tripId, "noShows", who);
+  write(on ? setDoc(ref, { by: uid(), at: Date.now() }) : deleteDoc(ref));
+}
+/* The answers without the no-shows: who was really there (worked out once per change). */
+let presentCache = { rsvps: null, noShows: null, value: null };
+export function presentRsvps() {
+  if (presentCache.rsvps !== store.rsvps || presentCache.noShows !== store.noShows)
+    presentCache = { rsvps: store.rsvps, noShows: store.noShows, value: attended(store.rsvps, store.noShows) };
+  return presentCache.value;
+}
 /* Deletes a trip, its boats and everyone's answers in one go. */
 export function deleteTrip(id) {
   const { writeBatch, doc } = cloud.api;
   const b = writeBatch(cloud.db);
   for (const who of (store.rsvps.get(id) || new Map()).keys()) b.delete(doc(cloud.db, "trips", id, "rsvps", who));
   for (const owner of (store.boats.get(id) || new Map()).keys()) b.delete(doc(cloud.db, "trips", id, "boats", owner));
+  for (const who of (store.noShows.get(id) || new Map()).keys()) b.delete(doc(cloud.db, "trips", id, "noShows", who));
   b.delete(doc(cloud.db, "trips", id));
   write(b.commit());
 }

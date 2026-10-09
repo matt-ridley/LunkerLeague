@@ -564,6 +564,19 @@ service cloud.firestore {
     // "Who's out Saturday?": anyone can plan one; its planner (or an admin) can change or delete it.
     // Each member answers In / Maybe / Out in their own doc, and on a boat outing can take a seat on a boat.
     function tripPath(id) { return /databases/$(database)/documents/trips/$(id); }
+    function rsvpPath(tid, who) { return /databases/$(database)/documents/trips/$(tid)/rsvps/$(who); }
+    function tripStarted(tid) { return request.time.toMillis() >= get(tripPath(tid)).data.at; }
+    // A no-show: someone who said "In" (not you), marked by the outing's planner, an admin, or on a boat outing the
+    // captain of the boat they had a seat on; from the start until a week after it's over (a day after it starts
+    // when there's no "back by" time).
+    function canMarkNoShow(tid, who) {
+      let t = get(tripPath(tid)).data;
+      let r = get(rsvpPath(tid, who)).data;
+      let end = t.get("endAt", null) == null ? t.at + 86400000 : t.endAt;
+      return who != me() && r.answer == "in"
+        && request.time.toMillis() >= t.at && request.time.toMillis() <= end + 7 * 86400000
+        && (t.uid == me() || isAdmin() || (t.get("kind", "shore") == "boat" && r.get("boat", "") == me()));
+    }
     function validTrip(t) {
       return t.keys().hasOnly(["uid", "title", "at", "place", "notes", "createdAt", "kind", "endAt"])
         && t.uid is string
@@ -588,10 +601,15 @@ service cloud.firestore {
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
       match /rsvps/{who} {
         allow read: if isMember();
-        allow create, update: if isMember() && who == me() && exists(tripPath(tid))
+        allow create: if isMember() && who == me() && exists(tripPath(tid))
           && validRsvp(request.resource.data);
-        // Yourself, or the trip's planner or an admin clearing out a deleted trip.
-        allow delete: if isMember() && (who == me() || isAdmin() || !exists(tripPath(tid)) || get(tripPath(tid)).data.uid == me());
+        // Once the outing starts, an "In" stays In (so nobody can dodge being marked a no-show).
+        allow update: if isMember() && who == me() && exists(tripPath(tid))
+          && validRsvp(request.resource.data)
+          && !(resource.data.answer == "in" && request.resource.data.answer != "in" && tripStarted(tid));
+        // Yourself (not an "In" once it's started), or the trip's planner or an admin clearing out a deleted trip.
+        allow delete: if isMember() && ((who == me() && !(resource.data.answer == "in" && exists(tripPath(tid)) && tripStarted(tid)))
+          || isAdmin() || !exists(tripPath(tid)) || get(tripPath(tid)).data.uid == me());
       }
       // Boats: anyone can offer theirs (spare seats, not counting the owner); only the owner changes it. The owner,
       // the outing's planner or an admin can take it off (or anyone, once the outing is deleted).
@@ -605,8 +623,18 @@ service cloud.firestore {
           && request.resource.data.name is string && request.resource.data.name.size() <= 40 && request.resource.data.at is number;
         allow delete: if isMember() && (owner == me() || isAdmin() || !exists(tripPath(tid)) || get(tripPath(tid)).data.uid == me());
       }
+      // No-shows: see canMarkNoShow.
+      match /noShows/{who} {
+        allow read: if isMember();
+        allow create, update: if isMember() && exists(tripPath(tid)) && exists(rsvpPath(tid, who)) && canMarkNoShow(tid, who)
+          && request.resource.data.keys().hasOnly(["by", "at"]) && request.resource.data.by == me() && request.resource.data.at is number;
+        // Undone by the same people, or cleared out by the planner or an admin when the outing is deleted.
+        allow delete: if isMember() && (!exists(tripPath(tid)) || isAdmin() || get(tripPath(tid)).data.uid == me()
+          || (exists(rsvpPath(tid, who)) && canMarkNoShow(tid, who)));
+      }
     }
     match /{path=**}/rsvps/{who} { allow read: if isMember(); }
+    match /{path=**}/noShows/{who} { allow read: if isMember(); }
     match /{path=**}/boats/{owner} { allow read: if isMember(); }
 
     // ---------- Season series (Angler of the Year) ----------
@@ -760,7 +788,8 @@ service cloud.firestore {
     function pts(n) { return n is number && n >= 0 && n <= 1000; }
     function validScoring(v) {
       return v.keys().hasOnly(["catchPts", "dailyCap", "limitPts", "speciesPts", "recordPts", "crownPts", "badgePts", "derbyPts", "participationPts", "beatPts", "titles",
-                              "h2hPts", "h2hWinPts", "h2hMaxStake"])
+                              "h2hPts", "h2hWinPts", "h2hMaxStake", "noShowPts"])
+        && (!("noShowPts" in v) || pts(v.noShowPts))
         && (!("h2hPts" in v) || pts(v.h2hPts)) && (!("h2hWinPts" in v) || pts(v.h2hWinPts)) && (!("h2hMaxStake" in v) || pts(v.h2hMaxStake))
         && (!("limitPts" in v) || pts(v.limitPts)) && (!("crownPts" in v) || pts(v.crownPts)) && (!("badgePts" in v) || pts(v.badgePts))
         && pts(v.catchPts) && pts(v.dailyCap) && pts(v.speciesPts) && pts(v.participationPts) && pts(v.beatPts)
