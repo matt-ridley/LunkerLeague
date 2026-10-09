@@ -13,6 +13,7 @@ import { renderAwards } from "./awardspage.js";
 import { renderSystem } from "./systempage.js";
 import { renderDock, renderAnglers, renderTackleBoxes } from "./dockpage.js";
 import { renderTank } from "./fishtankpage.js";
+import { clearBrowse } from "./browse.js";
 import { statusText } from "./sysinfo.js";
 import { phoneHost, showPhoneFrame, switchToPhone } from "./viewmode.js";
 import { renderAdmin } from "./admin.js";
@@ -105,6 +106,8 @@ function render(force = false) {
   if (changed && r.inPlace) $("main").replaceChildren(); // start the in-place screen fresh
   lastKey = key;
   if (inApp) r.render(main, r.arg, r.arg2); else renderGate(main);
+  // Stepping through catches only lasts while on catch pages (the list got its chance to scroll back to the last one).
+  if (changed && !(inApp && r.name === "c")) clearBrowse();
   if (changed) window.scrollTo(0, 0);
   if (inApp && !sheetOpen()) maybeShowRejected();
 }

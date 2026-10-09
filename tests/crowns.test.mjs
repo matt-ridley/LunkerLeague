@@ -75,12 +75,11 @@ test("explorer counts different shared spots only (250 m apart)", () => {
   assert.equal(st.find(s => s.crown.id === "explorer").board.length, 1);
 });
 
-test("social crowns: fish stories received, hype given (not on your own catches)", () => {
+test("social crowns: hype given (not on your own catches)", () => {
   const amyFish = fish("amy", "Walleye", T0);
   const reactions = new Map([[amyFish.id, new Map([["bo", { emojis: ["🤥", "😂"], at: T0 + H }], ["cy", { emojis: ["🤥"], at: T0 + 2 * H }], ["amy", { emojis: ["🔥"], at: T0 + H }]])]]);
   const comments = new Map([[amyFish.id, [{ uid: "cy", at: T0 + 3 * H }, { uid: "cy", at: T0 + 4 * H }, { uid: "amy", at: T0 + 5 * H }]]]);
   const st = crownStandings(input({ catches: [amyFish], reactions, comments }));
-  assert.equal(holderOf(st, "fishStory"), "amy"); assert.equal(scoreOf(st, "fishStory"), 2);
   assert.equal(holderOf(st, "hypeMan"), "cy"); assert.equal(scoreOf(st, "hypeMan"), 3); // bo 2 (two emoji), cy 1 + 2 comments
 });
 
@@ -100,7 +99,7 @@ test("derby crowns: king, captain, golden net and skunk; test derbies don't coun
   assert.equal(holderOf(st, "skunkMaster"), "cy");
 });
 
-test("there are 17 crowns with unique ids", () => {
-  assert.equal(CROWNS.length, 17);
-  assert.equal(new Set(CROWNS.map(c => c.id)).size, 17);
+test("there are 16 crowns with unique ids", () => {
+  assert.equal(CROWNS.length, 16);
+  assert.equal(new Set(CROWNS.map(c => c.id)).size, 16);
 });

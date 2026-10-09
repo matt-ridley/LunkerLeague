@@ -1,6 +1,6 @@
 /* Catches: logging and editing, the feed, a catch's own page, and the personal-best wall. */
-import { el, field, avatar, fmtDate, fmtDay, fmtAgo, fmtWeight, fmtLength, toast, confirmButton, icon, openSheet, closeSheet, fill } from "./ui.js";
-import { store, uid, memberName, isAdmin, clearWeather, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, setCatchFocus, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
+import { el, field, avatar, fmtDate, fmtDay, fmtAgo, fmtWeight, fmtLength, toast, confirmButton, icon, openSheet, closeSheet, sheetOpen, fill } from "./ui.js";
+import { store, uid, memberName, isAdmin, clearWeather, toggleReaction, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, setCatchFocus, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
 import { pickOnMap } from "./mappick.js";
@@ -21,6 +21,7 @@ import { myBoats, defaultBoat } from "./fleet.js";
 import { itemSheet, itemThumb } from "./tackleboxpage.js";
 import { focusStyle } from "./thumbfocus.js";
 import { pickFocus } from "./focuspick.js";
+import { browseFrom, returningTo, scrollBackTo, browseSpot, markViewed } from "./browse.js";
 import { TECHNIQUES, cleanLure, parseDepth, hasTackle, tackleText, lureSuggestions } from "./tackle.js";
 
 const allCatches = () => [...store.catches.values()];
@@ -108,6 +109,9 @@ export function renderFeed(main) {
   const head = el("div", { class: "feed-head" });
   const tools = el("div", { class: "feed-tools" });
   const results = el("div", { class: "feed-results" });
+  // Opening a catch lets you step through the feed's catches as filtered; coming back scrolls to the last one viewed.
+  let ids = [], back = returningTo("feed");
+  browseFrom(results, "feed", () => ids);
 
   redrawFeed = () => {
     const n = activeCount(filters);
@@ -122,6 +126,8 @@ export function renderFeed(main) {
     // Newest: ordered by when each catch was posted, so a fish logged late, or a throwback, still shows up at the top.
     const list = filters.sort !== "new" ? catches.map(c => ({ c }))
       : [...catches.map(c => ({ at: postedAt(c), c })), ...loose.map(e => ({ at: e.at, e }))].sort((a, b) => b.at - a.at);
+    ids = list.filter(x => x.c).map(x => x.c.id);
+    if (back) { const i = list.findIndex(x => x.c && x.c.id === back); if (i >= feedLimit) feedLimit = Math.ceil((i + 1) / 30) * 30; }
     // Grouped under a header for each day (by when it was posted); a size sort is one ranked list.
     const cards = [];
     let day = null;
@@ -146,6 +152,8 @@ export function renderFeed(main) {
   };
   redrawFeed();
   fill(main, input ? fishFinder(input, me) : null, chatRow(), head, tools, results);
+  scrollBackTo(back);
+  back = null;
 }
 
 /* The way in to the league chat, with how many new messages are waiting. */
@@ -287,13 +295,19 @@ export function renderCatch(main, id) {
   }
   const all = allCatches(), mine = c.uid === uid();
   const m = store.members.get(c.uid) || { id: c.uid, displayName: memberName(c.uid) };
-  const pb = isPersonalBest(c, all), rec = recordKinds(c, all), spot = store.spots.get(c.id);
+  const pb = isPersonalBest(c, all), rec = recordKinds(c, all), spotDoc = store.spots.get(c.id);
+  // Opened from the Fish Tank or the feed: step to the next or previous fish in that list.
+  const spot = browseSpot(c.id, x => store.catches.has(x));
+  if (spot) { markViewed(c.id); browseKeys(); }
 
   const img = el("img", { class: "catch-photo", src: cachedPhoto(c.id) || c.thumb, alt: `${c.species} caught by ${m.displayName}` });
   const note = el("p", { class: "photo-note hint" });
-  const photoBox = el("button", { class: "photo-box", type: "button", "aria-label": "View photo full screen", onclick: () => viewer(img.src) }, img);
+  const photoBox = el("button", { class: "photo-box", type: "button", "aria-label": "View photo full screen. Double-tap for 🔥" }, img);
+  photoGestures(photoBox, c, spot, () => viewer(img.src));
   loadPhoto(c.id).then(src => { if (src) img.src = src; })
     .catch(() => { note.textContent = "Showing a small copy. The full photo loads when you have signal."; });
+  // The fish either side load now, so stepping to them is quick (and they're kept for when there's no signal).
+  if (spot) for (const n of [spot.prev, spot.next]) if (n && !cachedPhoto(n)) loadPhoto(n).catch(() => {});
 
   const parts = [];
   // Shown for a minute after saving, so it survives the redraw when the server confirms the catch.
@@ -304,20 +318,23 @@ export function renderCatch(main, id) {
       el("h2", { text: prev ? "New personal best!" : `First ${c.species}!` }),
       el("p", { text: prev ? `Beats your old best of ${sizeText(prev)}.` : "That's your PB to beat." })));
   }
+  if (spot) parts.push(browseBar(spot));
   parts.push(photoBox, note,
     el("section", { class: "catch-head" },
       el("h2", { text: c.species }),
       sizeText(c) ? el("div", { class: "catch-size big", text: shownSize(c) }) : el("div", { class: "muted", text: "Not measured" }),
+      el("div", { class: "muted small", text: `${m.displayName} · ${fmtDate(c.caughtAt)}` }),
       el("div", { class: "badges" },
         rec.includes("weight") ? el("span", { class: "badge record", text: c.past ? "📜 All-time heaviest" : "👑 Heaviest in the league" }) : null,
         rec.includes("length") ? el("span", { class: "badge record", text: c.past ? "📜 All-time longest" : "👑 Longest in the league" }) : null,
         pb ? el("span", { class: "badge pb", text: `${mine ? "Your" : "Their"} PB` }) : null,
         isStringer(c) && c.limit ? el("span", { class: "badge limit", text: "🪝 Limited out" }) : null,
         store.pending.has(c.id) ? el("span", { class: "badge wait", text: "⏳ Waiting for signal" }) : null)),
+    reactionBar(c.id),
     derbyBox(c),
     el("a", { class: "member-row card", href: `#/u/${c.uid}` }, avatar(m),
       el("div", { class: "grow" }, el("div", { class: "name", text: m.displayName }), el("div", { class: "muted small", text: "View profile" }))),
-    el("dl", { class: "facts card" },
+    detailsBox(el("dl", { class: "facts" },
       fact("Caught", fmtDate(c.caughtAt)),
       weatherFact(c),
       fact("Moon", moonText(c.caughtAt)),
@@ -337,18 +354,104 @@ export function renderCatch(main, id) {
       c.notes ? fact("Notes", c.notes) : null,
       c.captain || c.netman ? fact("Boat crew", crewText(c)) : null,
       c.enteredBy ? fact("Entered by", `${memberName(c.enteredBy)} (organiser)`) : null,
-      fact("Spot", spotView(c, spot, mine))));
+      fact("Spot", spotView(c, spotDoc, mine)))));
 
-  parts.push(reactionBar(c.id), commentsSection(c));
+  parts.push(commentsSection(c));
   if (mine || isAdmin() || c.enteredBy === uid()) {
     parts.push(el("div", { class: "row" },
       (mine || c.enteredBy === uid()) && !lockedEntry(c) ? el("a", { class: "btn", href: `#/log/${c.id}`, text: "Edit" }) : null,
       // Allowed any time, even on a closed derby entry: it only moves the thumbnail.
       mine || c.enteredBy === uid() ? el("button", { class: "btn", type: "button", text: "🎯 Thumbnail",
         onclick: () => pickFocus(c.thumb, c.focus, f => { setCatchFocus(c.id, f); toast("Thumbnail updated."); }) }) : null,
-      confirmButton("Delete", "Tap again to delete", () => { deleteCatch(c); location.hash = "#/feed"; toast("Catch deleted."); })));
+      confirmButton("Delete", "Tap again to delete", () => {
+        deleteCatch(c);
+        // Browsing: carry on to the next fish (or the one before) instead of leaving.
+        const to = spot && (spot.next || spot.prev);
+        if (to) location.replace(`#/c/${to}`); else location.hash = "#/feed";
+        toast("Catch deleted.");
+      })));
   }
   fill(main, ...parts);
+}
+
+/* ---------- Stepping through catches (browse.js keeps the list) ---------- */
+// A step replaces this page in the history, so Back goes straight to the list rather than through every fish.
+const step = (spot, dir) => {
+  const to = dir > 0 ? spot.next : spot.prev;
+  if (to) location.replace(`#/c/${to}`);
+  else toast(dir > 0 ? `That's all ${spot.n}.` : "That's the first one.");
+};
+
+/* ‹ 12 of 47 › over the photo. */
+function browseBar(spot) {
+  const arrow = (dir, label, path) => el("button", { class: "ff-arrow", type: "button", "aria-label": label,
+    disabled: !(dir > 0 ? spot.next : spot.prev), onclick: () => step(spot, dir), html: CHEVRON(path) });
+  return el("nav", { class: "browse-bar", "aria-label": "Step through catches" },
+    arrow(-1, "Previous catch", "m15 18-6-6 6-6"),
+    el("span", { class: "muted small", text: `${spot.i + 1} of ${spot.n}` }),
+    arrow(1, "Next catch", "m9 18 6-6-6-6"));
+}
+
+/* The photo: tap for full screen, double-tap for 🔥, and when browsing, swipe left or right for the next fish. */
+function photoGestures(box, c, spot, open) {
+  let down = null, swiped = false, lastTap = 0, timer = 0;
+  if (spot) {
+    box.classList.add("swipeable");
+    box.addEventListener("pointerdown", e => { down = { x: e.clientX, y: e.clientY }; swiped = false; });
+    box.addEventListener("pointercancel", () => { down = null; });
+    box.addEventListener("pointerup", e => {
+      if (!down) return;
+      const dx = e.clientX - down.x, dy = e.clientY - down.y;
+      down = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > 1.5 * Math.abs(dy)) { swiped = true; step(spot, dx < 0 ? 1 : -1); }
+    });
+  }
+  box.addEventListener("click", () => {
+    if (swiped) { swiped = false; return; }
+    const now = Date.now();
+    if (now - lastTap < 320) { clearTimeout(timer); lastTap = 0; fire(c, box); return; }
+    lastTap = now;
+    timer = setTimeout(open, 320);
+  });
+}
+
+/* Double-tap: adds your 🔥 (never takes it away) with a quick burst. The burst sits on the page, not the photo, since
+   the reaction redraws the catch page straight away. */
+function fire(c, box) {
+  const mine = ((store.reactions.get(c.id) || new Map()).get(uid())) || [];
+  if (!mine.includes("🔥")) toggleReaction(c.id, "🔥");
+  const r = box.getBoundingClientRect();
+  const burst = el("div", { class: "fire-burst", "aria-hidden": "true", text: "🔥", style: `left:${r.left + r.width / 2}px;top:${r.top + r.height / 2}px` });
+  document.body.append(burst);
+  setTimeout(() => burst.remove(), 800);
+}
+
+/* ← and → step through catches on a computer. Set up once. */
+let keysOn = false;
+function browseKeys() {
+  if (keysOn) return;
+  keysOn = true;
+  document.addEventListener("keydown", e => {
+    if (!["ArrowLeft", "ArrowRight"].includes(e.key) || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (!location.hash.startsWith("#/c/") || sheetOpen() || document.querySelector(".viewer")) return;
+    const a = document.activeElement;
+    if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+    const spot = browseSpot(location.hash.split("/")[2], x => store.catches.has(x));
+    if (!spot) return;
+    e.preventDefault();
+    step(spot, e.key === "ArrowRight" ? 1 : -1);
+  });
+}
+
+/* The facts fold away under Details, so the photo, reactions and comments sit close together. The phone remembers
+   whether it's open. */
+const DETAILS = "lunker-details-open";
+function detailsBox(facts) {
+  let open = false;
+  try { open = localStorage.getItem(DETAILS) === "1"; } catch {}
+  const box = el("details", { class: "card details-card", open }, el("summary", { text: "Details" }), facts);
+  box.addEventListener("toggle", () => { try { localStorage.setItem(DETAILS, box.open ? "1" : "0"); } catch {} });
+  return box;
 }
 
 /* What the organiser approved: changing any of it on an approved entry takes the approval away (the rules check the same). */
