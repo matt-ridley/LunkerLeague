@@ -3,7 +3,8 @@
    Season 1 is 2027. Pure functions on plain data. */
 import { rankEvents, rankTable, TITLES } from "./rank.js";
 
-export const FIRST_SEASON = 2027;
+import { FIRST_SEASON } from "./config.js";
+export { FIRST_SEASON };
 
 export const seasonOf = ms => new Date(ms).getFullYear();
 export const seasonRange = year => ({ from: new Date(year, 0, 1).getTime(), to: new Date(year, 11, 31, 23, 59, 59, 999).getTime() });
@@ -67,4 +68,15 @@ export function seasonChampions(tables, now = Date.now()) {
   return [...tables.years].filter(([y]) => seasonOver(y, now)).sort((a, b) => b[0] - a[0])
     .map(([year, rows]) => ({ year, preseason: isPreseason(year), podium: rows.filter(r => r.points > 0).slice(0, 3).map(r => ({ uid: r.uid, points: r.points })) }))
     .filter(s => s.podium.length);
+}
+
+/* The Official Pot Lickers: every angler who logged a fish in the Preseason (league catches, not disqualified), in
+   the order of their first fish: [{ uid, at }]. One time only: the list closes when the Preseason ends. */
+export function potLickers(catches) {
+  const first = new Map();
+  for (const c of catches) {
+    if (c.dq || c.past || !isPreseason(seasonOf(c.caughtAt))) continue;
+    if (!first.has(c.uid) || c.caughtAt < first.get(c.uid)) first.set(c.uid, c.caughtAt);
+  }
+  return [...first].map(([uid, at]) => ({ uid, at })).sort((a, b) => a.at - b.at || a.uid.localeCompare(b.uid));
 }

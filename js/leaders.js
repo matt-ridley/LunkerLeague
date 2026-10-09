@@ -6,7 +6,7 @@ import { speciesRecords, speciesBoard, seasonCatches, leagueStartOf } from "./st
 import { seasonTables, seasonYears, seasonOf, seasonName, isPreseason, careerBest, FIRST_SEASON } from "./season.js";
 import { badgesFor, scoringTimeline, currentScoring, TITLES } from "./rank.js";
 import { crownSeasons, allSeasonCrowns, crownScore, CROWNS } from "./crowns.js";
-import { badgeTimeline, BADGES } from "./badges.js";
+import { badgeTimeline, BADGES, SEASON_BADGES, CAREER_BADGES } from "./badges.js";
 import { closesAt as derbyClosesAt } from "./derby.js";
 import { closesAt as h2hClosesAt } from "./h2h.js";
 import { focusStyle } from "./thumbfocus.js";
@@ -26,6 +26,7 @@ export function rankInput() {
     comments: store.comments, reactions, spots, trips: store.trips, rsvps: presentRsvps(), allRsvps: store.rsvps, noShows: store.noShows, tripBoats: store.boats, fleet: store.fleet, leagueStart: leagueStartOf(store.league), series: store.series,
     challenges: store.challenges, bets: store.bets, betPlayers: store.betPlayers, name: memberName,
     goals: [...store.goals.values()], skunks: [...store.skunks.values()],
+    joins: new Map([...store.members.values()].map(m => [m.id, m.joinedAt || 0])), // for Bless Your Bonnet
   };
   input.crowns = crownsNow(input);
   input.crownHistory = allSeasonCrowns(crownSeasonsNow(input));
@@ -46,7 +47,7 @@ function finishedSoFar(now = Date.now()) {
 let badgeCache = { key: null, value: null };
 function badgesNow(input) {
   const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps, store.challenges, leagueStartOf(store.league), finishedSoFar(),
-    store.noShows, store.boats, store.fleet, seasonOf(Date.now())];
+    store.noShows, store.boats, store.fleet, store.members, seasonOf(Date.now())];
   if (!badgeCache.key || key.some((k, i) => k !== badgeCache.key[i])) badgeCache = { key, value: badgeTimeline(input) };
   return badgeCache.value;
 }
@@ -74,7 +75,7 @@ export function renderLeaders(main, speciesArg, byArg) {
     el("button", { type: "button", "aria-pressed": String(leadersTab === k), text: label, onclick: () => { leadersTab = k; renderLeaders(main); } })));
   if (leadersTab === "rank") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, rankView(main));
   if (leadersTab === "crowns") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, crownsView(main));
-  if (leadersTab === "badges") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, badgesView());
+  if (leadersTab === "badges") return fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, badgesView(main));
   fill(main, el("h2", { class: "page-title", text: "Leaders" }), tabs, recordsView(main, all));
 }
 
@@ -190,7 +191,7 @@ export function howPointsSheet() {
       el("li", { text: `🌈 ${v.speciesPts} for each species you catch for the first time in a season` }),
       el("li", { text: `🐟 ${v.recordPts.join(" / ")} for holding 1st / 2nd / 3rd on a species' weight board this season, and the same again on its length board (changes as records fall; the boards start again every January 1)` }),
       el("li", { text: `👑 ${v.crownPts} for each crown you hold right now (they move when someone passes you, and start again every season)` }),
-      el("li", { text: `🏅 ${v.badgePts} for each badge you earn (yours for good; ${BADGES.length} to collect). The no-show badges are worth nothing` }),
+      el("li", { text: `🏅 ${v.badgePts} for each badge you earn: ${SEASON_BADGES.length} season badges (earned again every season, worth points each time) and ${CAREER_BADGES.length} career badges (earned once). The no-show badges are worth nothing` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),
       el("li", { text: `⚔️ ${v.h2hPts} for fishing a head-to-head challenge (at least one fish), ${v.h2hWinPts} more for winning it, and the winner takes the points staked (up to ${v.h2hMaxStake} each). A tie or a vetoed challenge moves nothing` }),
       v.noShowPts ? el("li", { text: `🫥 ${v.noShowPts} taken off each time you're marked a no-show for an outing you said you were In for` }) : null,
@@ -203,49 +204,56 @@ export function howPointsSheet() {
 }
 
 /* ---------- Badges ---------- */
-/* Who has the most badges, then every badge with how many anglers have it (tap one for who and when). */
-function badgesView() {
+/* A season's badges: who has the most, then every season badge with how many anglers earned it that season, then
+   the career badges (kept for good). Tap one for who and when. */
+function badgesView(main) {
   if (!store.catchesLoaded) return el("p", { class: "loading", text: "Loading…" });
-  const earned = rankInput().badges;
+  const year = pickedSeason(false), earned = rankInput().badges;
   const members = [...store.members.values()].filter(m => !m.suspended);
   const count = new Map(members.map(m => [m.id, 0]));
-  for (const b of earned) if (count.has(b.uid)) count.set(b.uid, count.get(b.uid) + 1);
+  const season = earned.filter(b => b.season === year), career = earned.filter(b => b.season == null);
+  for (const b of season) if (count.has(b.uid)) count.set(b.uid, count.get(b.uid) + 1);
   const rows = [...count].sort((a, b) => b[1] - a[1] || who(a[0]).displayName.localeCompare(who(b[0]).displayName));
   const holders = new Map(BADGES.map(b => [b.id, []]));
-  for (const e of earned) if (count.has(e.uid)) holders.get(e.badge.id).push(e);
+  for (const e of [...season, ...career]) if (count.has(e.uid)) holders.get(e.badge.id).push(e);
   const v = currentScoring(scoringTimeline(store.scoring));
+  const card = b => {
+    const list = holders.get(b.id), mine = list.some(e => e.uid === uid());
+    return el("button", { type: "button", class: "crown-card" + (mine ? " mine" : ""), onclick: () => badgeHoldersSheet(b, list, b.career ? null : year) },
+      el("span", { class: "crown-icon", text: b.icon }),
+      el("span", { class: "grow" },
+        el("b", { class: "crown-name", text: b.name + (mine ? " ✓" : "") }),
+        el("span", { class: "muted small", text: b.desc }),
+        list.length ? el("span", { class: "crown-holder" }, ...list.slice(0, 6).map(e => avatar(who(e.uid), "xs")),
+          el("span", { class: "muted small", text: `${list.length} of ${members.length} angler${members.length === 1 ? "" : "s"}` }))
+          : el("span", { class: "muted small", text: "Nobody yet" })));
+  };
   return el("div", { class: "stack" },
-    el("p", { class: "muted", text: `Badges are kept for good${v.badgePts ? ` and worth ${v.badgePts} point${v.badgePts === 1 ? "" : "s"} each (the no-show ones are worth nothing)` : ""}. ${BADGES.length} to collect.` }),
-    el("h3", { text: "Most badges" }),
+    seasonPicker(main, year),
+    el("p", { class: "muted", text: `Season badges are earned within one season and can be earned again every season (January 1 starts them all again). Career badges are earned once and kept for good.${v.badgePts ? ` Each one is worth ${v.badgePts} point${v.badgePts === 1 ? "" : "s"} in the season it's earned (the no-show ones are worth nothing).` : ""}` }),
+    el("h3", { text: `Most badges: ${seasonName(year)}` }),
     el("ol", { class: "board" }, ...rows.map(([u, n], i) => el("li", {},
       el("a", { class: "board-row" + (i < 3 && n > 0 ? ` top${i + 1}` : "") + (u === uid() ? " me" : ""), href: `#/u/${u}` },
         el("span", { class: "rank", text: n > 0 && MEDALS[i] ? MEDALS[i] : String(i + 1) }), avatar(who(u)),
         el("div", { class: "grow" }, el("div", { class: "name", text: who(u).displayName })),
-        el("b", { class: "board-size", text: `${n} of ${BADGES.length}` }))))),
-    el("h3", { text: "All badges" }),
-    el("div", { class: "card-list" }, ...BADGES.map(b => {
-      const list = holders.get(b.id), mine = list.some(e => e.uid === uid());
-      return el("button", { type: "button", class: "crown-card" + (mine ? " mine" : ""), onclick: () => badgeHoldersSheet(b, list) },
-        el("span", { class: "crown-icon", text: b.icon }),
-        el("span", { class: "grow" },
-          el("b", { class: "crown-name", text: b.name + (mine ? " ✓" : "") }),
-          el("span", { class: "muted small", text: b.desc }),
-          list.length ? el("span", { class: "crown-holder" }, ...list.slice(0, 6).map(e => avatar(who(e.uid), "xs")),
-            el("span", { class: "muted small", text: `${list.length} of ${members.length} angler${members.length === 1 ? "" : "s"}` }))
-            : el("span", { class: "muted small", text: "Nobody yet" })));
-    })));
+        el("b", { class: "board-size", text: `${n} of ${SEASON_BADGES.length}` }))))),
+    el("h3", { text: `Season badges (${SEASON_BADGES.length})` }),
+    el("div", { class: "card-list" }, ...SEASON_BADGES.map(card)),
+    el("h3", { text: `Career badges (${CAREER_BADGES.length})` }),
+    el("div", { class: "card-list" }, ...CAREER_BADGES.map(card)));
 }
 
-function badgeHoldersSheet(b, list) {
+function badgeHoldersSheet(b, list, year) {
   const sorted = [...list].sort((x, y) => x.at - y.at);
   openSheet(box => box.append(el("div", { class: "stack" },
     el("h2", { text: `${b.icon} ${b.name}` }),
     el("p", { class: "muted", text: b.desc }),
+    el("p", { class: "muted small", text: year ? `Season badge: who earned it in the ${seasonName(year)}.` : "Career badge: earned once, kept for good." }),
     sorted.length ? el("ol", { class: "board" }, ...sorted.map((e, i) => el("li", {},
       el("a", { class: "board-row" + (i === 0 ? " top1" : ""), href: `#/u/${e.uid}`, onclick: closeSheet },
         el("span", { class: "rank", text: i === 0 ? "🥇" : String(i + 1) }), avatar(who(e.uid)),
         el("div", { class: "grow" }, el("div", { class: "name", text: who(e.uid).displayName }),
-          i === 0 ? el("div", { class: "muted small", text: "First to earn it" }) : null),
+          i === 0 ? el("div", { class: "muted small", text: year ? "First this season" : "First to earn it" }) : null),
         el("span", { class: "muted small", text: fmtDay(e.at) })))))
       : el("p", { class: "muted", text: "Nobody has earned this one yet. Be the first!" }),
     el("button", { class: "btn quiet block", type: "button", text: "Close", onclick: closeSheet }))));
