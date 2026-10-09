@@ -141,7 +141,7 @@ export function boatSheet(b = null) {
       field("Boat name", name),
       el("div", { class: "field" }, el("span", { class: "field-label", text: "Photo (optional)" }), photoBox),
       el("div", { class: "field" }, el("span", { class: "field-label", text: "Regular crew" }), others.length ? crew : el("p", { class: "muted small", text: "Nobody else in the league yet." }),
-        el("span", { class: "hint", text: "Crew can pick this boat when they log a catch. Anyone with a seat on it for an outing gets it filled in." })),
+        el("span", { class: "hint", text: "Tick the friends who often fish from your boat. They can then pick it when they log a catch, so their fish count for the boat too, and it shows on their profile. You don't need this for outings: anyone with a seat on it gets it filled in automatically." })),
       el("div", { class: "boat-tools" }, field("Motor (optional)", motor), field("Horsepower", hp)),
       el("div", { class: "boat-specs" }, field("Length (ft)", lengthFt), field("Seats", seats), field("Capacity (lb)", capacity)),
       field("Notes (optional)", notes),
