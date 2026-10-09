@@ -3,19 +3,15 @@ import { fishIn } from "./stats.js";
 
 const byName = (a, b) => (a.displayName || "").localeCompare(b.displayName || "");
 
-/* Every active angler, A to Z: rank points and title, crowns held now, fish logged (a stringer counts its fish),
-   and the boats they own or crew on. `rows` are rankings(), `crowns` are crown standings ({ holder }). */
-export function anglerRoster({ members, rows = [], crowns = [], catches = [], fleet = new Map() }) {
-  const rank = new Map(rows.map((r, i) => [r.uid, { ...r, place: i + 1 }]));
+/* Every active angler, A to Z, with the fish they've caught this year (a stringer counts its fish) and when they
+   caught their latest fish (null if they haven't logged one). Disqualified catches don't count. */
+export function anglerRoster({ members, catches = [], yearStart = new Date(new Date().getFullYear(), 0, 1).getTime() }) {
   return members.filter(m => !m.suspended).slice().sort(byName).map(m => {
     const mine = catches.filter(c => c.uid === m.id && !c.dq);
-    const r = rank.get(m.id);
     return {
       member: m,
-      points: r ? r.points : 0, title: r ? r.title : "", place: r ? r.place : null,
-      crowns: crowns.filter(s => s.holder === m.id).length,
-      fish: mine.reduce((n, c) => n + fishIn(c), 0),
-      boats: [...fleet.values()].filter(b => !b.retired && (b.uid === m.id || (b.crew || []).includes(m.id))),
+      ytdFish: mine.filter(c => c.caughtAt >= yearStart).reduce((n, c) => n + fishIn(c), 0),
+      lastAt: mine.reduce((t, c) => Math.max(t, c.caughtAt || 0), 0) || null,
     };
   });
 }

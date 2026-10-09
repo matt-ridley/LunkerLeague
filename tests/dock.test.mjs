@@ -10,21 +10,13 @@ const members = [
   { id: "old", displayName: "Al", suspended: true },
 ];
 
-test("the anglers list: active anglers A to Z with points, place, crowns, fish and boats", () => {
-  const rows = [{ uid: "bo", points: 40, title: "Guide" }, { uid: "amy", points: 12, title: "Rookie" }];
-  const crowns = [{ holder: "bo" }, { holder: "bo" }, { holder: "amy" }, { holder: null }];
+test("the anglers list: active anglers A to Z with fish caught this year and their latest fish", () => {
   const catches = [
-    { id: "1", uid: "amy" }, { id: "2", uid: "amy", fishCount: 6 }, { id: "3", uid: "amy", dq: true }, { id: "4", uid: "bo" },
+    { id: "1", uid: "amy", caughtAt: 50 }, { id: "2", uid: "amy", caughtAt: 120, fishCount: 6 }, { id: "3", uid: "amy", caughtAt: 300, dq: true },
+    { id: "4", uid: "bo", caughtAt: 40 },
   ];
-  const fleet = new Map([
-    ["b1", { id: "b1", uid: "amy", crew: ["cy"] }],
-    ["b2", { id: "b2", uid: "bo", retired: true }],
-  ]);
-  const list = anglerRoster({ members, rows, crowns, catches, fleet });
-  assert.deepEqual(list.map(r => r.member.id), ["amy", "bo", "cy"]);
-  assert.deepEqual(list.map(r => [r.points, r.place, r.title, r.crowns, r.fish]),
-    [[12, 2, "Rookie", 1, 7], [40, 1, "Guide", 2, 1], [0, null, "", 0, 0]]);
-  assert.deepEqual(list.map(r => r.boats.map(b => b.id)), [["b1"], [], ["b1"]]);
+  const list = anglerRoster({ members, catches, yearStart: 100 });
+  assert.deepEqual(list.map(r => [r.member.id, r.ytdFish, r.lastAt]), [["amy", 6, 120], ["bo", 0, 40], ["cy", 0, null]]);
 });
 
 test("everyone's tackle boxes: yours first, then the fullest, then A to Z; retired tackle isn't counted", () => {

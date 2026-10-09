@@ -1,5 +1,5 @@
 /* Boat profiles: the league's saved boats (fleet/{id}: { uid (owner), name, crew: [uid], notes, thumb, retired,
-   createdAt }). A catch can say which boat it was caught from (`boatId`), and a boat brought on an outing can point to
+   createdAt, and optionally hp (horsepower) and motor (brand) }). A catch can say which boat it was caught from (`boatId`), and a boat brought on an outing can point to
    a saved boat. Pure functions on plain data. (Saved boats are called the fleet in the code, because an outing's
    "boats" are the seats offered for that outing.) */
 import { fishIn, better, measured } from "./stats.js";
@@ -9,6 +9,32 @@ import { outingEnd } from "./outings.js";
 export function myBoats(me, fleet) {
   return [...fleet.values()].filter(b => !b.retired && (b.uid === me || (b.crew || []).includes(me)))
     .sort((a, b) => (b.uid === me) - (a.uid === me) || a.name.localeCompare(b.name));
+}
+
+/* Motor brands to pick from: outboards and sterndrives, then electric and trolling motors. */
+export const MOTOR_BRANDS = [
+  "Mercury", "Yamaha", "Honda", "Suzuki", "Tohatsu", "Evinrude", "Johnson", "Mariner", "Nissan", "MerCruiser", "Volvo Penta", "Indmar",
+  "Minn Kota", "MotorGuide", "Garmin", "Torqeedo", "Other",
+];
+export const MAX_HP = 2000;
+
+/* "150 hp Mercury", "Yamaha", "40 hp", or "" when neither is set. */
+export const motorText = b => [b.hp ? `${b.hp} hp` : "", b.motor || ""].filter(Boolean).join(" ");
+
+/* The Boats page: sorts, and the filters (whose boats, motor brand). */
+export const BOAT_SORTS = [["fish", "Most fish"], ["name", "Name"], ["hp", "Horsepower"], ["new", "Newest"]];
+export const NO_BOAT_FILTERS = { sort: "fish", whose: "all", motor: "" };
+
+/* rows: [{ b, s }] (s from boatStats). whose: "all" or "mine" (boats you own or crew on). motor: a brand, or "". */
+export function listBoats(rows, { sort = "fish", whose = "all", motor = "" } = {}, me) {
+  const byName = (x, y) => x.b.name.localeCompare(y.b.name);
+  const order = {
+    fish: (x, y) => y.s.fish - x.s.fish || byName(x, y),
+    name: byName,
+    hp: (x, y) => (y.b.hp || 0) - (x.b.hp || 0) || byName(x, y),
+    new: (x, y) => (y.b.createdAt || 0) - (x.b.createdAt || 0) || byName(x, y),
+  }[sort] || byName;
+  return rows.filter(({ b }) => (whose !== "mine" || b.uid === me || (b.crew || []).includes(me)) && (!motor || b.motor === motor)).sort(order);
 }
 
 /* A boat's catches, newest first (disqualified ones left out). */
