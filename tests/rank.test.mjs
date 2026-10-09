@@ -57,12 +57,12 @@ test("versions: 'from now on' keeps older events on old values; 'all history' re
   assert.equal(scoringAt(line, T0 + 6 * DAY).catchPts, 10);
 });
 
-test("a season only counts this year's events (plus current record standings)", () => {
+test("a season only counts this year's events, and record points come from this season's boards", () => {
   const old = new Date(2025, 6, 1).getTime(), now = new Date(2026, 6, 1).getTime();
   const catches = [fish("amy", "Carp", 200, old), fish("amy", "Trout", 30, now - DAY)];
   const input = { catches, derbies: [], entrants: new Map(), versions: [], members: ["amy"], now };
-  assert.equal(total(rankings(input), "amy"), 1 + 3 + 1 + 3 + 5 + 5);
-  assert.equal(total(rankings(input, { since: new Date(2026, 0, 1).getTime() }), "amy"), 1 + 3 + 5 + 5);
+  assert.equal(total(rankings(input), "amy"), 1 + 3 + 1 + 3 + 5);   // the 2025 carp holds no season record now
+  assert.equal(total(rankings(input, { since: new Date(2026, 0, 1).getTime() }), "amy"), 1 + 3 + 5);
 });
 
 test("titles and badges", () => {

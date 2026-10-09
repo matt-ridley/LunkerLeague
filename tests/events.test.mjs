@@ -18,7 +18,7 @@ test("a record changing hands is news; beating your own record isn't", () => {
   assert.equal(s.length, 1);
   assert.equal(s[0].c.uid, "bo"); assert.equal(s[0].from.uid, "amy");
   const ev = leagueEvents(base({ catches }));
-  assert.ok(ev.some(e => e.text === "BO took the Walleye weight record from AMY"));
+  assert.ok(ev.some(e => e.text === "BO took the season Walleye weight record from AMY"));
 });
 
 test("disqualified catches and stringers never take a record", () => {
@@ -72,7 +72,7 @@ test("the bell: mentions, comments and reactions on my catches, records taken fr
     "BO reacted 🔥🤥 to your Walleye",
     "CY mentioned you on BO's Walleye: “@Amy look”",
     "BO commented on your Walleye: “Nice fish”",
-    "BO took your Walleye weight record",
+    "BO took your season Walleye weight record",
     "BO logged a Walleye",
     "You earned the First Fish badge",
     "You earned the Five Pounder badge",
@@ -108,7 +108,7 @@ test("a catch logged late dates its news, and the bell, by when it was posted", 
   assert.equal(ev.find(e => e.id === "badge:amy:first").at, T0); // on time: unchanged
   assert.equal(ev[0].uids[0], "bo"); // newest news is Bo's, above Amy's perch day
   const amy = alertsFor("amy", base({ catches }), { seen: T0 + 3 * DAY });
-  assert.ok(amy.some(a => a.text === "BO took your Pike weight record" && a.at > T0 + 3 * DAY));
+  assert.ok(amy.some(a => a.text === "BO took your season Pike weight record" && a.at > T0 + 3 * DAY));
 });
 
 test("news a catch caused names that catch, so the feed can show it on the card", () => {
@@ -116,7 +116,7 @@ test("news a catch caused names that catch, so the feed can show it on the card"
   const ev = leagueEvents(base({ catches }));
   const rec = ev.find(e => e.id.startsWith("rec:"));
   assert.equal(rec.cid, catches[1].id);
-  assert.equal(rec.short, "Took the weight record from AMY");
+  assert.equal(rec.short, "Took the season weight record from AMY");
   const first = ev.find(e => e.id === "badge:bo:first");
   assert.equal(first.cid, catches[1].id);
   assert.equal(first.short, "Earned the First Fish badge");
@@ -138,4 +138,12 @@ test("approval alerts: the organiser hears about entries to approve; the angler 
   assert.equal(alertsFor("org", data).some(a => a.id.startsWith("approved:")), false);
   // Approval off: no alerts either way.
   assert.equal(alertsFor("org", base({ catches: [waiting], derbies: [{ ...d, approval: false }] })).some(a => a.id.startsWith("approve")), false);
+});
+
+test("the first record of a new season isn't taken from last season's holder", () => {
+  const a = { id: "a", uid: "amy", species: "Walleye", weightOz: 90, lengthIn: null, caughtAt: new Date(2026, 9, 1).getTime() };
+  const b = { id: "b", uid: "bo", species: "Walleye", weightOz: 100, lengthIn: null, caughtAt: new Date(2027, 1, 1).getTime() };
+  const c = { id: "c", uid: "amy", species: "Walleye", weightOz: 110, lengthIn: null, caughtAt: new Date(2027, 2, 1).getTime() };
+  assert.deepEqual(recordSteals([a, b]), []);
+  assert.deepEqual(recordSteals([a, b, c]).map(s => [s.c.id, s.from.id]), [["c", "b"]]);
 });

@@ -91,12 +91,14 @@ export function rankEvents(input) {
     }
   }
 
-  // Species records: current standing on each weight board and each length board, scored with today's values.
-  // (Some species are only weighed and some only measured; which counts per species is on the roadmap.)
-  for (const sp of new Set(counted.map(c => c.species))) {
+  // Season records: current standing on each of this season's weight and length boards, scored with today's values.
+  // The boards start again every January 1. (Some species are only weighed and some only measured; which counts per
+  // species is on the roadmap.)
+  const year = new Date(now).getFullYear(), season = counted.filter(c => new Date(c.caughtAt).getFullYear() === year);
+  for (const sp of new Set(season.map(c => c.species))) {
     for (const by of ["weight", "length"]) {
-      speciesBoard(counted, sp, by).slice(0, 3).forEach((c, i) => {
-        if (cur.recordPts[i]) events.push({ uid: c.uid, at: now, pts: cur.recordPts[i], kind: "record", label: `${["1st", "2nd", "3rd"][i]} on the ${sp} ${by} board (league catches)`, standing: true });
+      speciesBoard(season, sp, by).slice(0, 3).forEach((c, i) => {
+        if (cur.recordPts[i]) events.push({ uid: c.uid, at: now, pts: cur.recordPts[i], kind: "record", label: `${["1st", "2nd", "3rd"][i]} on the ${sp} ${by} board (this season)`, standing: true });
       });
     }
   }

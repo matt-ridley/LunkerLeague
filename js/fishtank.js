@@ -1,6 +1,6 @@
 /* The Fish Tank: every catch in the league as a photo wall, filtered and sorted your way. Pure functions on plain
    data, so they can be tested without the app. A filter is NO_TANK's shape; NO_TANK is "every catch, newest first". */
-import { isPersonalBest, recordKinds, measured, fishIn } from "./stats.js";
+import { isPersonalBest, recordOf, measured, fishIn } from "./stats.js";
 import { sinceOf } from "./feedfilter.js";
 
 export const NO_TANK = { angler: "", species: "", show: "all", when: "any", derby: "", boat: "", lure: "", released: "any",
@@ -48,7 +48,7 @@ export function filterTank({ catches, f, now = Date.now(), reactions = new Map()
     && (!f.measuredOnly || measured(c))
     && (!f.notesOnly || !!(c.notes || "").trim())
     && c.caughtAt >= since
-    && (f.show !== "records" || isPersonalBest(c, catches) || recordKinds(c, catches).length > 0)
+    && (f.show !== "records" || isPersonalBest(c, catches) || recordOf(c, catches))
     && (f.show !== "past" || c.past)
     && (f.show !== "current" || !c.past)
     && (!ws.length || matches(`${c.notes || ""} ${c.locShared ? c.spotName || "" : ""}`, ws)));

@@ -71,21 +71,30 @@ export function speciesBoard(catches, species, by = "weight") {
   return [...best.values()].sort((a, b) => b[field] - a[field] || (a.caughtAt || 0) - (b.caughtAt || 0));
 }
 
-/* League records come from league catches only (they're worth points). All-time records include past catches
-   (props, no points); one is only shown separately when a past catch beats the league record. */
+/* Three kinds of record. Season records come from the league catches caught in one season (the calendar year): the
+   boards worth points, starting again every January 1. League records are the best league catches ever (the Hall
+   of Fame). All-time records include past catches (props, no points); one is only shown separately when a past
+   catch beats the league record. */
 export const leagueCatches = catches => catches.filter(c => !c.past);
+const yearOf = ms => new Date(ms).getFullYear();
+export const seasonCatches = (catches, year) => catches.filter(c => !c.past && yearOf(c.caughtAt) === year);
 
 /* Every species caught, most-caught first (league catches; species seen only in past catches come last), with
-   the league weight and length records and any all-time records held by past catches. */
-export function speciesRecords(catches) {
-  const league = leagueCatches(catches), n = new Map();
-  for (const c of catches) if (counts(c)) n.set(c.species, (n.get(c.species) || 0) + (c.past ? 0 : fishIn(c)));
-  const allTime = (sp, by, leagueTop) => { const top = speciesBoard(catches, sp, by)[0] || null; return top && top.past && top !== leagueTop ? top : null; };
+   the season's weight and length records (`year`, default this one), the league records when a fish from another
+   season holds them, and any all-time records held by past catches. `count` is the fish caught in the season. */
+export function speciesRecords(catches, year = yearOf(Date.now())) {
+  const league = leagueCatches(catches), season = seasonCatches(catches, year), n = new Map();
+  for (const c of catches) if (counts(c)) n.set(c.species, (n.get(c.species) || 0) + (!c.past && yearOf(c.caughtAt) === year ? fishIn(c) : 0));
+  const top = (pool, sp, by) => speciesBoard(pool, sp, by)[0] || null;
+  const other = (a, b) => (a && a !== b ? a : null);
   return [...n.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([species, count]) => {
-      const weight = speciesBoard(league, species, "weight")[0] || null, length = speciesBoard(league, species, "length")[0] || null;
-      return { species, count, weight, length, allTimeWeight: allTime(species, "weight", weight), allTimeLength: allTime(species, "length", length) };
+      const weight = top(season, species, "weight"), length = top(season, species, "length");
+      const leagueWeight = top(league, species, "weight"), leagueLength = top(league, species, "length");
+      const allW = top(catches, species, "weight"), allL = top(catches, species, "length");
+      return { species, count, weight, length, leagueWeight: other(leagueWeight, weight), leagueLength: other(leagueLength, length),
+        allTimeWeight: allW && allW.past ? allW : null, allTimeLength: allL && allL.past ? allL : null };
     });
 }
 
@@ -96,6 +105,30 @@ export function recordKinds(c, catches) {
   if (has(c.weightOz) && speciesBoard(pool, c.species, "weight")[0] === c) kinds.push("weight");
   if (has(c.lengthIn) && speciesBoard(pool, c.species, "length")[0] === c) kinds.push("length");
   return kinds;
+}
+
+/* Is this catch top of its season's board (by weight or by length)? League catches only. */
+export function seasonRecordKinds(c, catches) {
+  if (c.past) return [];
+  const pool = seasonCatches(catches, yearOf(c.caughtAt)), kinds = [];
+  if (has(c.weightOz) && speciesBoard(pool, c.species, "weight")[0] === c) kinds.push("weight");
+  if (has(c.lengthIn) && speciesBoard(pool, c.species, "length")[0] === c) kinds.push("length");
+  return kinds;
+}
+
+/* The biggest record a catch holds: { level, kinds, year } or null. "past": a logbook catch on top of the all-time
+   board; "league": the best league catch ever (it's also its season's record); "season": the best of its season. */
+export function recordOf(c, catches) {
+  const year = yearOf(c.caughtAt), all = recordKinds(c, catches);
+  if (all.length) return { level: c.past ? "past" : "league", kinds: all, year };
+  const sk = seasonRecordKinds(c, catches);
+  return sk.length ? { level: "season", kinds: sk, year } : null;
+}
+
+/* A season best (SB): the angler's best of the species in the season it was caught (past catches included, like PBs). */
+export function isSeasonBest(c, catches) {
+  const year = yearOf(c.caughtAt);
+  return personalBests(catches.filter(x => x.uid === c.uid && yearOf(x.caughtAt) === year), c.uid).get(c.species) === c;
 }
 
 export function anglerStats(catches, uid) {

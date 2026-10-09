@@ -1,7 +1,10 @@
-/* The Hall of Fame page (#/hof): every league record ever held, the longest reigns and the record setters. */
+/* The Hall of Fame page (#/hof): the season champions, every league record ever held, the longest reigns and the
+   record setters. */
 import { el, fill, fmtDay, fmtWeight, fmtLength } from "./ui.js";
 import { store, memberName } from "./cloud.js";
 import { FIELDS, recordHistory, reignLength, longestReigns, recordSetters } from "./halloffame.js";
+import { seasonTables, seasonChampions, seasonName, FIRST_SEASON } from "./season.js";
+import { rankInput } from "./leaders.js";
 
 const DAY = 86400000;
 const fmtValue = (field, c) => (field === "weightOz" ? fmtWeight(c.weightOz) : fmtLength(c.lengthIn));
@@ -29,13 +32,26 @@ function reignRow(field, r, now) {
             r.brokenBy.uid === r.c.uid ? "themselves" : who(r.brokenBy.uid), ` (${fmtValue(field, r.brokenBy)})`)));
 }
 
+/* The Champions wall: each finished season's podium, newest first. */
+const MEDALS = ["🥇", "🥈", "🥉"];
+function championsWall(now) {
+  const wall = store.catchesLoaded ? seasonChampions(seasonTables(rankInput(), now), now) : [];
+  return el("section", { class: "card stack" },
+    el("h3", { text: "🏆 Season champions" }),
+    wall.length ? el("ol", { class: "hof-list" }, ...wall.map(s => el("li", {},
+      el("div", {}, el("a", { href: `#/awards/${s.year}` }, el("b", { text: seasonName(s.year) })), s.preseason ? el("span", { class: "muted small", text: " (unofficial)" }) : null),
+      el("div", { class: "stack-tight" }, ...s.podium.map((r, i) => el("span", {}, `${MEDALS[i]} `, who(r.uid), el("span", { class: "muted small", text: ` · ${r.points} pts` })))))))
+      : el("p", { class: "muted", text: `No season has finished yet. The ${new Date(now).getFullYear() < FIRST_SEASON ? `Preseason's top anglers go up here (unofficially) after December 31, and Season 1's champion after the ${FIRST_SEASON} Season` : "first champion goes up here when this season ends"}.` }));
+}
+
 export function renderHof(main) {
   const now = Date.now();
   const history = recordHistory([...store.catches.values()]);
   const head = [
     el("a", { class: "eyebrow back-link", href: "#/leaders", onclick: () => { try { sessionStorage.setItem("lunker-leaders-tab", "records"); } catch {} }, text: "← Records" }),
     el("h2", { class: "page-title", text: "🏛️ Hall of Fame" }),
-    el("p", { class: "hint", text: "Every league record ever held, newest first: who set it, when, how long it stood and who broke it. League catches only, like the record boards." }),
+    championsWall(now),
+    el("p", { class: "hint", text: "Every league record ever held, from every season: who set it, when, how long it stood and who broke it. League catches only (season records start again every year; these don't)." }),
   ];
   if (!history.size) return fill(main, ...head, el("p", { class: "card empty", text: "No records yet. Log a measured catch to set the first one." }));
 

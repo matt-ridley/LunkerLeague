@@ -1,7 +1,7 @@
 // Unit tests for crowns (holder badges). Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { replayCrown, crownStandings, crownSteals, CROWNS } from "../js/crowns.js";
+import { replayCrown, crownStandings, crownSeasons, allSeasonCrowns, crownSteals, CROWNS } from "../js/crowns.js";
 import { DEFAULTS } from "../js/derby.js";
 
 const H = 3600e3, DAY = 24 * H;
@@ -102,4 +102,24 @@ test("derby crowns: king, captain, golden net and skunk; test derbies don't coun
 test("there are 16 crowns with unique ids", () => {
   assert.equal(CROWNS.length, 16);
   assert.equal(new Set(CROWNS.map(c => c.id)).size, 16);
+});
+
+test("crowns start again every season; last season's holder keeps it in that season's history", () => {
+  const y26 = new Date(2026, 9, 1, 12).getTime(), y27 = new Date(2027, 2, 1, 12).getTime();
+  const catches = [fish("amy", "Walleye", y26), fish("amy", "Walleye", y26 + H), fish("bo", "Walleye", y27, { weightOz: 40 }), fish("amy", "Walleye", y27 + H),
+    fish("amy", "Walleye", y26 + 2 * H, { weightOz: 90 })];
+  const seasons = crownSeasons(input({ catches, now: y27 + DAY }));
+  assert.deepEqual([...seasons.keys()], [2027, 2026]);
+  const old = seasons.get(2026), now = seasons.get(2027);
+  assert.equal(holderOf(old, "grinder"), "amy"); assert.equal(scoreOf(old, "grinder"), 3);
+  assert.equal(holderOf(now, "grinder"), "bo"); assert.equal(scoreOf(now, "grinder"), 1);   // amy's 2026 fish don't count (1 each: a tie keeps it)
+  // Record Holder goes by season records: bo's 40 oz walleye is the 2027 record though amy's 90 oz fish is bigger.
+  assert.equal(holderOf(now, "recordHolder"), "bo"); assert.equal(holderOf(old, "recordHolder"), "amy");
+  const end = old.find(s => s.crown.id === "grinder").history.at(-1);
+  assert.deepEqual(end, { at: new Date(2026, 11, 31, 23, 59, 59, 999).getTime() + 1, uid: null, from: "amy", ended: true });
+  assert.deepEqual(crownStandings(input({ catches, now: y27 + DAY })).map(s => s.holder), now.map(s => s.holder));
+  // Species are new again in a new season: bo's walleye counts for Species Hunter in 2027.
+  assert.equal(holderOf(now, "speciesHunter"), "bo");
+  // A new season claim isn't a steal, and the end of a season isn't one either.
+  assert.equal(crownSteals(allSeasonCrowns(seasons)).length, 0);
 });

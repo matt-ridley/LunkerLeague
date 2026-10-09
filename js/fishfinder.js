@@ -3,7 +3,7 @@
    say is left out (no derby card when nothing is on). Pure functions on plain data.
    `input` is the ranking input (catches, derbies, entrants, versions, members, crowns, badges, trips, rsvps)
    plus `name(uid)`; `now` can be passed for tests. */
-import { fishIn, measured, isStringer, speciesBoard, leagueCatches } from "./stats.js";
+import { fishIn, measured, isStringer, speciesBoard, leagueCatches, seasonCatches } from "./stats.js";
 import { derbyStatus, closesAt, standings } from "./derby.js";
 import { scoringTimeline, currentScoring, TITLES } from "./rank.js";
 import { thisSeason, isPreseason, seasonOf } from "./season.js";
@@ -74,7 +74,7 @@ function standing(x) {
   return { title: `#${i + 1} of ${rows.length} ${when} · ${plural(r.points, "pt", "pts")}`, detail: parts.join(" "), href: "#/leaders" };
 }
 
-/* ---------- Within reach: the league record you're closest to ---------- */
+/* ---------- Within reach: the season record you're closest to ---------- */
 function withinReach(x) {
   const { me, name, league } = x;
   let best = null;
@@ -90,12 +90,12 @@ function withinReach(x) {
   if (!best) {
     const held = new Set(league.filter(c => c.uid === me && measured(c)).map(c => c.species));
     const mineHeld = [...held].filter(sp => ["weight", "length"].some(by => (speciesBoard(league, sp, by)[0] || {}).uid === me));
-    return mineHeld.length ? { title: `You hold every record you've fished for`, detail: `${plural(mineHeld.length, "species", "species")}: ${mineHeld.join(", ")}. Try a new species.`, href: "#/leaders" } : null;
+    return mineHeld.length ? { title: `You hold every season record you've fished for`, detail: `${plural(mineHeld.length, "species", "species")}: ${mineHeld.join(", ")}. Try a new species.`, href: "#/leaders" } : null;
   }
   const fmt = best.by === "weight" ? fmtWeight : fmtLength;
   return {
-    title: `${best.species}: ${fmt(best.top[best.field] - best.mine[best.field])} short of the record`,
-    detail: `Yours: ${fmt(best.mine[best.field])}. ${name(best.top.uid)}'s record: ${fmt(best.top[best.field])}.`,
+    title: `${best.species}: ${fmt(best.top[best.field] - best.mine[best.field])} short of the season record`,
+    detail: `Yours: ${fmt(best.mine[best.field])}. ${name(best.top.uid)}'s season record: ${fmt(best.top[best.field])}.`,
     href: `#/leaders/${encodeURIComponent(best.species)}/${best.by}`,
   };
 }
@@ -186,7 +186,8 @@ export function fishFinderCards(input, me, { now = Date.now() } = {}) {
     me, now, input, derbies, catches, name: input.name || (u => u),
     entrants: input.entrants || new Map(), trips: input.trips || new Map(), rsvps: input.rsvps || new Map(),
     crowns: input.crowns || [], badges: input.badges || [],
-    league: leagueCatches(catches).filter(c => !c.dq), leagueCounted, mineCounted: leagueCounted.filter(c => c.uid === me),
+    // This season's league catches: the record boards worth points.
+    league: seasonCatches(catches, new Date(now).getFullYear()).filter(c => !c.dq), leagueCounted, mineCounted: leagueCounted.filter(c => c.uid === me),
   };
   const card = (kind, label, c) => (c ? { kind, ...c, label: c.label || label } : null);
   const out = getOutThere(x);

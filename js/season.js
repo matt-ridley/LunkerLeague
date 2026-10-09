@@ -60,3 +60,11 @@ export function careerBest(tables, uid, now = Date.now()) {
   }
   return { title, finish };
 }
+
+/* The Champions wall: every finished season's top 3 (with points), newest first:
+   [{ year, preseason, podium: [{ uid, points }] }]. */
+export function seasonChampions(tables, now = Date.now()) {
+  return [...tables.years].filter(([y]) => seasonOver(y, now)).sort((a, b) => b[0] - a[0])
+    .map(([year, rows]) => ({ year, preseason: isPreseason(year), podium: rows.filter(r => r.points > 0).slice(0, 3).map(r => ({ uid: r.uid, points: r.points })) }))
+    .filter(s => s.podium.length);
+}
