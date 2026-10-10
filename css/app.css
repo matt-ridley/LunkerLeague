@@ -986,6 +986,60 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
   .tank-cap b { font-size: 15px; }
 }
 @keyframes dialog-in { from { opacity: 0; transform: scale(.97); } }
+
+/* ---------- The side panel on computers: Up next, Chat and Alerts (js/panel.js) ----------
+   1024-1279px it is a drawer over the page; 1280px and wider it is docked and the page makes room for it. */
+@media (min-width: 1024px) {
+  :root { --panel: 360px; }
+  .panel { position: fixed; z-index: 15; top: 0; right: 0; bottom: 0; width: min(380px, 92vw);
+    display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow); animation: drawer-in .18s ease-out; }
+  .panel-tabs { flex: none; display: flex; align-items: center; gap: 2px; padding: 10px 10px 0; border-bottom: 1px solid var(--line); }
+  .panel-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; padding: 0 6px;
+    border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; background: none; font-weight: 800; font-size: 15px; color: var(--muted); }
+  .panel-tab[aria-selected="true"] { color: var(--primary); border-bottom-color: var(--primary); }
+  .panel-count { min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--tangerine); color: #fff; font-size: 12px; display: grid; place-items: center; }
+  .panel-count:empty { display: none; }
+  .panel-close { flex: none; width: 40px; height: 40px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-size: 26px; line-height: 1; }
+  .panel-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; }
+  /* Up next: your standing on top, then the rest of the Fish Finder */
+  .panel-label { order: -1; padding: 4px 2px 0; }
+  .pn-card { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); color: inherit; text-decoration: none; }
+  .pn-label { font-size: 12.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .pn-title { font: 800 18px/1.2 var(--f-display); overflow-wrap: anywhere; }
+  .pn-detail { font-size: 14px; color: var(--muted); }
+  .pn-standing { order: -2; padding: 16px; background: var(--head-bg); border-color: var(--head-bg); color: var(--head-ink); }
+  .pn-standing .pn-label, .pn-standing .pn-detail { color: inherit; opacity: .85; }
+  .pn-standing .pn-title { font-size: 22px; }
+  .pn-now { background: var(--tangerine-soft); border-color: var(--tangerine); }
+  .pn-now .pn-label { color: var(--tangerine); }
+  /* Chat: the messages fill the panel and the box to type in stays at the bottom */
+  #panel-chat { padding-bottom: 0; }
+  .panel .chat { min-height: 100%; grid-template-rows: minmax(0, 1fr) auto; }
+  .panel .chat .page-title { display: none; }
+  .panel .chat-list { align-content: end; }
+  .panel .chat-bottom { bottom: 0; background: var(--surface); padding-bottom: 14px; }
+  .panel .bubble { max-width: 86%; }
+  /* Alerts: the panel tab is the title */
+  .panel .alerts-title { display: none; }
+  .panel .alert-list { border: 0; padding: 0; background: none; }
+  .panel .hint { font-size: 13px; }
+  /* The header button that brings the panel back */
+  .panel-btn { position: relative; border: 0; }
+  .panel-dot { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%; background: var(--tangerine); border: 2px solid var(--head-bg); }
+}
+@media (min-width: 1280px) {
+  body.panel-docked { padding-right: var(--panel); }
+  .panel { width: var(--panel); z-index: 9; box-shadow: none; animation: none; }
+  /* The panel shows these already */
+  .panel-docked .top .bell, .panel-docked main > .ff, .panel-docked main > .chat-row { display: none; }
+  .panel-docked .sheet { inset: 0 var(--panel) 0 var(--rail); width: calc(100% - var(--rail) - var(--panel) - 48px); }
+  .panel-docked .toast { right: calc(var(--panel) + var(--gutter)); }
+}
+@keyframes drawer-in { from { transform: translateX(40px); opacity: 0; } }
+@media (hover: hover) and (min-width: 1024px) {
+  .pn-card:hover { border-color: var(--primary); }
+  .panel-tab:hover:not([aria-selected="true"]), .panel-close:hover { color: var(--ink); }
+}
 @media (min-width: 1024px) and (hover: hover) {
   .nav-item:hover:not([aria-current="page"]):not(.log) { background: var(--surface-2); }
   .nav-item.log:hover { filter: brightness(1.05); }
