@@ -31,12 +31,10 @@ export function renderDock(main) {
     el("div", { class: "dock-grid" },
       tile("#/tank", "🐠", "Fish Tank", catches ? plural(catches, "catch", "catches") : "Every catch, your way"),
       tile("#/map", "🗺️", "Map", "The league's shared spots", mapView("league"))),
-    el("h3", { class: "dock-head", text: "The league" }),
+    el("h3", { class: "dock-head", text: "Stats" }),
     el("div", { class: "dock-grid" },
-      tile("#/league", "📈", "League stats", "Every number, everyone")),
-    el("h3", { class: "dock-head", text: "You" }),
-    el("div", { class: "dock-grid" },
-      tile(`#/stats/${uid()}`, "📊", "Your stats", "What's working for you")));
+      tile(`#/stats/${uid()}`, "📊", "Your stats", "What's working for you"),
+      tile("#/league", "📈", "League stats", "Every number, everyone")));
 }
 
 const PERIOD_HINTS = {
