@@ -157,16 +157,16 @@ export function chatUnread() {
 }
 
 /* The chat screen is built once and then only its message list is refreshed, so typing is never interrupted.
-   With a derbyId it is that derby's own chat. */
-let chatInput = null;
-export function renderChat(main, derbyId) {
+   With a derbyId it is that derby's own chat. `scroller` is the box it scrolls in (the side panel on a computer);
+   without one, the page scrolls. The panel and the Chat page can both be open, so each keeps its own box. */
+export function renderChat(main, derbyId, scroller = null) {
   if (derbyId) watchDerbyChat(derbyId);
   const draftKey = derbyId ? "chat:" + derbyId : "chat";
   let shell = main.querySelector(":scope > .chat");
   if (!shell) {
     const derby = derbyId && store.derbies.get(derbyId);
     const list = el("div", { class: "chat-list", role: "log", "aria-live": "polite" });
-    chatInput = el("textarea", { rows: 1, maxlength: 1000, placeholder: "Message the league…", "aria-label": "Message", class: "grow-input" });
+    const chatInput = el("textarea", { rows: 1, maxlength: 1000, placeholder: "Message the league…", "aria-label": "Message", class: "grow-input" });
     chatInput.value = drafts.get(draftKey) || "";
     chatInput.addEventListener("input", () => { drafts.set(draftKey, chatInput.value); autoGrow(chatInput); });
     chatInput.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !matchMedia("(pointer: coarse)").matches) { e.preventDefault(); form.requestSubmit(); } });
@@ -188,11 +188,12 @@ export function renderChat(main, derbyId) {
     fill(main, shell);
   }
   const list = shell.querySelector(".chat-list");
-  const nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 120;
+  const nearBottom = scroller ? scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 120
+    : window.innerHeight + window.scrollY >= document.body.scrollHeight - 120;
   const first = !list.childElementCount;
   const messages = derbyId ? store.derbyChat.get(derbyId) : (store.chatLoaded ? store.chat : null);
   fill(list, chatMessages(messages, derbyId));
-  if (first || nearBottom) requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight));
+  if (first || nearBottom) requestAnimationFrame(() => scroller ? scroller.scrollTop = scroller.scrollHeight : window.scrollTo(0, document.body.scrollHeight));
   const last = store.chat[store.chat.length - 1];
   if (!derbyId && last && !document.hidden) setSeen(Math.max(getSeen(), last.at || 0));
 }

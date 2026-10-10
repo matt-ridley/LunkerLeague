@@ -30,6 +30,7 @@ import { renderChallenge, renderChallengeForm } from "./h2hpage.js";
 import { renderBet, renderBetForm } from "./betspage.js";
 import { renderAlerts, bellCount } from "./alerts.js";
 import { applyTheme } from "./theme.js";
+import { initPanel, renderPanel, panelButton } from "./panel.js";
 import * as cloudApi from "./cloud.js";
 import { startWeather } from "./weather.js";
 
@@ -102,6 +103,7 @@ function render(force = false) {
   document.body.classList.toggle("gated", !inApp);
   renderHeader(inApp);
   renderNav(inApp, r.tab, r.name);
+  renderPanel(inApp);
   const key = inApp ? `in:${r.name}:${r.arg || ""}:${r.arg2 || ""}` : `gate:${g}`;
   if (!force && key === lastKey && !(inApp && r.live)) return;
   if (!force && key === lastKey && !r.inPlace && typing()) { pendingRender = true; return; }
@@ -129,6 +131,7 @@ function renderHeader(inApp) {
     sub || el("a", { class: `brand-mark status-${s.kind}`, href: "#/system", "aria-label": `${s.label || said}. System info`, html: icon.fish }),
     el("div", { class: "brand" },
       el("div", { class: "brand-name", text: (store.league && store.league.name) || "Lunker League" })),
+    panelButton(inApp),
     bell(r.name === "alerts"),
     el("a", { class: "me-btn", href: "#/me", "aria-label": "Your profile" }, avatar({ ...store.me, id: uid() }, "sm")));
 }
@@ -184,6 +187,7 @@ function boot() {
   setInterval(() => { if (!document.hidden && parseRoute().live && !parseRoute().inPlace) render(); }, 60000);
   applyTheme();
   initToast();
+  initPanel(() => render());
   $("scrim").addEventListener("click", closeSheet);
   document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetOpen()) closeSheet(); });
   window.addEventListener("hashchange", () => { closeSheet(); render(true); });

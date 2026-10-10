@@ -1,5 +1,5 @@
 // Bump on every change: major for a big change in how the app works, minor for a new feature, patch for fixes.
-export const VERSION = "0.75.0";
+export const VERSION = "0.76.0";
 
 // The first official season (a season is the calendar year). Earlier years are the Preseason: they count, unofficially.
 export const FIRST_SEASON = 2027;
