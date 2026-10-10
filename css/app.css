@@ -866,6 +866,74 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 
 .skunk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 
+/* League stats (#/league): folding sections, a heatmap, photo strips and superlatives */
+.ls-hero { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ls-hero .stat { text-align: center; }
+.ls-hero .stat b { font-size: 24px; white-space: nowrap; }
+.ls-hero .stat span { font-size: 12.5px; line-height: 1.2; }
+.ls-section { padding: 0; }
+.ls-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 56px; padding: 12px 14px 12px 18px; border: 0; background: none;
+  color: inherit; font: 800 18px/1.2 var(--f-display); text-align: left; cursor: pointer; border-radius: var(--radius); }
+.ls-chev { flex: none; width: 22px; height: 22px; color: var(--muted); }
+.ls-chev svg { width: 100%; height: 100%; }
+.ls-head[aria-expanded="true"] .ls-chev { transform: rotate(180deg); }
+.ls-head[aria-expanded="true"] { border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; }
+.ls-body { padding: 14px 16px 18px; min-width: 0; }
+.ls-body .facts { padding: 0; }
+.ls-body .fact { grid-template-columns: 116px minmax(0, 1fr); }
+.ls-body .fact dd { margin: 0; overflow-wrap: anywhere; }
+.ls-sub { margin: 6px 0 -4px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.ls-catch { color: inherit; min-width: 0; }
+.ls-catch .grow { min-width: 0; }
+.ls-hero-fish { aspect-ratio: 4 / 3; }
+.ls-hero-fish .pb-text b { font-size: 21px; }
+.ls-strip { display: grid; grid-auto-flow: column; grid-auto-columns: 132px; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding-bottom: 4px; overscroll-behavior-x: contain; }
+.ls-strip-tile { scroll-snap-align: start; }
+.ls-board { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ls-board .board-row { color: inherit; }
+.ls-board .board-size { font-size: 16px; }
+.ls-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.ls-list li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.ls-list li:last-child { border-bottom: 0; }
+.ls-list a { font-weight: 700; color: inherit; }
+.ls-species .grow { min-width: 0; flex: 1 1 60%; }
+.ls-heat { display: grid; grid-template-columns: 34px repeat(6, minmax(0, 1fr)); gap: 3px; font-size: 12px; }
+.ls-heat-col, .ls-heat-row { font-weight: 800; color: var(--muted); align-self: center; text-align: center; }
+.ls-heat-row { text-align: left; }
+.ls-heat-cell { display: grid; place-items: center; min-height: 32px; border-radius: 6px; font-weight: 800; font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--primary) var(--heat), var(--surface-2)); color: var(--ink); }
+.ls-heat-cell.hot { color: var(--primary-ink); }
+.ls-heat-cell.max { outline: 2px solid var(--gold); outline-offset: -2px; }
+.ls-pair { width: 86%; gap: 1px; }
+.ls-pair > span { flex: 1 1 0; min-height: 0; border-radius: 3px 3px 0 0; }
+.ls-last { background: var(--muted); opacity: .4; }
+.ls-legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted); font-weight: 700; margin: 0; }
+.ls-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.ls-key.now { background: var(--primary); }
+.ls-key.last { background: var(--muted); opacity: .4; }
+.ls-pace { margin: 0; }
+.ls-pace b { font: 800 18px/1.2 var(--f-display); }
+.ls-pace.up b { color: var(--ok); }
+.ls-pace.down b { color: var(--tangerine); }
+.ls-callout { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--primary-soft); }
+.ls-stack { display: flex; height: 22px; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.ls-seg { height: 100%; min-width: 3px; }
+.ls-seg + .ls-seg { border-left: 2px solid var(--surface); }
+.ls-keys { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; font-weight: 700; }
+.ls-keys li { display: flex; align-items: center; gap: 6px; }
+.c0 { background: var(--primary); } .c1 { background: var(--tangerine); } .c2 { background: var(--gold); }
+.c3 { background: var(--ok); } .c4 { background: var(--bronze); } .c5 { background: var(--silver); }
+.ls-emoji { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.ls-emoji .chip { font-size: 16px; }
+.ls-meter { height: 14px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.ls-meter span { display: block; height: 100%; background: var(--primary); border-radius: 99px; }
+.ls-supers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ls-super { display: grid; gap: 2px; align-content: start; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2);
+  color: inherit; text-decoration: none; min-width: 0; }
+.ls-super-icon { font-size: 26px; line-height: 1.2; }
+.ls-super-who { font-weight: 800; color: var(--primary); overflow-wrap: anywhere; }
+
 /* ---------- Computers (web view) ----------
    Everything for wide screens is inside this one rule, so phones and tablets keep the layout above exactly.
    The nav becomes a rail on the left, the column gets wider, and sheets open as centred dialogs. */

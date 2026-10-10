@@ -1,5 +1,5 @@
 /* The Dock (#/dock): the way in to the league's people, gear and water. Also its own pages: the anglers list
-   (#/anglers) and everyone's tackle boxes (#/tackle). Boats, the Fish Tank, the map and stats have their own pages. */
+   (#/anglers) and everyone's tackle boxes (#/tackle). Boats, the Fish Tank, the map, league stats and your stats have their own pages. */
 import { el, fill, field, avatar, fmtDay, fmtWeight, fmtLength } from "./ui.js";
 import { store, uid } from "./cloud.js";
 import { luckyLure } from "./tacklebox.js";
@@ -31,6 +31,9 @@ export function renderDock(main) {
     el("div", { class: "dock-grid" },
       tile("#/tank", "🐠", "Fish Tank", catches ? plural(catches, "catch", "catches") : "Every catch, your way"),
       tile("#/map", "🗺️", "Map", "The league's shared spots", mapView("league"))),
+    el("h3", { class: "dock-head", text: "The league" }),
+    el("div", { class: "dock-grid" },
+      tile("#/league", "📈", "League stats", "Every number, everyone")),
     el("h3", { class: "dock-head", text: "You" }),
     el("div", { class: "dock-grid" },
       tile(`#/stats/${uid()}`, "📊", "Your stats", "What's working for you")));

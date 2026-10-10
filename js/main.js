@@ -14,6 +14,7 @@ import { renderAwards } from "./awardspage.js";
 import { renderSystem } from "./systempage.js";
 import { renderDock, renderAnglers, renderTackleBoxes } from "./dockpage.js";
 import { renderTank } from "./fishtankpage.js";
+import { renderLeagueStats } from "./leaguestatspage.js";
 import { clearBrowse } from "./browse.js";
 import { statusText } from "./sysinfo.js";
 import { phoneHost, showPhoneFrame, switchToPhone } from "./viewmode.js";
@@ -54,6 +55,7 @@ const ROUTES = {
   tackle: { tab: "dock", live: true, render: main => renderTackleBoxes(main) },
   map: { tab: "dock", live: false, render: main => renderMap(main) },
   tank: { tab: "dock", live: true, render: main => renderTank(main) },
+  league: { tab: "dock", live: true, render: main => renderLeagueStats(main) },
   box: { tab: null, live: true, render: (main, id) => renderBox(main, id) },
   ti: { tab: null, live: true, render: renderItem },
   hof: { tab: "leaders", live: true, render: main => renderHof(main) },
