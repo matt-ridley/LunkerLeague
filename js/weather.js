@@ -111,7 +111,7 @@ export async function fillWeather(cloudMod) {
   const { store, uid, saveWeather, cloud } = cloudMod;
   // Wait for everything it looks at, so a catch's spot isn't missed (and the home water used instead).
   if (running || !navigator.onLine || !uid() || !store.catchesLoaded || !store.league
-    || !cloud.meta.weather || !cloud.meta.spotsMine) return;
+    || !cloud.meta.weather || !cloud.meta.spotsMine || !cloud.meta.spotsShared) return;
   running = true;
   try {
     const list = needsWeather([...store.catches.values()], {
