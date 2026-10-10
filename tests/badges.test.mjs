@@ -267,3 +267,20 @@ test("Champion, Repeat Champion and Dynasty come from locked official seasons", 
   assert.equal(at("amy", "dynasty"), undefined);                      // 2027, 2028, then bo won 2029
   assert.equal(at("bo", "champion"), new Date(2030, 0, 8).getTime());
 });
+
+test("boat badges follow the captain: taking a boat over makes you a Skipper, and the hull's fish count for whoever was captain", () => {
+  const fleet = new Map([
+    ["b1", { id: "b1", uid: "bo", name: "Lund", createdAt: at(1, 1), hp: 250, captains: [{ uid: "amy", at: at(1, 1) }, { uid: "bo", at: at(3, 1) }] }],
+  ]);
+  const catches = [
+    fish("cy", "Perch", at(2, 1), { boatId: "b1", fishCount: 40 }),   // Amy's captaincy
+    fish("cy", "Perch", at(4, 1), { boatId: "b1", fishCount: 40 }),   // Bo's: 40 of his own, not 80
+    fish("cy", "Perch", at(5, 1), { boatId: "b1", fishCount: 10 }),
+  ];
+  const input = { catches, fleet };
+  assert.equal(whenEarned("amy", input, "skipper"), at(1, 1));          // the old captain keeps it (career badge)
+  assert.equal(whenEarned("bo", input, "skipper"), at(3, 1));
+  assert.equal(whenEarned("bo", input, "bigIron"), at(3, 1));
+  assert.equal(whenEarned("bo", input, "luckyHull"), at(5, 1));
+  assert.ok(!has("amy", input, "luckyHull"));
+});

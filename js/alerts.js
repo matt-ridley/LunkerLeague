@@ -50,7 +50,7 @@ function myAlerts(seen) {
 /* Cached per redraw: the header asks for the count on every render. */
 let cache = { key: null, list: [] };
 function cachedAlerts(seen) {
-  const key = [store.catches, store.comments, store.reactions, store.chat, store.derbyChat.size, store.derbies, store.entrants, store.trips, store.rsvps, store.noShows, store.spots, store.challenges, store.bets, store.betPlayers, store.members, seen];
+  const key = [store.catches, store.comments, store.reactions, store.chat, store.derbyChat.size, store.derbies, store.entrants, store.trips, store.rsvps, store.noShows, store.spots, store.challenges, store.bets, store.betPlayers, store.members, store.fleet, seen];
   if (!cache.key || key.some((k, i) => k !== cache.key[i])) cache = { key, list: myAlerts(seen) };
   return cache.list;
 }

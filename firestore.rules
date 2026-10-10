@@ -325,8 +325,14 @@ service cloud.firestore {
     }
 
     // Saved boats (the fleet): everyone in the league can see them; only the owner changes one (admins can delete).
+    // The owner (captain) can hand it over: they offer it to a member (offerTo), who accepts (becomes uid, sets
+    // the crew, and is added to the end of the captains history) or declines. Catches point at the boat, so they stay.
     function validFleetBoat(d) {
-      return d.keys().hasOnly(["uid", "name", "crew", "notes", "thumb", "retired", "createdAt", "hp", "motor", "lengthFt", "seats", "capacityLb"])
+      return d.keys().hasOnly(["uid", "name", "crew", "notes", "thumb", "retired", "createdAt", "hp", "motor", "lengthFt", "seats", "capacityLb",
+                               "captains", "offerTo", "offerAt"])
+        && (!("captains" in d) || (d.captains is list && d.captains.size() > 0 && d.captains.size() <= 50))
+        && (d.get("offerTo", null) == null || (d.offerTo is string && d.offerTo != d.uid))
+        && (d.get("offerAt", null) == null || d.offerAt is number)
         && d.uid == me() && d.name is string && d.name.size() > 0 && d.name.size() <= 40
         && d.crew is list && d.crew.size() <= 20 && d.notes is string && d.notes.size() <= 200
         && (d.thumb == null || (d.thumb is string && d.thumb.size() < 20000))
@@ -340,11 +346,29 @@ service cloud.firestore {
         && (!("capacityLb" in d) || d.capacityLb == null || (d.capacityLb is int && d.capacityLb > 0 && d.capacityLb <= 20000));
     }
     function fleetPath(id) { return /databases/$(database)/documents/fleet/$(id); }
+    // Boats saved before hand-overs have no history: their first captain is the owner, from when it was saved.
+    function captainsOf(r) { return r.get("captains", [{"uid": r.uid, "at": r.createdAt}]); }
+    // Accepting adds exactly one captain (me, now) to the end; the earlier ones can't change.
+    function acceptedCaptains(r, c) {
+      return c.size() == captainsOf(r).size() + 1 && c[0:captainsOf(r).size()] == captainsOf(r)
+        && c[c.size() - 1].keys().hasOnly(["uid", "at"]) && c[c.size() - 1].uid == me()
+        && c[c.size() - 1].at is number && c[c.size() - 1].at <= request.time.toMillis() + 600000;
+    }
     match /fleet/{id} {
       allow read: if isMember();
-      allow create: if isMember() && validFleetBoat(request.resource.data);
+      allow create: if isMember() && validFleetBoat(request.resource.data) && request.resource.data.get("offerTo", null) == null
+        && (!("captains" in request.resource.data) || request.resource.data.captains == [{"uid": me(), "at": request.resource.data.createdAt}]);
+      // The captain edits it (the history stays as it is), and can offer it to another member or take the offer back.
       allow update: if isMember() && resource.data.uid == me() && validFleetBoat(request.resource.data)
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.get("captains", null) == resource.data.get("captains", null)
+        && (request.resource.data.get("offerTo", null) == null || exists(memberPath(request.resource.data.offerTo)));
+      // The angler it's offered to takes it (and picks the crew), or turns it down.
+      allow update: if isMember() && resource.data.get("offerTo", null) == me() && request.resource.data.get("offerTo", null) == null
+        && request.resource.data.get("offerAt", null) == null
+        && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["offerTo", "offerAt"])
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["uid", "crew", "captains", "offerTo", "offerAt"])
+            && validFleetBoat(request.resource.data) && acceptedCaptains(resource.data, request.resource.data.captains)));
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
     }
     match /fleetPhotos/{id} {
@@ -353,7 +377,10 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(["uid", "src", "bytes"]) && request.resource.data.uid == me()
         && request.resource.data.src is string && request.resource.data.src.size() > 100 && request.resource.data.src.size() < 100000
         && request.resource.data.bytes is int;
-      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+      // The boat's captain now (who may not be who saved the photo), or its saver once the boat is gone.
+      allow delete: if isMember() && (isAdmin()
+        || (exists(fleetPath(id)) && get(fleetPath(id)).data.uid == me())
+        || (!exists(fleetPath(id)) && resource.data.uid == me()));
     }
 
     // Personal goals: everyone in the league can see them; only their angler sets them (admins can delete).

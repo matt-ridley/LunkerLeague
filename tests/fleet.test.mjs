@@ -86,3 +86,20 @@ test("spare seats when bringing a saved boat: its seats less the captain's, 1 to
   assert.equal(spareSeats({}), 3);
   assert.equal(spareSeats(null), 3);
 });
+
+test("hand-overs: captain history, who was captain when, and the new captain's starting crew", async () => {
+  const { captainsOf, captainAt, captainSpells, captaincies, crewAfterHandOver, acceptedCaptains, handOverChoices } = await import("../js/fleet.js");
+  const old = { id: "x", uid: "amy", createdAt: 10, crew: ["bo", "cy"] };
+  assert.deepEqual(captainsOf(old), [{ uid: "amy", at: 10 }]);           // saved before hand-overs
+  const moved = { ...old, uid: "bo", crew: ["amy"], captains: acceptedCaptains(old, "bo", 50) };
+  assert.deepEqual(moved.captains, [{ uid: "amy", at: 10 }, { uid: "bo", at: 50 }]);
+  assert.equal(captainAt(moved, 5), "amy");                              // before it was saved
+  assert.equal(captainAt(moved, 49), "amy");
+  assert.equal(captainAt(moved, 50), "bo");
+  assert.deepEqual(captainSpells(moved), [{ uid: "amy", from: 10, to: 50 }, { uid: "bo", from: 50, to: null }]);
+  const f = new Map([["x", moved], ["y", { id: "y", uid: "amy", createdAt: 20 }]]);
+  assert.deepEqual(captaincies("amy", f).map(s => [s.b.id, s.from, s.to]), [["x", 10, 50], ["y", 20, null]]);
+  assert.deepEqual(crewAfterHandOver(old, "bo"), ["amy", "cy"]);
+  const members = new Map([["amy", { id: "amy", displayName: "Amy" }], ["bo", { id: "bo", displayName: "Bo" }], ["dee", { id: "dee", displayName: "Dee", suspended: true }]]);
+  assert.deepEqual(handOverChoices(old, members).map(m => m.id), ["bo"]);
+});
