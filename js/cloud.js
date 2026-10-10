@@ -26,7 +26,7 @@ export const store = {
   meFromCache: true,
   members: new Map(),     // uid -> member
   invite: undefined,      // current invite code (admins only)
-  catches: new Map(),     // id -> catch (with a small thumbnail)
+  catches: new Map(),     // id -> catch (its small photo is in thumbs/{id}, or on older catches `thumb`)
   catchesLoaded: false,
   pending: new Set(),     // ids of catches still waiting to reach the server
   spots: new Map(),       // catch id -> GPS spot (shared ones, plus all of this user's own)
@@ -534,20 +534,28 @@ export function randomCode() {
 /* ---------- Catches ---------- */
 export const newCatchId = () => cloud.api.doc(cloud.api.collection(cloud.db, "catches")).id;
 
-/* Saves a catch, its full photo and (optionally) its GPS spot and tackle in one go. Works offline: the batch waits on
-   the phone until there is signal. New catches also go in the outbox until the server confirms them.
+/* Saves a catch, its full photo, its small photo (thumbs/{id}) and (optionally) its GPS spot and tackle in one go.
+   Works offline: the batch waits on the phone until there is signal. New catches also go in the outbox until the
+   server confirms them. thumb: the small photo when the photo is new (the catch's `thumbAt` says which version it is).
    spot, tackle: an object to save, null to remove an existing one, undefined to leave it alone. */
-export function saveCatch({ id, data, photo, spot, tackle, isNew }) {
-  const { writeBatch, doc } = cloud.api;
+export function saveCatch({ id, data, photo, thumb, spot, tackle, isNew }) {
+  const { writeBatch, doc, deleteField } = cloud.api;
   const b = writeBatch(cloud.db);
   const me = uid();
+  // Saved by an older version of the app (an outbox entry): the small photo was in the catch.
+  if (data.thumb) { thumb = thumb || data.thumb; data = { ...data, thumbAt: data.thumbAt || Date.now() }; delete data.thumb; }
+  if (thumb) {
+    b.set(doc(cloud.db, "thumbs", id), { uid: me, src: thumb, at: data.thumbAt, bytes: thumb.length });
+    thumbCache.set(id, { at: data.thumbAt, src: thumb });
+    if (!isNew && (store.catches.get(id) || {}).thumb) data = { ...data, thumb: deleteField() }; // moved out of the catch
+  }
   b.set(doc(cloud.db, "catches", id), data, isNew ? {} : { merge: true });
   if (photo) b.set(doc(cloud.db, "photos", id), { uid: me, src: photo, bytes: photo.length }); // size, for the storage meter
   if (spot) b.set(doc(cloud.db, "spots", id), { ...spot, uid: me });
   else if (spot === null) b.delete(doc(cloud.db, "spots", id));
   if (tackle) b.set(doc(cloud.db, "tackle", id), { ...tackle, uid: me });
   else if (tackle === null) b.delete(doc(cloud.db, "tackle", id));
-  if (isNew) outboxPut({ id, uid: me, catchData: data, photo, spot: spot || null, tackle: tackle || null, savedAt: Date.now() });
+  if (isNew) outboxPut({ id, uid: me, catchData: data, photo, thumb: thumb || null, spot: spot || null, tackle: tackle || null, savedAt: Date.now() });
   b.commit().catch(e => console.warn("Catch not saved", e)); // a refusal is picked up by checkOutbox()
 }
 
@@ -556,6 +564,7 @@ export function deleteCatch(c) {
   const b = writeBatch(cloud.db);
   b.delete(doc(cloud.db, "catches", c.id));
   b.delete(doc(cloud.db, "photos", c.id));
+  if (c.thumbAt) b.delete(doc(cloud.db, "thumbs", c.id));
   if (c.hasSpot && store.spots.has(c.id)) b.delete(doc(cloud.db, "spots", c.id));
   if (c.hasTackle) b.delete(doc(cloud.db, "tackle", c.id));
   if (store.weather.has(c.id)) b.delete(doc(cloud.db, "weather", c.id));
@@ -713,6 +722,52 @@ export async function loadPhoto(id) {
   return src;
 }
 
+/* Small photos (thumbs/{id}) load when they come on screen, once per phone: the phone's saved copy first (free), and
+   from the server only when it isn't there or is an older version (the catch's `thumbAt`). Older catches still hold
+   theirs (`thumb`) until the league owner moves them out. */
+const thumbCache = new Map(); // catch id -> { at, src }
+const thumbLoads = new Map(); // catch id -> the load in progress
+export function thumbSrc(c) {
+  if (!c) return "";
+  if (c.thumb) return c.thumb;
+  const t = thumbCache.get(c.id);
+  return t && t.at === c.thumbAt ? t.src : "";
+}
+export function loadThumb(c) {
+  const have = thumbSrc(c);
+  if (have || !c || !c.thumbAt) return Promise.resolve(have);
+  const key = `${c.id}@${c.thumbAt}`;
+  if (thumbLoads.has(key)) return thumbLoads.get(key);
+  const { doc, getDoc, getDocFromCache } = cloud.api;
+  const ref = doc(cloud.db, "thumbs", c.id);
+  const fresh = snap => snap.exists() && snap.data().at === c.thumbAt ? String(snap.data().src || "") : "";
+  const p = getDocFromCache(ref).then(fresh, () => "")
+    .then(src => src || (navigator.onLine ? getDoc(ref).then(fresh) : ""))
+    .then(src => { if (src) thumbCache.set(c.id, { at: c.thumbAt, src }); return src; })
+    .catch(() => "")
+    .finally(() => thumbLoads.delete(key));
+  thumbLoads.set(key, p);
+  return p;
+}
+
+/* The league owner moves older catches' small photos out of the catch documents, a few at a time. Each catch is one
+   small batch (its thumbs doc plus the catch without `thumb`), so a refusal only stops that one. onStep(done, total). */
+export async function moveThumbs(onStep = () => {}) {
+  const { writeBatch, doc, deleteField } = cloud.api;
+  const list = [...store.catches.values()].filter(c => c.thumb && !store.pending.has(c.id));
+  let done = 0, failed = 0;
+  const one = async c => {
+    const at = c.createdAt || Date.now();
+    const b = writeBatch(cloud.db);
+    b.set(doc(cloud.db, "thumbs", c.id), { uid: uid(), src: c.thumb, at, bytes: c.thumb.length });
+    b.update(doc(cloud.db, "catches", c.id), { thumb: deleteField(), thumbAt: at });
+    try { await b.commit(); thumbCache.set(c.id, { at, src: c.thumb }); done++; } catch (e) { console.warn("Thumbnail not moved", c.id, e); failed++; }
+    onStep(done, list.length, failed);
+  };
+  for (let i = 0; i < list.length; i += 5) await Promise.all(list.slice(i, i + 5).map(one));
+  return { done, failed, total: list.length };
+}
+
 /* Compares the outbox with what the server has: confirmed catches leave the outbox; a catch that is neither on the
    server nor waiting to be sent was refused, so the app asks what to do with it. */
 let checking = false;
@@ -736,7 +791,7 @@ async function checkOutbox() {
 export function retryRejected(entry, changes = {}) {
   store.rejected = store.rejected.filter(e => e.id !== entry.id);
   outboxRemove(entry.id);
-  saveCatch({ id: newCatchId(), data: { ...entry.catchData, ...changes }, photo: entry.photo, spot: entry.spot || undefined,
+  saveCatch({ id: newCatchId(), data: { ...entry.catchData, ...changes }, photo: entry.photo, thumb: entry.thumb || undefined, spot: entry.spot || undefined,
     tackle: entry.tackle || undefined, isNew: true });
   emit();
 }
@@ -757,13 +812,15 @@ export async function photoStorage() {
     getAggregateFromServer(query(photos, where("bytes", ">", 0)), { n: count(), bytes: sum("bytes") }),
   ]);
   // Tackle box photos (each saves its size too) are counted on top.
-  const [box, covers, boats] = await Promise.all([
+  const [box, covers, boats, thumbs] = await Promise.all([
     getAggregateFromServer(collection(cloud.db, "tackleBoxPhotos"), { n: count(), bytes: sum("bytes") }),
     getAggregateFromServer(collection(cloud.db, "covers"), { n: count(), bytes: sum("bytes") }),
     getAggregateFromServer(collection(cloud.db, "fleetPhotos"), { n: count(), bytes: sum("bytes") }),
+    getAggregateFromServer(collection(cloud.db, "thumbs"), { n: count(), bytes: sum("bytes") }),
   ]);
   return { total: all.data().n, sized: sized.data().n, sizedBytes: sized.data().bytes || 0,
-    tackleN: box.data().n, tackleBytes: (box.data().bytes || 0) + (boats.data().bytes || 0), coverN: covers.data().n, coverBytes: covers.data().bytes || 0 };
+    tackleN: box.data().n, tackleBytes: (box.data().bytes || 0) + (boats.data().bytes || 0), coverN: covers.data().n, coverBytes: covers.data().bytes || 0,
+    thumbN: thumbs.data().n, thumbBytes: thumbs.data().bytes || 0 };
 }
 
 /* ---------- Comments, reactions and chat ---------- */
@@ -985,6 +1042,7 @@ export async function deleteDerby(d, { withEntries }) {
       for (const cm of store.comments.get(c.id) || []) refs.push(doc(cloud.db, "catches", c.id, "comments", cm.id));
       for (const who of (store.reactions.get(c.id) || new Map()).keys()) refs.push(doc(cloud.db, "catches", c.id, "reactions", who));
       refs.push(doc(cloud.db, "photos", c.id));
+      if (c.thumbAt) refs.push(doc(cloud.db, "thumbs", c.id));
       if (c.hasSpot) refs.push(doc(cloud.db, "spots", c.id));
       if (c.hasTackle) refs.push(doc(cloud.db, "tackle", c.id));
       if (store.weather.has(c.id)) refs.push(doc(cloud.db, "weather", c.id));

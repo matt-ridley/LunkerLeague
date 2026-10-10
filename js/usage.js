@@ -1,8 +1,8 @@
 /* Free plan use: what a full app open costs against Firebase's free (Spark) plan, from what this phone downloaded.
    Firestore charges a read for every document a listener sends. When the app has been closed for more than about 30
    minutes (most opens), every listener sends everything again; within 30 minutes it only sends what changed. So a
-   "full open" is the worst case, and the usual one. Downloads are the documents' size; the full photos opened on a
-   catch's page come on top. Pure functions. */
+   "full open" is the worst case, and the usual one. Downloads are the documents' size; small photos (thumbs/) load as
+   they come on screen, once per phone, and full photos when a catch is opened, so both come on top. Pure functions. */
 
 export const FREE_READS_DAY = 50000;           // Spark plan: document reads a day
 export const FREE_DOWNLOAD_MONTH = 10 * 1024 ** 3; // Spark plan: 10 GiB downloaded a month
@@ -11,7 +11,7 @@ const DOC_OVERHEAD = 100;                      // the document's name and bookke
 
 /* What each listener holds, by its key in cloud.meta: the label shown. */
 export const PART_NAMES = {
-  catches: "Catches (with their small photos)", comments: "Comments", reactions: "Reactions", weather: "Weather",
+  catches: "Catches", comments: "Comments", reactions: "Reactions", weather: "Weather",
   spotsShared: "Shared spots", spotsMine: "Your spots", tackleShared: "Shared tackle", tackleMine: "Your tackle",
   members: "Members", chat: "League chat (last 100)", derbies: "Derbies", entrants: "Derby entrants", trips: "Outings",
   rsvps: "Outing answers", boats: "Outing boats", noShows: "No-shows", skunks: "Skunks", tackleBox: "Tackle boxes",

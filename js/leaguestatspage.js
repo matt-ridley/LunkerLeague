@@ -4,6 +4,7 @@
 import { el, fill, fmtDay, fmtWeight, fmtLength } from "./ui.js";
 import { store, uid, memberName, presentRsvps } from "./cloud.js";
 import { focusStyle } from "./thumbfocus.js";
+import { thumbImg } from "./thumbs.js";
 import { shownSize } from "./catches.js";
 import { seasonOf, seasonName } from "./season.js";
 import { rankInput, crownSeasonsNow } from "./leaders.js";
@@ -115,7 +116,7 @@ const empty = text => el("p", { class: "muted", text });
 function catchRow(c, extra = null) {
   if (!c) return null;
   return el("a", { class: "board-row ls-catch", href: `#/c/${c.id}` },
-    c.thumb ? el("img", { class: "thumb sm", src: c.thumb, alt: "", loading: "lazy", style: focusStyle(c) }) : el("span", { class: "thumb sm" }),
+    thumbImg(c, { class: "thumb sm", alt: "", style: focusStyle(c) }),
     el("span", { class: "grow stack-tight" },
       el("b", { text: `${c.species}${shownSize(c) ? ` · ${shownSize(c)}` : ""}` }),
       el("span", { class: "muted small", text: `${name(c.uid)} · ${fmtDay(c.caughtAt)}` }),
@@ -125,7 +126,7 @@ function catchRow(c, extra = null) {
 /* A row of photos that scrolls sideways, each with its size and angler. */
 function photoStrip(list, field) {
   return el("div", { class: "ls-strip" }, ...list.map((c, i) => el("a", { class: "pb-tile ls-strip-tile", href: `#/c/${c.id}` },
-    c.thumb ? el("img", { src: c.thumb, alt: `${c.species} photo`, loading: "lazy", style: focusStyle(c) }) : null,
+    thumbImg(c, { alt: `${c.species} photo`, style: focusStyle(c) }),
     el("span", { class: "pb-text" },
       el("small", { text: `#${i + 1} · ${c.species}` }), el("b", { text: sizeOf(field, c[field]) }), el("span", { text: name(c.uid) })))));
 }
@@ -147,7 +148,7 @@ function recordsBody(x) {
   if (!big.biggest && !rec.set) return [empty("No weighed or measured fish in this period yet.")];
   return [
     big.biggest ? el("a", { class: "pb-tile ls-hero-fish", href: `#/c/${big.biggest.id}` },
-      big.biggest.thumb ? el("img", { src: big.biggest.thumb, alt: `${big.biggest.species} photo`, style: focusStyle(big.biggest) }) : null,
+      thumbImg(big.biggest, { alt: `${big.biggest.species} photo`, style: focusStyle(big.biggest) }),
       el("span", { class: "pb-text" }, el("small", { text: "🐋 Biggest fish of the period" }),
         el("b", { text: `${big.biggest.species} · ${shownSize(big.biggest)}` }), el("span", { text: `${name(big.biggest.uid)} · ${fmtDay(big.biggest.caughtAt)}` }))) : null,
     big.heaviest.length ? sub("Top 10 heaviest") : null, big.heaviest.length ? photoStrip(big.heaviest, "weightOz") : null,

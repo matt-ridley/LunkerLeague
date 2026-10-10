@@ -1,6 +1,6 @@
 /* League admin: name, invite code, members and (owner only) admins. */
 import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, copyText, confirmButton, fill } from "./ui.js";
-import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode, setGraceDays, setLeagueStart, setLeagueHome } from "./cloud.js";
+import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode, setGraceDays, setLeagueStart, setLeagueHome, moveThumbs } from "./cloud.js";
 import { pickOnMap } from "./mappick.js";
 import { leagueStartOf } from "./stats.js";
 import { storageMeter } from "./storagemeter.js";
@@ -59,10 +59,37 @@ export function renderAdmin(main) {
     el("h3", { text: "Ranking points" }),
     el("p", { text: "Change how many points catches, species, records and derbies are worth, with a preview before saving." }),
     el("a", { class: "btn block", href: "#/scoring", text: "Change points" }));
-  fill(main, el("h2", { class: "page-title", text: "League admin" }), invite, isOwner() ? emailInvite(L, code) : null, league, storageMeter(), points, list);
+  fill(main, el("h2", { class: "page-title", text: "League admin" }), invite, isOwner() ? emailInvite(L, code) : null, league, isOwner() ? thumbsCard(main) : null, storageMeter(), points, list);
 }
 
 /* Owner only: email an invite. It opens in your own email app, written and ready to send. */
+/* Owner only, once: move older catches' small photos out of the catch documents, so opening the app downloads far less.
+   Kept outside the page so the progress survives the page redrawing as catches change. */
+const moving = { running: false, done: 0, failed: 0, total: 0, finished: false };
+function thumbsCard(main) {
+  const left = [...store.catches.values()].filter(c => c.thumb).length;
+  if (!left && !moving.running && !moving.finished) return null;
+  const start = async () => {
+    if (!navigator.onLine) return toast("Needs signal.");
+    Object.assign(moving, { running: true, done: 0, failed: 0, total: left, finished: false });
+    renderAdmin(main);
+    const r = await moveThumbs((done, total, failed) => { Object.assign(moving, { done, total, failed }); renderAdmin(main); });
+    Object.assign(moving, { running: false, finished: true, ...r });
+    renderAdmin(main);
+    toast(r.failed ? `Moved ${r.done}; ${r.failed} didn't move. Try again.` : `Moved ${r.done} thumbnails.`);
+  };
+  const pct = moving.total ? Math.round(((moving.done + moving.failed) / moving.total) * 100) : 0;
+  return el("section", { class: "card stack" },
+    el("h3", { text: "🖼️ Move thumbnails" }),
+    el("p", { text: "Older catches keep their small photo inside the catch, so every app open downloads all of them. Moving them out makes opening the app download about 90% less; each small photo then loads when it comes on screen, once per phone." }),
+    moving.running || moving.finished ? el("div", { class: "meter", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(pct) },
+      el("span", { class: `meter-fill ${moving.failed ? "warn" : "ok"}`, style: `width:${Math.max(1, pct)}%` })) : null,
+    moving.running ? el("p", { class: "muted", text: `Moving… ${moving.done} of ${moving.total}${moving.failed ? ` (${moving.failed} didn't move)` : ""}. Keep the app open.` }) : null,
+    !moving.running ? el("p", {}, el("b", { text: left ? `${left.toLocaleString()} catch${left === 1 ? "" : "es"} to move.` : "All moved. Nothing left to do." })) : null,
+    !moving.running && left ? el("button", { class: "btn primary block", type: "button", text: moving.finished ? "Move the rest" : "Move thumbnails", onclick: start }) : null,
+    el("p", { class: "hint", text: "One time only, needs signal, and changes nothing else about any catch. Catches still waiting to sync are moved next time." }));
+}
+
 function emailInvite(L, code) {
   const to = el("input", { type: "email", inputmode: "email", autocapitalize: "off", autocomplete: "off", multiple: true,
     placeholder: "friend@example.com", "aria-label": "Friend's email address" });

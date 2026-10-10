@@ -10,6 +10,7 @@ const REC_TITLE = { past: "All-time record", league: "League record", season: "S
 import { WHEN } from "./feedfilter.js";
 import { NO_TANK, TANK_SHOW, RELEASED, TANK_SORT, tankActive, filterTank, tankStats, reactionCount, topReaction } from "./fishtank.js";
 import { focusStyle } from "./thumbfocus.js";
+import { thumbImg } from "./thumbs.js";
 import { browseFrom, returningTo, scrollBackTo } from "./browse.js";
 
 // Filters last for the session (until the app is closed); grid or list is remembered on this phone.
@@ -72,7 +73,7 @@ function tile(c, all) {
   const n = reactionCount(store.reactions, c.id), m = store.members.get(c.uid);
   return el("a", { class: "tank-tile", href: `#/c/${c.id}` },
     el("span", { class: "tank-photo" },
-      c.thumb ? el("img", { src: c.thumb, alt: `${c.species} photo`, loading: "lazy", style: focusStyle(c) }) : el("span", { class: "tank-nophoto", html: icon.fish }),
+      thumbImg(c, { alt: `${c.species} photo`, style: focusStyle(c) }),
       rec ? el("span", { class: "tank-flair", title: REC_TITLE[rec.level], text: REC_ICON[rec.level] })
         : pb ? el("span", { class: "tank-flair pb", title: "Personal best", text: "PB" }) : null),
     el("span", { class: "tank-cap" },
