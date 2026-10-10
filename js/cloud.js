@@ -389,7 +389,7 @@ function refreshMemberListeners() {
     }
     emit();
   }, syncError));
-  if (key === "admin") {
+  if (isAdmin()) {
     cloud.memberUnsubs.push(onSnapshot(doc(cloud.db, "config", "invite"), OPTS, snap => {
       seen("invite", snap);
       store.invite = snap.exists() ? String(snap.data().code || "") : "";
