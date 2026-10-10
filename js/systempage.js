@@ -2,12 +2,13 @@
    Opened by tapping the fish icon at the top, or from your profile. */
 import { VERSION, FIREBASE_SDK } from "./config.js";
 import { el, fill, fmtDate, fmtAgo, fmtDay, fmtWeight, toast, icon } from "./ui.js";
-import { store, cloud, syncStatus, USE_EMULATOR } from "./cloud.js";
+import { store, cloud, syncStatus, openParts, USE_EMULATOR } from "./cloud.js";
 import { outboxAll } from "./outbox.js";
 import { fmtBytes } from "./storage.js";
 import { storageMeter } from "./storagemeter.js";
 import { getTheme } from "./theme.js";
 import { statusText, leagueFacts } from "./sysinfo.js";
+import { measure, openCost, freePlan, FREE_READS_DAY, FREE_DOWNLOAD_MONTH, OPENS_EACH } from "./usage.js";
 
 const SDK = (FIREBASE_SDK.match(/\/(\d+\.\d+\.\d+)\//) || [])[1] || "?";
 const THEME = { auto: "Auto (follows the phone)", day: "Day", dusk: "Dusk" };
@@ -101,7 +102,36 @@ function league() {
         line("Busiest day", f.busiestDay || "Nothing yet"),
         line("First catch", first ? el("a", { href: `#/c/${first.id}`, text: `${first.species}, ${fmtDay(first.caughtAt)}` }) : "Nothing yet"))),
     storageMeter(),
+    freePlanCard(),
   ];
+}
+
+/* "under 1 KB", "640 KB", "1.2 MB", "34 MB" */
+const size = b => (b < 1024 ? "under 1 KB" : b < 1024 ** 2 ? `${Math.round(b / 1024)} KB` : b < 10 * 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB` : fmtBytes(b));
+
+/* What opening the app costs against the free plan's daily reads and monthly downloads. */
+function freePlanCard() {
+  const cost = openCost(openParts(measure));
+  const anglers = [...store.members.values()].filter(m => !m.suspended).length;
+  const f = freePlan(cost, { anglers });
+  const n = x => (isFinite(x) ? x.toLocaleString() : "lots of");
+  const what = f.limit === "downloads" ? "downloads (10 GB a month)" : `reads (${FREE_READS_DAY.toLocaleString()} a day)`;
+  return el("section", { class: "card stack" },
+    el("h3", { text: "📶 Free plan" }),
+    el("div", { class: "hero-stats plain" },
+      tile(cost.docs.toLocaleString(), "reads per open"), tile(size(cost.bytes), "per open"), tile(n(f.opensPerDay), "opens a day")),
+    el("div", { class: "meter", role: "meter", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.min(100, f.pct)), "aria-label": "A busy day's share of the free plan" },
+      el("span", { class: `meter-fill ${f.level}`, style: `width:${Math.max(1, Math.min(100, f.pct))}%` })),
+    el("p", {}, el("b", { text: `A busy day uses about ${isFinite(f.pct) ? f.pct : "over 100"}% of the free plan.` }),
+      ` That's ${plural(anglers, "angler")} opening the app ${OPENS_EACH} times each (${f.busyDay.toLocaleString()} opens); the league can open it about ${n(f.opensPerDay)} times a day before the ${what} run out.`),
+    f.level !== "ok" ? el("p", { class: "msg err", text: f.level === "bad"
+      ? "Over the free plan on a busy day. The app goes offline until the limit resets (reads at midnight Pacific time, downloads monthly); nothing is lost."
+      : "Getting close on a busy day. The roadmap's optimizations fix this." }) : null,
+    el("dl", { class: "facts" },
+      line("Reads allow", `${n(f.byReads)} opens a day`),
+      line("Downloads allow", `${n(f.byDownloads)} opens a day (${FREE_DOWNLOAD_MONTH / 1024 ** 3} GB a month)`),
+      ...cost.parts.filter(p => p.docs).slice(0, 6).map(p => line(p.label, `${plural(p.docs, "doc")} · ${size(p.bytes)}`))),
+    el("p", { class: "hint", text: "An estimate from what this phone downloaded. Opening the app after about 30 minutes away reads everything again (most opens); sooner, only what changed. Full photos on a catch's page come on top. The real numbers are in the Firebase console: Firestore Database → Usage." }));
 }
 
 export function renderSystem(main) {
