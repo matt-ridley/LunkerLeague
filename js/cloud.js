@@ -14,7 +14,7 @@ export const USE_EMULATOR = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
 export const cloud = {
   on: !!FIREBASE_CONFIG, api: null, db: null, auth: null,
   user: null, authKnown: false, failed: false, loadError: false,
-  meta: {}, unsubs: [], memberUnsubs: [], retry: null,
+  meta: {}, snaps: {}, unsubs: [], memberUnsubs: [], retry: null,
   statusKind: "", statusSince: Date.now(), // the fish icon's current state and when it last changed
   lastServerAt: 0,                         // when the server last sent fresh data (not the phone's cached copy)
 };
@@ -113,7 +113,7 @@ let pendingOf = {};
 function syncPending() { store.pendingIds = new Set(Object.values(pendingOf).flatMap(set => [...set])); }
 const OPTS = { includeMetadataChanges: true };
 const seen = (key, snap) => {
-  cloud.meta[key] = snap.metadata; cloud.failed = false;
+  cloud.meta[key] = snap.metadata; cloud.snaps[key] = snap; cloud.failed = false;
   if (!snap.metadata.fromCache) cloud.lastServerAt = Date.now();
 };
 
@@ -155,7 +155,7 @@ function refreshMemberListeners() {
   memberKey = key;
   cloud.memberUnsubs.forEach(u => u());
   cloud.memberUnsubs = [];
-  for (const k of Object.keys(cloud.meta)) if (k !== "league" && k !== "me") delete cloud.meta[k];
+  for (const k of Object.keys(cloud.meta)) if (k !== "league" && k !== "me") { delete cloud.meta[k]; delete cloud.snaps[k]; }
   derbyChatUnsubs.forEach(u => u()); derbyChatUnsubs.clear();
   store.members = new Map(); store.invite = undefined;
   store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map(); store.tackle = new Map();
@@ -371,6 +371,18 @@ function refreshMemberListeners() {
   }
 }
 
+/* What a full app open downloads, per listener: Map(key -> { docs, bytes }), measured from each listener's latest
+   data (each snapshot measured once). Listeners opened on demand (a derby's chat, full photos) aren't included. */
+const measured = new WeakMap();
+export function openParts(measure) {
+  const out = new Map();
+  for (const [key, snap] of Object.entries(cloud.snaps)) {
+    if (!measured.has(snap)) measured.set(snap, measure(snap.docs ? snap.docs.map(d => d.data()) : snap.exists() ? [snap.data()] : []));
+    out.set(key, measured.get(snap));
+  }
+  return out;
+}
+
 /* Past catches: `pastStored` is the flag saved on the catch (logged too late; locked). `past` also covers catches
    from before the league start, worked out here so an admin moving the start date re-sorts every catch. A new Map,
    so everything worked out from the catches (rankings, crowns, badges) is worked out again. */
@@ -387,7 +399,7 @@ function stopListeners() {
   cloud.unsubs.forEach(u => u());
   cloud.memberUnsubs.forEach(u => u());
   cloud.unsubs = []; cloud.memberUnsubs = []; memberKey = "";
-  cloud.meta = {};
+  cloud.meta = {}; cloud.snaps = {};
   store.league = undefined; store.me = undefined; store.members = new Map(); store.invite = undefined;
   store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map(); store.tackle = new Map(); store.rejected = [];
   resetSocial();
