@@ -133,7 +133,7 @@ const chartCard = (title, hint, body) => el("section", { class: "card stack" },
   el("h3", { text: title }), hint ? el("p", { class: "hint", text: hint }) : null, body);
 
 /* Horizontal bars, most first: name, bar, count. One series, so one colour and no legend. */
-function hbars(rows, { limit = Infinity, keepZero = false } = {}) {
+export function hbars(rows, { limit = Infinity, keepZero = false } = {}) {
   const list = rows.filter(r => keepZero || r.n > 0);
   const shown = list.slice(0, limit), max = Math.max(1, ...shown.map(r => r.n));
   const rest = list.length - shown.length;
@@ -146,7 +146,7 @@ function hbars(rows, { limit = Infinity, keepZero = false } = {}) {
 }
 
 /* Twelve columns, January first, with the count over each month that has fish. */
-function monthBars(counts) {
+export function monthBars(counts) {
   const max = Math.max(1, ...counts);
   return el("div", { class: "mbars", role: "img", "aria-label": counts.map((n, i) => `${MONTHS[i]} ${n}`).join(", ") },
     ...counts.map((n, i) => el("div", { class: "mbar", title: `${MONTHS[i]}: ${fishWord(n)}` },
