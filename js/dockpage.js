@@ -4,7 +4,7 @@ import { el, fill, field, avatar, fmtDay, fmtWeight, fmtLength } from "./ui.js";
 import { store, uid } from "./cloud.js";
 import { luckyLure } from "./tacklebox.js";
 import { itemThumb } from "./tackleboxpage.js";
-import { anglerRoster, sortRoster, tackleBoxes, ANGLER_SORTS } from "./dock.js";
+import { anglerRoster, sortRoster, rosterPlaces, tackleBoxes, ANGLER_SORTS } from "./dock.js";
 import { rankInput, crownSeasonsNow } from "./leaders.js";
 import { seasonTables, seasonOf, seasonName } from "./season.js";
 
@@ -39,6 +39,9 @@ export function renderDock(main) {
 // The anglers list's period and sort, remembered for this visit.
 const ANGLERS_KEY = "lunker-anglers";
 let anglersView = { period: "season", sort: "fish" };
+// Same chevron as the Fish Finder's fold button; turned over when open.
+const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+const opened = new Set(); // anglers whose stats are showing (all folded when the app opens)
 try { anglersView = { ...anglersView, ...JSON.parse(sessionStorage.getItem(ANGLERS_KEY) || "{}") }; } catch {}
 
 /* Points, place, crowns and badges per angler for the period: this season's, or every season's added up. */
@@ -73,6 +76,7 @@ export function renderAnglers(main) {
     renderAnglers(main);
   };
   const list = sortRoster(anglerRoster({ members: active(), catches: [...store.catches.values()], period, year, extra: rankExtras(period, year) }), sort);
+  const places = rosterPlaces(list, sort);
   const sel = el("select", { "aria-label": "Sort anglers", onchange: () => setV({ sort: sel.value }) },
     ...ANGLER_SORTS.map(([k, t]) => el("option", { value: k, text: t })));
   sel.value = sort;
@@ -95,15 +99,22 @@ export function renderAnglers(main) {
       el("p", { class: "hint", text: period === "career"
         ? "Every league catch. Records are league records (the best league fish ever); PBs include logbook catches."
         : "League catches this season (from the league start). Records are this season's; PBs are the ones caught this season." })),
-    el("div", { class: "card-list" }, ...list.map(r => {
-      const [n, label] = sortValue(r, sort);
-      return el("a", { class: "list-row" + (r.member.id === me ? " me" : ""), href: `#/u/${r.member.id}` },
-        avatar(r.member.id === me ? { ...r.member, ...store.me } : r.member),
-        el("div", { class: "grow stack-tight" },
-          el("b", { text: r.member.id === me ? `${r.member.displayName} (you)` : r.member.displayName }),
-          stats(r),
-          el("span", { class: "muted small", text: r.lastAt ? `Last fish ${fmtDay(r.lastAt)}` : "No fish yet" })),
-        el("span", { class: "list-row-n" + (n.length > 4 ? " long" : "") }, el("b", { text: n }), el("small", { text: label })));
+    el("div", { class: "card-list" }, ...list.map((r, i) => {
+      const [n, label] = sortValue(r, sort), id = r.member.id, open = opened.has(id), place = places[i];
+      const toggle = el("button", { type: "button", class: "angler-more", "aria-expanded": String(open),
+        "aria-label": `${open ? "Hide" : "Show"} ${r.member.displayName}'s stats`, html: CHEVRON,
+        onclick: () => { open ? opened.delete(id) : opened.add(id); renderAnglers(main); } });
+      return el("div", { class: "list-row angler-row" + (id === me ? " me" : "") },
+        el("div", { class: "angler-top" },
+          el("span", { class: "angler-place", text: place == null ? "–" : String(place) }),
+          el("a", { class: "angler-link grow", href: `#/u/${id}` },
+            avatar(id === me ? { ...r.member, ...store.me } : r.member),
+            el("div", { class: "grow stack-tight" },
+              el("b", { text: id === me ? `${r.member.displayName} (you)` : r.member.displayName }),
+              el("span", { class: "muted small", text: r.lastAt ? `Last fish ${fmtDay(r.lastAt)}` : "No fish yet" })),
+            el("span", { class: "list-row-n" + (n.length > 4 ? " long" : "") }, el("b", { text: n }), el("small", { text: label }))),
+          toggle),
+        open ? stats(r) : null);
     })));
 }
 

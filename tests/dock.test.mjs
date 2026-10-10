@@ -1,7 +1,7 @@
 // Unit tests for The Dock's lists. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { anglerRoster, sortRoster, tackleBoxes } from "../js/dock.js";
+import { anglerRoster, sortRoster, rosterPlaces, tackleBoxes } from "../js/dock.js";
 
 const members = [
   { id: "cy", displayName: "Cy" },
@@ -58,6 +58,14 @@ test("the anglers list sorts by any stat, highest first, ties and names A to Z; 
   assert.deepEqual(ids("lastAt"), ["bo", "cy", "amy"]);
   assert.deepEqual(ids("badges"), ["amy", "bo", "cy"]);
   assert.deepEqual(ids("name"), ["amy", "bo", "cy"]);
+});
+
+test("the anglers list numbers each place, ties sharing one", () => {
+  const rows = [10, 7, 7, 3, 0].map((fish, i) => ({ member: { id: String(i), displayName: String(i) }, fish, points: fish }));
+  assert.deepEqual(rosterPlaces(rows, "fish"), [1, 2, 2, 4, 5]);
+  assert.deepEqual(rosterPlaces(rows, "points"), [1, 2, 2, 4, 5]);
+  assert.deepEqual(rosterPlaces(rows, "name"), [1, 2, 3, 4, 5]);
+  assert.deepEqual(rosterPlaces(rows.map(r => ({ ...r, biggest: null })), "biggest"), [null, null, null, null, null]);
 });
 
 test("everyone's tackle boxes: yours first, then the fullest, then A to Z; retired tackle isn't counted", () => {

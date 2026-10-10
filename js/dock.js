@@ -58,6 +58,19 @@ export function sortRoster(rows, sort = "fish") {
   return rows.slice().sort((a, b) => (sort === "name" ? 0 : num(b) - num(a) || 0) || name(a, b));
 }
 
+/* Each sorted row's place in the list (1, 2, 3…), with ties sharing a place (1, 2, 2, 4). By name it's just the
+   position; an angler with nothing to rank (no weighed fish for heaviest) has none (null). Points go by the table's places, which are already worked out. */
+export function rosterPlaces(sorted, sort = "fish") {
+  const val = r => (sort === "points" ? r.points : r[sort] ?? null);
+  return sorted.map((r, i) => {
+    if (sort === "name") return i + 1;
+    if (val(r) == null) return null;
+    let j = i;
+    while (j > 0 && val(sorted[j - 1]) === val(r)) j--;
+    return j + 1;
+  });
+}
+
 /* Everyone's tackle box: yours first, then the fullest boxes, then A to Z. Retired tackle isn't counted. */
 export function tackleBoxes({ members, items = new Map(), me }) {
   const count = new Map();
