@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.72.1 (beta)
+**Current version:** 0.72.2 (beta)
 
 ## Features
 
@@ -188,11 +188,19 @@ A season is the calendar year, so the league starts fresh every January 1, while
 - **Releases:** ✅ (1) season core: Leaders by season, points and titles reset, best title on profiles, Fish Finder and stats by season, Derby series rename (done in 0.66.0); ✅ (2) season records and crowns, Season Bests, a Champions wall in the Hall of Fame (done in 0.67.0); ✅ (3) season and career badges, plus the founders' Bless Your Bonnet badge and Official Pot Lickers list (done in 0.68.0); ✅ (4) final whistle, saving finished seasons for good, trophy shelf on profiles, Defending Champ, and the Champion, Repeat Champion and Dynasty badges (done in 0.69.0); (5) the fun extras. All before January 1, 2027.
 - **Phase 2:** shorter periods inside a season get their own name: an automatic **Angler of the Month** first, then admin-named **splits** (for example Hard Water and Open Water) with their own podium, while points still add up to the season.
 
+### Milestone H: Optimizations (staying on the free plan)
+The league runs on Firebase's free Spark plan: 50,000 reads a day, 10 GB downloaded a month and 1 GB stored. Today every app open loads the whole league (every catch with its thumbnail inside it, plus its weather, tackle, reactions and comments), and Firestore charges it all again when the phone has been off the connection for more than about 30 minutes, which is most opens. That's roughly 4 reads and 30 KB per catch per open, so the cost grows with **total catches × opens**, not with the number of anglers. Rough limits as it stands: comfortable for 10–20 active anglers in the first season, tight at about 300 catches with 40 opens a day, and over at about 600 catches with 60 opens a day (downloads run out before reads). Going over doesn't lose anything: the app acts offline until the limit resets (daily for reads, monthly for downloads), and catches still save on the phone. Built in this order, biggest win first:
+- **Check real usage** (S): compare the Firebase console's usage numbers with the estimate above, and show the league's catch count against these limits on System info, so we know how close we are before it bites.
+- **Thumbnails out of catch documents** (M): keep each catch's thumbnail in its own document, loaded only when it's on screen (and kept on the phone after that). Cuts downloads per open by about 90%, the biggest single fix. Existing catches are moved over once.
+- **Load only the current season** (M): open the app with this season's catches and what they need (weather, tackle, reactions, comments), and load past seasons, the logbook and career or all-time views when someone opens them. Locked seasons' saved snapshots already hold their final tables, so most screens don't need the old catches at all. Stops reads growing year after year.
+- **Smaller extras** (S): load reactions and comments for the catches being looked at instead of all of them, and lighter listeners for collections that rarely change.
+- **Shrink old seasons' photos** (S–M), moved from Possible ideas: shrink the full photos of locked seasons to free up the league's 1 GB of storage (about 3,500–4,000 catches at today's photo size).
+- **If it's still not enough:** the Blaze (pay as you go) plan. At about 20 anglers and 1,000 catches that's roughly $5–15 a month today, mostly downloads, and much less after the fixes above. With them, the free plan should handle 30–50 anglers until the photos fill the 1 GB.
+
 ### Possible ideas
 Not planned yet, but worth keeping in mind.
 - **Season theme** (S): an admin picks a featured species for the season ("Year of the Walleye") worth bonus points.
 - **Preseason predictions** (S–M): before the season, everyone picks the champion and the biggest fish, scored when it ends (goes with guess bets).
-- **Shrink old seasons' photos** (S–M): shrink the full photos of locked seasons to free up the league's 1 GB of storage.
 - **Fish of the Week vote** (S): the league votes, and the winner gets a badge.
 - **Guess bets** (M): everyone enters a number and the closest wins, for example how many fish the league catches at a derby, or what Matt's biggest muskie weighs this year (a tie splits the pot). Could also pick a person ("who wins the club derby?").
 - **Quick reactions in the Fish Tank** (S): press and hold a photo in the Fish Tank to react without opening the catch.
@@ -326,6 +334,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.72.2 | 2026-Oct-09 10:09:50 PM | **Roadmap**: new **Milestone H: Optimizations**, a plan to keep the league on the free Firebase plan as it grows: check real usage, move thumbnails out of catch documents, load only the current season, lighter listeners, and shrink old seasons' photos (moved from Possible ideas). No app changes. |
 | 0.72.1 | 2026-Oct-09 09:56:09 PM | **The Dock**: **Your stats** and **League stats** now sit together under one **Stats** heading (Your stats first), instead of separate The league and You headings. No new security rules. |
 | 0.72.0 | 2026-Oct-09 09:42:02 PM | **Boats change captains**: on a boat's page the captain taps **Hand over** and picks a member. The boat stays theirs until that angler answers from the 🔔 bell or the boat page: **Take the helm** (they pick the crew, with the old crew and the old captain ticked to start) or **No thanks**; the captain can **Take back the offer** until then. The boat keeps all its catches, outings and stats. The boat page lists every **Captain** with their dates, the feed announces the new captain, and the old captain gets a bell note. Boat badges follow the captain at the time: Skipper, Admiral and Big Iron count boats you've taken over, and Lucky Hull and Record Deck only count fish caught while you were captain (the old captain keeps what they earned). The season's Top boat award goes to whoever was captain at the end of the season. **Security rules changed** (publish them): saved boats get `captains` (the history, which can only grow by the new captain accepting), `offerTo` and `offerAt`, and the new captain can change or remove the boat's photo. New boats save as before, even before the rules are published. |
 | 0.71.0 | 2026-Oct-09 09:14:27 PM | **League stats** (📈 on The Dock, under a new **The league** heading): the whole league's dashboard for this season, a career or all time (logbook catches only count in All time). Headline numbers on top, then folding sections: records and big fish, when the fish bite (heatmap, months against last season, pace), weather and the moon, tackle and technique (shared tackle only), species, places and boats, derbies, duels, bets and crowns, social and outings (with the skunk report), badges, goals and the league's next milestone, and superlatives. Everything is worked out on the phone from data the app already has. No new security rules. |
