@@ -36,7 +36,13 @@ service cloud.firestore {
         && (!("startAt" in request.resource.data) || (request.resource.data.startAt is int
             && request.resource.data.startAt <= request.time.toMillis() + 600000))
         // The home water: where weather is looked up for catches without a spot (and best-bite times).
-        && (request.resource.data.get("home", null) == null || validHome(request.resource.data.home));
+        && (request.resource.data.get("home", null) == null || validHome(request.resource.data.home))
+        // The archive set in use (see archive/ below).
+        && (request.resource.data.get("archive", null) == null || validArchivePointer(request.resource.data.archive));
+    }
+    function validArchivePointer(a) {
+      return a is map && a.keys().hasOnly(["at", "since", "y0", "of", "by"]) && a.at is int && a.since is int && a.since <= a.at
+        && a.y0 is int && a.of is int && a.of > 0 && a.of <= 100;
     }
     function validHome(h) {
       return h is map && h.keys().hasOnly(["lat", "lng", "name"])
@@ -94,7 +100,7 @@ service cloud.firestore {
       return d.keys().hasOnly(["uid", "species", "weightOz", "lengthIn", "caughtAt", "createdAt", "thumb", "thumbAt", "photoTakenAt",
                                "notes", "released", "hasSpot", "locShared", "spotName",
                                "derbyId", "captain", "netman", "dq", "dqReason", "enteredBy", "fishCount", "limit", "past",
-                               "approved", "approvedAt", "hasTackle", "tackleShared", "boatId", "focus"])
+                               "approved", "approvedAt", "hasTackle", "tackleShared", "boatId", "focus", "editedAt"])
         && validFocus(d.get("focus", null))
         // The saved boat it was caught from (fleet/{id}), if any.
         && (d.get("boatId", null) == null || (d.boatId is string && d.boatId.size() <= 40))
@@ -183,7 +189,8 @@ service cloud.firestore {
     // the time can't change (past catches from before the league are the angler's logbook and stay editable).
     function seasonOpen(caughtAt) { return request.time < lockTime(timestamp.value(int(caughtAt)).year()); }
     function fishLocked(old) {
-      return proofChanged() && old.get("past", false) == false && old.caughtAt >= leagueStart() && !seasonOpen(old.caughtAt);
+      // The cheap checks first: most catches are in a season that's still open, so the comparison is skipped.
+      return old.get("past", false) == false && !seasonOpen(old.caughtAt) && old.caughtAt >= leagueStart() && proofChanged();
     }
     function approvalOk(d, old) {
       return d.get("approved", false) == false
@@ -221,11 +228,11 @@ service cloud.firestore {
         // The angler (or the organiser who entered it) can move the thumbnail any time, even on a closed derby entry:
         // it's only how the photo is cropped in lists, so it isn't proof and keeps any approval.
         || (isMember() && (resource.data.uid == me() || resource.data.get("enteredBy", null) == me())
-            && changed().hasOnly(["focus"]) && validFocus(request.resource.data.get("focus", null)))
+            && changed().hasOnly(["focus", "editedAt"]) && validFocus(request.resource.data.get("focus", null)))
         // The derby's organiser (or an admin) can disqualify, reinstate or approve an entry, and change nothing else.
         || (isMember() && resource.data.get("derbyId", null) != null
             && (get(derbyPath(resource.data.derbyId)).data.organiserUid == me() || isAdmin())
-            && changed().hasOnly(["dq", "dqReason", "approved", "approvedAt"])
+            && changed().hasOnly(["dq", "dqReason", "approved", "approvedAt", "editedAt"])
             && request.resource.data.get("approved", false) is bool
             && (request.resource.data.get("approvedAt", null) == null || request.resource.data.approvedAt is number)
             && request.resource.data.get("dq", false) is bool
@@ -313,11 +320,38 @@ service cloud.firestore {
       allow delete: if isMember() && (!existsAfter(catchPath(id)) || isAdmin());
     }
 
+    // The archive: older catches packed into a few documents (archive/{set}_{i}), so opening the app reads far less. Built
+    // by an admin's phone from the league's data; everyone reads it. A part is never changed, only replaced by a new set.
+    match /archive/{id} {
+      allow read: if isMember();
+      allow create: if isAdmin() && request.resource.data.keys().hasOnly(["set", "y0", "i", "of", "by", "items"])
+        && request.resource.data.set is int && request.resource.data.y0 is int
+        && request.resource.data.i is int && request.resource.data.of is int && request.resource.data.i < request.resource.data.of
+        && id == string(request.resource.data.set) + "_" + string(request.resource.data.i)
+        && request.resource.data.by == me() && request.resource.data.items is string;
+      allow delete: if isAdmin();
+    }
+
+    // Tombstones: something the archive may hold was deleted (a catch, a comment or a reaction), so it doesn't come back
+    // from there. Only for something that really is gone, by anyone who could delete it (or did, in the same batch).
+    match /gone/{id} {
+      allow read: if isMember();
+      allow create, update: if isMember() && request.resource.data.keys().hasOnly(["kind", "cid", "who", "uid", "at"])
+        && request.resource.data.uid == me() && request.resource.data.at is number
+        && ((request.resource.data.kind == "catch" && !existsAfter(catchPath(id)))
+          || (request.resource.data.kind == "comment" && request.resource.data.cid is string
+              && !existsAfter(/databases/$(database)/documents/catches/$(request.resource.data.cid)/comments/$(id)))
+          || (request.resource.data.kind == "reaction" && request.resource.data.cid is string && request.resource.data.who is string
+              && id == request.resource.data.cid + "_" + request.resource.data.who
+              && !existsAfter(/databases/$(database)/documents/catches/$(request.resource.data.cid)/reactions/$(request.resource.data.who))));
+    }
+
     // GPS spot of a catch. Kept out of the catch so a private spot is only ever readable by its owner.
     match /spots/{id} {
       allow read: if isMember() && (resource.data.shared == true || resource.data.uid == me());
       allow create, update: if isMember()
-        && request.resource.data.keys().hasOnly(["uid", "lat", "lng", "acc", "name", "shared"])
+        && request.resource.data.keys().hasOnly(["uid", "lat", "lng", "acc", "name", "shared", "at"])
+        && request.resource.data.get("at", 0) is number
         && request.resource.data.uid == me()
         && request.resource.data.lat is number && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
         && request.resource.data.lng is number && request.resource.data.lng >= -180 && request.resource.data.lng <= 180
@@ -329,6 +363,8 @@ service cloud.firestore {
         && (getAfter(catchPath(id)).data.uid == me()
             || (getAfter(catchPath(id)).data.get("enteredBy", null) == me() && request.resource.data.shared == true))
         && getAfter(catchPath(id)).data.locShared == request.resource.data.shared;
+      // An admin adds the catch's time (`at`) to a shared spot, so it loads by year once there's an archive.
+      allow update: if isAdmin() && resource.data.shared == true && changed().hasOnly(["at"]) && request.resource.data.at is number;
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin() || testingOrganiserOf(get(catchPath(id)).data));
     }
 
@@ -337,7 +373,8 @@ service cloud.firestore {
     match /tackle/{id} {
       allow read: if isMember() && (resource.data.shared == true || resource.data.uid == me());
       allow create, update: if isMember()
-        && request.resource.data.keys().hasOnly(["uid", "lure", "depthFt", "technique", "shared", "itemId"])
+        && request.resource.data.keys().hasOnly(["uid", "lure", "depthFt", "technique", "shared", "itemId", "at"])
+        && request.resource.data.get("at", 0) is number
         // The tackle box item it came from (the name is copied into `lure`, so the item can change or go).
         && (request.resource.data.get("itemId", null) == null
             || (request.resource.data.itemId is string && request.resource.data.itemId.size() <= 40))
@@ -352,6 +389,8 @@ service cloud.firestore {
             || (getAfter(catchPath(id)).data.get("enteredBy", null) == me() && request.resource.data.shared == true))
         && getAfter(catchPath(id)).data.get("hasTackle", false) == true
         && getAfter(catchPath(id)).data.get("tackleShared", false) == request.resource.data.shared;
+      // An admin adds the catch's time (`at`) to shared tackle, so it loads by year once there's an archive.
+      allow update: if isAdmin() && resource.data.shared == true && changed().hasOnly(["at"]) && request.resource.data.at is number;
       allow delete: if isMember() && (resource.data.uid == me() || isAdmin() || get(catchPath(id)).data.uid == me()
         || get(catchPath(id)).data.get("enteredBy", null) == me() || testingOrganiserOf(get(catchPath(id)).data));
     }

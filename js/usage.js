@@ -12,12 +12,13 @@ const DOC_OVERHEAD = 100;                      // the document's name and bookke
 /* What each listener holds, by its key in cloud.meta: the label shown. */
 export const PART_NAMES = {
   catches: "Catches", comments: "Comments", reactions: "Reactions", weather: "Weather",
-  spotsShared: "Shared spots", spotsMine: "Your spots", tackleShared: "Shared tackle", tackleMine: "Your tackle",
+  spotsShared: "Shared spots", spotsMine: "Your private spots", tackleShared: "Shared tackle", tackleMine: "Your secret tackle",
   members: "Members", chat: "League chat (last 100)", derbies: "Derbies", entrants: "Derby entrants", trips: "Outings",
   rsvps: "Outing answers", boats: "Outing boats", noShows: "No-shows", skunks: "Skunks", tackleBox: "Tackle boxes",
   fleet: "Boats", goals: "Goals", challenges: "Head-to-heads", bets: "Bets", betPlayers: "Bet players",
   series: "Derby series", seasons: "Saved seasons", scoring: "Scoring settings", league: "League settings", me: "Your profile",
-  invite: "Invite code",
+  invite: "Invite code", archive: "Archive (older catches)", catchesEdited: "Older catches changed since the archive",
+  weatherNew: "Weather looked up since the archive", gone: "Deleted since the archive",
 };
 
 /* The size of one listener's documents: { docs, bytes }. `docs` are the documents' data objects. */

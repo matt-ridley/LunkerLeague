@@ -7,6 +7,7 @@ import { outboxPut, outboxRemove, outboxAll } from "./outbox.js";
 import { leagueStartOf } from "./stats.js";
 import { attended } from "./noshows.js";
 import { acceptedCaptains } from "./fleet.js";
+import { readArchive, combine, yearStart, buildArchive, archiveYear, lateCatches } from "./archive.js";
 
 /* Add ?emulator to a localhost address to use the local Firebase emulator (npm run emulators) instead of the real project. */
 export const USE_EMULATOR = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).has("emulator");
@@ -146,11 +147,19 @@ function startListeners() {
   ];
 }
 
-/* Collections only members can read, started once this user is a member (and stopped if that changes). */
+/* Collections only members can read, started once this user is a member (and stopped if that changes, or when a new
+   archive set is built: config/league.archive). */
 let memberKey = "";
+/* The catches and what hangs off them come from several listeners (and the archive), put together by compose(). */
+let L = null;
+const freshLive = arc => ({ arc, arch: null, catchSets: {}, weatherSets: {}, spotSets: {}, tackleSets: {}, comments: new Map(), reactions: new Map(),
+  gone: new Map(), extras: { tackle: new Map(), spots: new Map() }, extrasTried: new Set(), archParts: [] });
+const archiveOf = () => { const a = store.league && store.league.archive; return a && a.at && a.y0 && a.since ? a : null; };
+
 function refreshMemberListeners() {
   const member = !!(store.me && !store.me.suspended);
-  const key = member ? (isAdmin() ? "admin" : "member") : "";
+  const arc = member ? archiveOf() : null;
+  const key = member ? `${isAdmin() ? "admin" : "member"}|${arc ? arc.at : ""}` : "";
   if (key === memberKey) return;
   memberKey = key;
   cloud.memberUnsubs.forEach(u => u());
@@ -160,10 +169,29 @@ function refreshMemberListeners() {
   store.members = new Map(); store.invite = undefined;
   store.catches = new Map(); store.catchesLoaded = false; store.pending = new Set(); store.spots = new Map(); store.tackle = new Map();
   resetSocial();
+  L = freshLive(arc);
   if (!member) return;
   const { onSnapshot, collection, collectionGroup, doc, query, where, orderBy, limitToLast } = cloud.api;
+  // With an archive: only what it doesn't hold (caught from y0 on, or saved, made or looked up since it was built). `since`
+  // is a little before it was built, so things saved on a phone with no signal and sent later aren't missed (duplicates
+  // are merged).
+  const from = arc ? new Date(arc.y0, 0, 1).getTime() : 0;
+  const since = (q, field, t) => (arc ? query(q, where(field, ">=", t)) : q);
+  if (arc) {
+    cloud.memberUnsubs.push(onSnapshot(query(collection(cloud.db, "archive"), where("set", "==", arc.at)), OPTS, snap => {
+      seen("archive", snap);
+      L.archParts = snap.docs.map(d => d.data());
+      L.arch = readArchive(L.archParts);
+      compose("all");
+    }, syncError));
+    cloud.memberUnsubs.push(onSnapshot(query(collection(cloud.db, "gone"), where("at", ">=", arc.since)), OPTS, snap => {
+      seen("gone", snap);
+      L.gone = new Map(snap.docs.map(d => [d.id, d.data()]));
+      compose("all");
+    }, syncError));
+  }
   // Comments and reactions of every catch, kept under the catch they belong to.
-  cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "comments"), OPTS, snap => {
+  cloud.memberUnsubs.push(onSnapshot(since(collectionGroup(cloud.db, "comments"), "at", arc && arc.since), OPTS, snap => {
     seen("comments", snap);
     const by = new Map();
     pendingOf.comments = new Set();
@@ -174,24 +202,22 @@ function refreshMemberListeners() {
       if (!by.has(catchId)) by.set(catchId, []);
       by.get(catchId).push({ id: d.id, catchId, ...d.data() });
     }
-    for (const list of by.values()) list.sort((a, b) => (a.at || 0) - (b.at || 0));
-    store.comments = by; syncPending();
-    emit();
+    L.comments = by; syncPending();
+    compose("comments");
   }, syncError));
-  cloud.memberUnsubs.push(onSnapshot(collectionGroup(cloud.db, "reactions"), OPTS, snap => {
+  cloud.memberUnsubs.push(onSnapshot(since(collectionGroup(cloud.db, "reactions"), "at", arc && arc.since), OPTS, snap => {
     seen("reactions", snap);
-    const by = new Map(), times = new Map();
+    const by = new Map();
     for (const d of snap.docs) {
       const catchId = d.ref.parent.parent && d.ref.parent.parent.id;
       if (!catchId) continue;
       const emojis = Array.isArray(d.data().emojis) ? d.data().emojis : [];
       if (!emojis.length) continue;
-      if (!by.has(catchId)) { by.set(catchId, new Map()); times.set(catchId, new Map()); }
-      by.get(catchId).set(d.id, emojis);
-      times.get(catchId).set(d.id, d.data().at || 0);
+      if (!by.has(catchId)) by.set(catchId, new Map());
+      by.get(catchId).set(d.id, { emojis, at: d.data().at || 0 });
     }
-    store.reactions = by; store.reactionTimes = times;
-    emit();
+    L.reactions = by;
+    compose("reactions");
   }, syncError));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "scoring"), OPTS, snap => {
     seen("scoring", snap);
@@ -263,11 +289,15 @@ function refreshMemberListeners() {
     store.box = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
     emit();
   }, syncError));
-  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "weather"), OPTS, snap => {
-    seen("weather", snap);
-    store.weather = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
-    emit();
-  }, syncError));
+  const weatherListener = (key, q) => onSnapshot(q, OPTS, snap => {
+    seen(key, snap);
+    L.weatherSets[key] = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    compose("weather");
+  }, syncError);
+  if (arc) cloud.memberUnsubs.push(
+    weatherListener("weather", query(collection(cloud.db, "weather"), where("forAt", ">=", from))),
+    weatherListener("weatherNew", query(collection(cloud.db, "weather"), where("fetchedAt", ">=", arc.since))));
+  else cloud.memberUnsubs.push(weatherListener("weather", collection(cloud.db, "weather")));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "skunks"), OPTS, snap => {
     seen("skunks", snap);
     store.skunks = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -321,40 +351,37 @@ function refreshMemberListeners() {
     store.chatLoaded = true; syncPending();
     emit();
   }, syncError));
-  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "catches"), OPTS, snap => {
-    seen("catches", snap);
+  const catchListener = (key, q) => onSnapshot(q, OPTS, snap => {
+    seen(key, snap);
     const pending = new Set();
-    store.catches = withPast(snap.docs.map(d => {
+    const docs = new Map(snap.docs.map(d => {
       if (d.metadata.hasPendingWrites) pending.add(d.id);
-      return { id: d.id, ...d.data() };
+      return [d.id, { id: d.id, ...d.data() }];
     }));
-    store.pending = pending;
-    store.catchesLoaded = true;
+    L.catchSets[key] = { docs, pending };
+    compose("catches");
     if (!snap.metadata.fromCache) checkOutbox();
-    emit();
-  }, syncError));
-  // Spots: everyone's shared ones, and all of your own. Other people's private spots never reach this phone.
-  const spotSets = { spotsShared: new Map(), spotsMine: new Map() };
-  const spotListener = (key, q) => onSnapshot(q, OPTS, snap => {
-    seen(key, snap);
-    spotSets[key] = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
-    store.spots = new Map([...spotSets.spotsShared, ...spotSets.spotsMine]);
-    emit();
   }, syncError);
-  cloud.memberUnsubs.push(
-    spotListener("spotsShared", query(collection(cloud.db, "spots"), where("shared", "==", true))),
-    spotListener("spotsMine", query(collection(cloud.db, "spots"), where("uid", "==", uid()))));
-  // Tackle, the same way: everyone's shared tackle, and all of your own (secret tackle never reaches anyone else).
-  const tackleSets = { tackleShared: new Map(), tackleMine: new Map() };
-  const tackleListener = (key, q) => onSnapshot(q, OPTS, snap => {
+  if (arc) cloud.memberUnsubs.push(
+    catchListener("catches", query(collection(cloud.db, "catches"), where("caughtAt", ">=", from))),
+    catchListener("catchesEdited", query(collection(cloud.db, "catches"), where("editedAt", ">=", arc.since))));
+  else cloud.memberUnsubs.push(catchListener("catches", collection(cloud.db, "catches")));
+  // Spots: everyone's shared ones (yours included), and your own private ones. Other people's private spots never reach
+  // this phone.
+  const sideListener = (sets, key, q) => onSnapshot(q, OPTS, snap => {
     seen(key, snap);
-    tackleSets[key] = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
-    store.tackle = new Map([...tackleSets.tackleShared, ...tackleSets.tackleMine]);
-    emit();
+    sets[key] = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    compose("side");
   }, syncError);
+  const shared = name => arc ? query(collection(cloud.db, name), where("shared", "==", true), where("at", ">=", from))
+    : query(collection(cloud.db, name), where("shared", "==", true));
   cloud.memberUnsubs.push(
-    tackleListener("tackleShared", query(collection(cloud.db, "tackle"), where("shared", "==", true))),
-    tackleListener("tackleMine", query(collection(cloud.db, "tackle"), where("uid", "==", uid()))));
+    sideListener(L.spotSets, "spotsShared", shared("spots")),
+    sideListener(L.spotSets, "spotsMine", query(collection(cloud.db, "spots"), where("uid", "==", uid()), where("shared", "==", false))));
+  // Tackle, the same way: everyone's shared tackle, and your own secret tackle (which never reaches anyone else).
+  cloud.memberUnsubs.push(
+    sideListener(L.tackleSets, "tackleShared", shared("tackle")),
+    sideListener(L.tackleSets, "tackleMine", query(collection(cloud.db, "tackle"), where("uid", "==", uid()), where("shared", "==", false))));
   cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "members"), OPTS, snap => {
     seen("members", snap);
     if (snap.docChanges().length || !store.members.size) {
@@ -381,6 +408,59 @@ export function openParts(measure) {
     out.set(key, measured.get(snap));
   }
   return out;
+}
+
+/* Puts the catches together from their listeners and the archive (when there is one), with their weather, tackle,
+   spots, comments and reactions, into the store. Only the parts that changed get new maps, so work cached on the
+   others (rankings, crowns, badges) isn't redone. changed: "catches", "weather", "side", "comments", "reactions" or "all". */
+function compose(changed = "all") {
+  if (!L) return;
+  const catches = new Map(), pending = new Set();
+  for (const set of Object.values(L.catchSets)) {
+    for (const [id, c] of set.docs) catches.set(id, c);
+    for (const id of set.pending) pending.add(id);
+  }
+  const merge = sets => new Map(Object.values(sets).flatMap(m => [...m]));
+  const live = {
+    catches, weather: merge(L.weatherSets),
+    tackle: new Map([...L.extras.tackle, ...(L.tackleSets.tackleShared || []), ...(L.tackleSets.tackleMine || [])]),
+    spots: new Map([...L.extras.spots, ...(L.spotSets.spotsShared || []), ...(L.spotSets.spotsMine || [])]),
+    comments: L.comments, reactions: L.reactions, gone: L.gone,
+  };
+  const useArch = !!(L.arc && L.arch && L.arch.complete && L.arch.set === L.arc.at);
+  const out = useArch ? combine(L.arch, live) : live;
+  if (!useArch) for (const list of out.comments.values()) list.sort((a, b) => (a.at || 0) - (b.at || 0));
+  const all = changed === "all";
+  if (all || changed === "catches") { store.catches = withPast(out.catches.values()); store.pending = pending; }
+  if (all || changed === "weather") store.weather = out.weather;
+  // An archived catch's tackle and spot show only while the catch says they're shared, so catches count here too.
+  if (all || changed === "side" || (useArch && changed === "catches")) { store.tackle = out.tackle; store.spots = out.spots; }
+  if (all || changed === "comments") store.comments = out.comments;
+  if (all || changed === "reactions") {
+    store.reactions = new Map([...out.reactions].map(([cid, by]) => [cid, new Map([...by].map(([u, r]) => [u, r.emojis]))]));
+    store.reactionTimes = new Map([...out.reactions].map(([cid, by]) => [cid, new Map([...by].map(([u, r]) => [u, r.at]))]));
+  }
+  const want = L.arc ? ["catches", "catchesEdited"] : ["catches"];
+  store.catchesLoaded = want.every(k => L.catchSets[k]) && (!L.arc || useArch);
+  if (L.arc && useArch) fetchExtras(out.catches);
+  emit();
+}
+
+/* Catches saved since the archive was built but caught before y0 (a new logbook catch, say) aren't in the archive or in
+   the shared tackle and spot listeners (those start at y0): fetch their shared tackle and spot one by one, once. */
+function fetchExtras(catches) {
+  const before = yearStart(L.arc.y0), { doc, getDoc } = cloud.api, run = L;
+  for (const c of catches.values()) {
+    if (c.caughtAt >= before || L.extrasTried.has(c.id)) continue;
+    const wants = [c.tackleShared && !store.tackle.has(c.id) ? "tackle" : null, c.locShared && !store.spots.has(c.id) ? "spots" : null].filter(Boolean);
+    if (!wants.length) continue;
+    L.extrasTried.add(c.id);
+    for (const name of wants) getDoc(doc(cloud.db, name, c.id)).then(snap => {
+      if (run !== L || !snap.exists()) return;
+      L.extras[name === "tackle" ? "tackle" : "spots"].set(c.id, { id: c.id, ...snap.data() });
+      compose("side");
+    }).catch(() => L && L.extrasTried.delete(c.id));
+  }
 }
 
 /* Past catches: `pastStored` is the flag saved on the catch (logged too late; locked). `past` also covers catches
@@ -507,7 +587,7 @@ export function updateMe(fields) {
 
 /* ---------- Admin ---------- */
 /* Where the square thumbnail sits on a catch photo ({ x, y } 0–100, or null for the middle). */
-export const setCatchFocus = (id, focus) => write(cloud.api.updateDoc(ref("catches", id), { focus: focus || null }));
+export const setCatchFocus = (id, focus) => write(cloud.api.updateDoc(ref("catches", id), { focus: focus || null, editedAt: Date.now() }));
 export const setLeagueName = name => write(cloud.api.updateDoc(ref("config", "league"), { name: cleanName(name) || "Lunker League" }));
 export const setLeagueStart = ms => write(cloud.api.updateDoc(ref("config", "league"), { startAt: Math.round(ms) }));
 /* The home water ({ lat, lng, name }), or null to clear it. */
@@ -549,20 +629,33 @@ export function saveCatch({ id, data, photo, thumb, spot, tackle, isNew }) {
     thumbCache.set(id, { at: data.thumbAt, src: thumb });
     if (!isNew && (store.catches.get(id) || {}).thumb) data = { ...data, thumb: deleteField() }; // moved out of the catch
   }
+  // When it was saved (the archive loads catches saved since it was built), and the catch's time on its tackle and spot
+  // (they load from the archive's first year on).
+  data = { ...data, editedAt: Date.now() };
+  const at = data.caughtAt ?? (store.catches.get(id) || {}).caughtAt;
+  const when = typeof at === "number" ? { at } : {};
   b.set(doc(cloud.db, "catches", id), data, isNew ? {} : { merge: true });
   if (photo) b.set(doc(cloud.db, "photos", id), { uid: me, src: photo, bytes: photo.length }); // size, for the storage meter
-  if (spot) b.set(doc(cloud.db, "spots", id), { ...spot, uid: me });
+  if (spot) b.set(doc(cloud.db, "spots", id), { ...spot, uid: me, ...when });
   else if (spot === null) b.delete(doc(cloud.db, "spots", id));
-  if (tackle) b.set(doc(cloud.db, "tackle", id), { ...tackle, uid: me });
+  if (tackle) b.set(doc(cloud.db, "tackle", id), { ...tackle, uid: me, ...when });
   else if (tackle === null) b.delete(doc(cloud.db, "tackle", id));
   if (isNew) outboxPut({ id, uid: me, catchData: data, photo, thumb: thumb || null, spot: spot || null, tackle: tackle || null, savedAt: Date.now() });
   b.commit().catch(e => console.warn("Catch not saved", e)); // a refusal is picked up by checkOutbox()
+}
+
+/* A tombstone (gone/{id}) for something the archive may hold, so it doesn't come back from there. Only once there's an
+   archive; the rules only allow one for something that no longer exists. */
+function tomb(b, id, data) {
+  if (!archiveOf()) return;
+  b.set(cloud.api.doc(cloud.db, "gone", id), { ...data, uid: uid(), at: Date.now() });
 }
 
 export function deleteCatch(c) {
   const { writeBatch, doc } = cloud.api;
   const b = writeBatch(cloud.db);
   b.delete(doc(cloud.db, "catches", c.id));
+  tomb(b, c.id, { kind: "catch" });
   b.delete(doc(cloud.db, "photos", c.id));
   if (c.thumbAt) b.delete(doc(cloud.db, "thumbs", c.id));
   if (c.hasSpot && store.spots.has(c.id)) b.delete(doc(cloud.db, "spots", c.id));
@@ -768,6 +861,58 @@ export async function moveThumbs(onStep = () => {}) {
   return { done, failed, total: list.length };
 }
 
+/* ---------- The archive (admins) ---------- */
+export const archiveInfo = archiveOf;
+/* Catches the archive should hold but doesn't (caught before its first year, saved since it was built). */
+export function archiveLate() {
+  const arc = archiveOf();
+  if (!arc || !L) return 0;
+  const live = new Map(Object.values(L.catchSets).flatMap(set => [...set.docs]));
+  return lateCatches(live, arc.y0, arc.at);
+}
+const SINCE_MARGIN = 14 * 24 * 3600 * 1000; // see refreshMemberListeners
+/* Builds a new archive set from everything on this phone and switches the league to it. Needs signal and fresh data.
+   1. Shared tackle and spots get their catch's time (`at`), so they can load from the archive's first year on.
+   2. The parts are saved (archive/{set}_{i}).
+   3. config/league.archive points to the new set, unless another admin's phone switched it meanwhile (then this set is
+      removed again). The old set is removed. onStep(text). Returns { parts, catches } or { skipped }. */
+export async function saveArchive(onStep = () => {}) {
+  const { doc, writeBatch, setDoc, runTransaction, deleteDoc } = cloud.api;
+  const old = archiveOf(), now = Date.now();
+  const y0 = archiveYear(now, (store.league && store.league.graceDays) ?? 7);
+  const need = [];
+  for (const [name, m] of [["tackle", store.tackle], ["spots", store.spots]]) for (const [id, t] of m) {
+    const c = store.catches.get(id);
+    if (t.shared && c && typeof c.caughtAt === "number" && t.at !== c.caughtAt) need.push([name, id, c.caughtAt]);
+  }
+  for (let i = 0; i < need.length; i += 10) {
+    const b = writeBatch(cloud.db);
+    need.slice(i, i + 10).forEach(([name, id, at]) => b.update(doc(cloud.db, name, id), { at }));
+    await b.commit();
+    onStep(`Preparing tackle and spots: ${Math.min(i + 10, need.length)} of ${need.length}`);
+  }
+  const reactions = new Map([...store.reactions].map(([cid, by]) => [cid, new Map([...by].map(([u, emojis]) =>
+    [u, { emojis, at: (store.reactionTimes.get(cid) || new Map()).get(u) || 0 }]))]));
+  const parts = buildArchive({ catches: [...store.catches.values()], weather: store.weather, tackle: store.tackle, spots: store.spots,
+    comments: store.comments, reactions, y0, at: now, by: uid() });
+  for (const p of parts) {
+    await setDoc(doc(cloud.db, "archive", `${now}_${p.i}`), p);
+    onStep(`Saving the archive: part ${p.i + 1} of ${parts.length}`);
+  }
+  const leagueRef = doc(cloud.db, "config", "league");
+  const switched = await runTransaction(cloud.db, async tx => {
+    const cur = ((await tx.get(leagueRef)).data() || {}).archive;
+    if (((cur && cur.at) || null) !== ((old && old.at) || null)) return false;
+    tx.update(leagueRef, { archive: { at: now, since: now - SINCE_MARGIN, y0, of: parts.length, by: uid() } });
+    return true;
+  });
+  const drop = (set, n) => Promise.all(Array.from({ length: n }, (_, i) => deleteDoc(doc(cloud.db, "archive", `${set}_${i}`)).catch(() => {})));
+  if (!switched) { await drop(now, parts.length); return { skipped: true }; }
+  if (old) await drop(old.at, old.of || 0);
+  const before = yearStart(y0);
+  return { parts: parts.length, catches: [...store.catches.values()].filter(c => c.caughtAt < before).length, y0 };
+}
+
 /* Compares the outbox with what the server has: confirmed catches leave the outbox; a catch that is neither on the
    server nor waiting to be sent was refused, so the app asks what to do with it. */
 let checking = false;
@@ -778,8 +923,21 @@ async function checkOutbox() {
     const rejected = [];
     for (const e of await outboxAll()) {
       if (e.uid !== uid()) continue;
-      if (store.catches.has(e.id)) { if (!store.pending.has(e.id)) outboxRemove(e.id); }
-      else rejected.push(e);
+      if (store.catches.has(e.id)) { if (!store.pending.has(e.id)) outboxRemove(e.id); continue; }
+      // With an archive, a catch saved with no signal long ago and sent since may be on the server but outside what
+      // loads: look it up before calling it refused.
+      if (archiveOf() && L) {
+        const snap = await cloud.api.getDoc(cloud.api.doc(cloud.db, "catches", e.id)).catch(() => null);
+        if (snap && snap.exists()) {
+          const extra = L.catchSets.extra || { docs: new Map(), pending: new Set() };
+          extra.docs.set(e.id, { id: e.id, ...snap.data() });
+          L.catchSets.extra = extra;
+          outboxRemove(e.id);
+          compose("catches");
+          continue;
+        }
+      }
+      rejected.push(e);
     }
     const before = store.rejected.map(e => e.id).join();
     store.rejected = rejected;
@@ -834,14 +992,23 @@ export function addComment(catchId, text, mentions) {
   const { doc, collection, setDoc } = cloud.api;
   write(setDoc(doc(collection(cloud.db, "catches", catchId, "comments")), withMentions({ uid: uid(), text: t, at: Date.now() }, mentions)));
 }
-export const deleteComment = (catchId, id) => write(cloud.api.deleteDoc(cloud.api.doc(cloud.db, "catches", catchId, "comments", id)));
+export function deleteComment(catchId, id) {
+  const b = cloud.api.writeBatch(cloud.db);
+  b.delete(cloud.api.doc(cloud.db, "catches", catchId, "comments", id));
+  tomb(b, id, { kind: "comment", cid: catchId });
+  write(b.commit());
+}
 
 /* Turns one emoji on or off for this user on a catch. Each person has one small doc per catch. */
 export function toggleReaction(catchId, emoji) {
   const mine = ((store.reactions.get(catchId) || new Map()).get(uid())) || [];
   const next = mine.includes(emoji) ? mine.filter(e => e !== emoji) : [...mine, emoji].slice(-8);
   const ref = cloud.api.doc(cloud.db, "catches", catchId, "reactions", uid());
-  write(next.length ? cloud.api.setDoc(ref, { uid: uid(), emojis: next, at: Date.now() }) : cloud.api.deleteDoc(ref));
+  if (next.length) return write(cloud.api.setDoc(ref, { uid: uid(), emojis: next, at: Date.now() }));
+  const b = cloud.api.writeBatch(cloud.db);
+  b.delete(ref);
+  tomb(b, `${catchId}_${uid()}`, { kind: "reaction", cid: catchId, who: uid() });
+  write(b.commit());
 }
 
 /* League chat, or a derby's own chat when derbyId is given. */
@@ -1059,6 +1226,13 @@ export async function deleteDerby(d, { withEntries }) {
     refs.slice(i, i + 450).forEach(r => b.delete(r));
     await b.commit();
   }
+  // Tombstones for its catches, once they're gone, so they don't come back from the archive.
+  const gone = withEntries && archiveOf() ? refs.filter(r => r.parent.id === "catches") : [];
+  for (let i = 0; i < gone.length; i += 400) {
+    const b = writeBatch(cloud.db);
+    gone.slice(i, i + 400).forEach(r => tomb(b, r.id, { kind: "catch" }));
+    await b.commit();
+  }
 }
 
 /* Bets: the organiser sets one up (and is in it unless they say not); players join or turn an invite down. */
@@ -1117,10 +1291,10 @@ export const vetoChallenge = (id, on) => write(cloud.api.updateDoc(challengeRef(
 
 /* Derbies with approval on: the organiser (or an admin) approves an entry, or takes the approval back. */
 export function setApproved(catchId, on) {
-  write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "catches", catchId), on ? { approved: true, approvedAt: Date.now() } : { approved: false }));
+  write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "catches", catchId), on ? { approved: true, approvedAt: Date.now(), editedAt: Date.now() } : { approved: false, editedAt: Date.now() }));
 }
 export function setDisqualified(catchId, dq, reason = "") {
-  write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "catches", catchId), dq ? { dq: true, dqReason: cleanText(reason, 200) } : { dq: false, dqReason: "" }));
+  write(cloud.api.updateDoc(cloud.api.doc(cloud.db, "catches", catchId), dq ? { dq: true, dqReason: cleanText(reason, 200), editedAt: Date.now() } : { dq: false, dqReason: "", editedAt: Date.now() }));
 }
 
 /* ---------- Ranking points ---------- */

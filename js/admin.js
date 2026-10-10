@@ -1,6 +1,7 @@
 /* League admin: name, invite code, members and (owner only) admins. */
-import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, copyText, confirmButton, fill } from "./ui.js";
-import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode, setGraceDays, setLeagueStart, setLeagueHome, moveThumbs } from "./cloud.js";
+import { el, field, avatar, fmtDay, fmtDate, openSheet, closeSheet, toast, copyText, confirmButton, fill } from "./ui.js";
+import { store, uid, isAdmin, isOwner, setLeagueName, setInviteCode, setSuspended, removeMember, setAdmin, randomCode, cleanCode, setGraceDays, setLeagueStart, setLeagueHome, moveThumbs, archiveInfo, archiveLate, saveArchive } from "./cloud.js";
+import { archiveYear, yearStart } from "./archive.js";
 import { pickOnMap } from "./mappick.js";
 import { leagueStartOf } from "./stats.js";
 import { storageMeter } from "./storagemeter.js";
@@ -59,7 +60,7 @@ export function renderAdmin(main) {
     el("h3", { text: "Ranking points" }),
     el("p", { text: "Change how many points catches, species, records and derbies are worth, with a preview before saving." }),
     el("a", { class: "btn block", href: "#/scoring", text: "Change points" }));
-  fill(main, el("h2", { class: "page-title", text: "League admin" }), invite, isOwner() ? emailInvite(L, code) : null, league, isOwner() ? thumbsCard(main) : null, storageMeter(), points, list);
+  fill(main, el("h2", { class: "page-title", text: "League admin" }), invite, isOwner() ? emailInvite(L, code) : null, league, isOwner() ? thumbsCard(main) : null, archiveCard(main), storageMeter(), points, list);
 }
 
 /* Owner only: email an invite. It opens in your own email app, written and ready to send. */
@@ -88,6 +89,42 @@ function thumbsCard(main) {
     !moving.running ? el("p", {}, el("b", { text: left ? `${left.toLocaleString()} catch${left === 1 ? "" : "es"} to move.` : "All moved. Nothing left to do." })) : null,
     !moving.running && left ? el("button", { class: "btn primary block", type: "button", text: moving.finished ? "Move the rest" : "Move thumbnails", onclick: start }) : null,
     el("p", { class: "hint", text: "One time only, needs signal, and changes nothing else about any catch. Catches still waiting to sync are moved next time." }));
+}
+
+/* The archive: older catches packed into a few documents so opening the app reads far less. The owner builds it the
+   first time; after that an admin's phone keeps it up by itself (when a season locks), and admins can build it again. */
+const archiving = { running: false, step: "", error: "" };
+function archiveCard(main) {
+  const arc = archiveInfo();
+  if (!arc && !isOwner()) return null;
+  const y0 = archiveYear(Date.now(), (store.league && store.league.graceDays) ?? 7);
+  const older = [...store.catches.values()].filter(c => c.caughtAt < yearStart(y0)).length;
+  const start = async () => {
+    if (!navigator.onLine) return toast("Needs signal.");
+    Object.assign(archiving, { running: true, step: "Starting…", error: "" });
+    renderAdmin(main);
+    try {
+      const r = await saveArchive(step => { archiving.step = step; renderAdmin(main); });
+      toast(r.skipped ? "Another admin's phone just built it." : `Archive built: ${r.catches.toLocaleString()} catches.`);
+    } catch (e) {
+      console.warn("Archive not built", e);
+      archiving.error = "Couldn't build it. Check the signal and try again.";
+    }
+    archiving.running = false;
+    renderAdmin(main);
+  };
+  return el("section", { class: "card stack" },
+    el("h3", { text: "🗄️ Archive" }),
+    el("p", { text: `Catches caught before ${y0} (logbook catches and locked seasons) are packed into a few documents with their weather, shared tackle and spots, and the comments and reactions made so far. Opening the app then reads a handful of documents for them instead of about four per catch. Every screen works as before.` }),
+    arc ? el("dl", { class: "facts" },
+      el("div", { class: "fact" }, el("dt", { text: "Holds" }), el("dd", { text: `Catches caught before ${arc.y0}, in ${arc.of} part${arc.of === 1 ? "" : "s"}` })),
+      el("div", { class: "fact" }, el("dt", { text: "Built" }), el("dd", { text: fmtDate(arc.at) })),
+      el("div", { class: "fact" }, el("dt", { text: "Added since" }), el("dd", { text: `${archiveLate().toLocaleString()} older catches saved since (loaded on their own until it's built again)` })))
+      : el("p", {}, el("b", { text: older ? `${older.toLocaleString()} catch${older === 1 ? "" : "es"} caught before ${y0} would go in.` : `No catches from before ${y0} yet. It can still be built now, and fills in when a season locks.` })),
+    archiving.running ? el("p", { class: "muted", text: `${archiving.step} Keep the app open.` }) : null,
+    archiving.error ? el("p", { class: "msg err", text: archiving.error }) : null,
+    !archiving.running && (isOwner() || arc) ? el("button", { class: arc ? "btn block" : "btn primary block", type: "button", text: arc ? "Build it again" : "Build the archive", onclick: start }) : null,
+    el("p", { class: "hint", text: arc ? "An admin's phone builds it again by itself when a season locks, or when many older catches have been added since." : "Needs signal. The league owner builds it once; after that it keeps up by itself." }));
 }
 
 function emailInvite(L, code) {
