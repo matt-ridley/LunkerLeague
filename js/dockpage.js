@@ -36,6 +36,11 @@ export function renderDock(main) {
       tile(`#/stats/${uid()}`, "📊", "Your stats", "What's working for you")));
 }
 
+const PERIOD_HINTS = {
+  season: year => `League catches in the ${seasonName(year)} (from the league start). Records are this season's; PBs are the ones caught this season.`,
+  career: "Every league catch. Records are league records (the best league fish ever); PBs include logbook catches.",
+  alltime: "Every catch logged, logbook catches from before the league included. Records are all-time records. Points, crowns and badges are career ones: logbook catches never earn them.",
+};
 // The anglers list's period and sort, remembered for this visit.
 const ANGLERS_KEY = "lunker-anglers";
 let anglersView = { period: "season", sort: "fish" };
@@ -44,14 +49,16 @@ const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const opened = new Set(); // anglers whose stats are showing (all folded when the app opens)
 try { anglersView = { ...anglersView, ...JSON.parse(sessionStorage.getItem(ANGLERS_KEY) || "{}") }; } catch {}
 
-/* Points, place, crowns and badges per angler for the period: this season's, or every season's added up. */
+/* Points, place, crowns and badges per angler for the period: this season's, or every season's added up (career and
+   all time are the same here: logbook catches never earn them). */
 function rankExtras(period, year) {
   const input = rankInput(), tables = seasonTables(input), out = new Map();
-  const rows = period === "career" ? tables.career : tables.years.get(year) || [];
+  const all = period !== "season";
+  const rows = all ? tables.career : tables.years.get(year) || [];
   rows.forEach((r, i) => out.set(r.uid, { points: r.points, place: i + 1, crowns: 0, badges: 0 }));
   const bump = (u, k) => { if (u && out.has(u)) out.get(u)[k]++; };
-  for (const [y, crowns] of crownSeasonsNow(input)) if (period === "career" || y === year) for (const s of crowns) bump(s.holder, "crowns");
-  for (const b of input.badges || []) if (period === "career" || b.season == null || b.season === year) bump(b.uid, "badges");
+  for (const [y, crowns] of crownSeasonsNow(input)) if (all || y === year) for (const s of crowns) bump(s.holder, "crowns");
+  for (const b of input.badges || []) if (all || b.season == null || b.season === year) bump(b.uid, "badges");
   return out;
 }
 
@@ -93,12 +100,10 @@ export function renderAnglers(main) {
   fill(main,
     el("h2", { class: "page-title", text: "👥 Anglers" }),
     el("div", { class: "stack-tight" },
-      el("div", { class: "seg" }, ...[["season", seasonName(year)], ["career", "Career"]].map(([k, t]) =>
+      el("div", { class: "seg" }, ...[["season", "This season"], ["career", "Career"], ["alltime", "All time"]].map(([k, t]) =>
         el("button", { type: "button", "aria-pressed": String(period === k), text: t, onclick: () => setV({ period: k }) }))),
       field("Sort", sel),
-      el("p", { class: "hint", text: period === "career"
-        ? "Every league catch. Records are league records (the best league fish ever); PBs include logbook catches."
-        : "League catches this season (from the league start). Records are this season's; PBs are the ones caught this season." })),
+      el("p", { class: "hint", text: period === "season" ? PERIOD_HINTS.season(year) : PERIOD_HINTS[period] })),
     el("div", { class: "card-list" }, ...list.map((r, i) => {
       const [n, label] = sortValue(r, sort), id = r.member.id, open = opened.has(id), place = places[i];
       const toggle = el("button", { type: "button", class: "angler-more", "aria-expanded": String(open),

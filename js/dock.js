@@ -17,13 +17,15 @@ export const ANGLER_SORTS = [
    Logbook (past) and disqualified catches never count, except that PBs come from every catch (there's only one PB).
    - fish: a stringer counts its fish; species: different species caught
    - pbs: personal bests held (career), or held and caught this season
-   - records: weight and length boards topped, this season's boards (season) or the league records (career)
+   - records: weight and length boards topped: this season's (season), the league records (career) or the all-time ones
+   - lastAt: the latest catch counted ever (league catches, or any catch for "alltime"; null if none)
    - biggest / longest: the heaviest and longest single fish (null if none weighed or measured)
-   - daysOut: different days with a catch; lastAt: the latest league catch ever (null if none)
+   - daysOut: different days with a catch
    - points, place, crowns, badges: from `extra` (Map uid -> { points, place, crowns, badges }), worked out by the page. */
 export function anglerRoster({ members, catches = [], period = "season", year = new Date(Date.now()).getFullYear(), extra = new Map() }) {
   const ok = catches.filter(c => !c.dq);
-  const pool = period === "career" ? leagueCatches(ok) : seasonCatches(ok, year);
+  const ever = period === "alltime" ? ok : leagueCatches(ok);
+  const pool = period === "season" ? seasonCatches(ok, year) : ever;
   // Who tops each species board (weight and length), counted once per board.
   const holders = new Map();
   for (const sp of new Set(pool.map(c => c.species))) for (const by of ["weight", "length"]) {
@@ -32,7 +34,7 @@ export function anglerRoster({ members, catches = [], period = "season", year = 
   }
   return members.filter(m => !m.suspended).slice().sort(byName).map(m => {
     const mine = pool.filter(c => c.uid === m.id), single = mine.filter(measured);
-    const pbs = [...personalBests(ok, m.id).values()].filter(c => period === "career" || (!c.past && new Date(c.caughtAt).getFullYear() === year)).length;
+    const pbs = [...personalBests(ok, m.id).values()].filter(c => period !== "season" || (!c.past && new Date(c.caughtAt).getFullYear() === year)).length;
     const max = f => single.reduce((best, c) => (has(c[f]) && c[f] > (best ?? 0) ? c[f] : best), null);
     const x = extra.get(m.id) || {};
     return {
@@ -44,7 +46,7 @@ export function anglerRoster({ members, catches = [], period = "season", year = 
       biggest: max("weightOz"),
       longest: max("lengthIn"),
       daysOut: new Set(mine.map(c => dayKey(c.caughtAt))).size,
-      lastAt: leagueCatches(ok).filter(c => c.uid === m.id).reduce((t, c) => Math.max(t, c.caughtAt || 0), 0) || null,
+      lastAt: ever.filter(c => c.uid === m.id).reduce((t, c) => Math.max(t, c.caughtAt || 0), 0) || null,
       points: x.points ?? 0, place: x.place ?? null, crowns: x.crowns ?? 0, badges: x.badges ?? 0,
     };
   });
