@@ -1,10 +1,12 @@
 /* The Dock (#/dock): the way in to the league's people, gear and water. Also its own pages: the anglers list
    (#/anglers) and everyone's tackle boxes (#/tackle). Boats, the Fish Tank, the map and stats have their own pages. */
-import { el, fill, avatar, fmtDay } from "./ui.js";
+import { el, fill, field, avatar, fmtDay, fmtWeight, fmtLength } from "./ui.js";
 import { store, uid } from "./cloud.js";
 import { luckyLure } from "./tacklebox.js";
 import { itemThumb } from "./tackleboxpage.js";
-import { anglerRoster, tackleBoxes } from "./dock.js";
+import { anglerRoster, sortRoster, tackleBoxes, ANGLER_SORTS } from "./dock.js";
+import { rankInput, crownSeasonsNow } from "./leaders.js";
+import { seasonTables, seasonOf, seasonName } from "./season.js";
 
 const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
 const active = () => [...store.members.values()].filter(m => !m.suspended);
@@ -34,18 +36,75 @@ export function renderDock(main) {
       tile(`#/stats/${uid()}`, "📊", "Your stats", "What's working for you")));
 }
 
+// The anglers list's period and sort, remembered for this visit.
+const ANGLERS_KEY = "lunker-anglers";
+let anglersView = { period: "season", sort: "fish" };
+try { anglersView = { ...anglersView, ...JSON.parse(sessionStorage.getItem(ANGLERS_KEY) || "{}") }; } catch {}
+
+/* Points, place, crowns and badges per angler for the period: this season's, or every season's added up. */
+function rankExtras(period, year) {
+  const input = rankInput(), tables = seasonTables(input), out = new Map();
+  const rows = period === "career" ? tables.career : tables.years.get(year) || [];
+  rows.forEach((r, i) => out.set(r.uid, { points: r.points, place: i + 1, crowns: 0, badges: 0 }));
+  const bump = (u, k) => { if (u && out.has(u)) out.get(u)[k]++; };
+  for (const [y, crowns] of crownSeasonsNow(input)) if (period === "career" || y === year) for (const s of crowns) bump(s.holder, "crowns");
+  for (const b of input.badges || []) if (period === "career" || b.season == null || b.season === year) bump(b.uid, "badges");
+  return out;
+}
+
+const UNITS = { fish: ["fish", "fish"], species: ["species", "species"], pbs: ["PB", "PBs"], records: ["record", "records"],
+  daysOut: ["day out", "days out"], crowns: ["crown", "crowns"], badges: ["badge", "badges"] };
+/* The number on the right of a row, for the sort picked. */
+function sortValue(r, sort) {
+  if (sort === "points") return r.place ? [String(r.points), `pts · #${r.place}`] : ["0", "pts"];
+  if (sort === "biggest") return r.biggest ? [fmtWeight(r.biggest), "heaviest"] : ["–", "heaviest"];
+  if (sort === "longest") return r.longest ? [fmtLength(r.longest), "longest"] : ["–", "longest"];
+  if (sort === "lastAt") return r.lastAt ? [fmtDay(r.lastAt), "last fish"] : ["–", "last fish"];
+  const key = UNITS[sort] ? sort : "fish", [one, many] = UNITS[key];
+  return [String(r[key]), r[key] === 1 ? one : many];
+}
+
 export function renderAnglers(main) {
   if (!store.catchesLoaded) return fill(main, el("h2", { class: "page-title", text: "👥 Anglers" }), el("p", { class: "loading", text: "Loading…" }));
-  const me = uid();
-  const list = anglerRoster({ members: active(), catches: [...store.catches.values()] });
+  const me = uid(), year = seasonOf(Date.now()), { period, sort } = anglersView;
+  const setV = changes => {
+    anglersView = { ...anglersView, ...changes };
+    try { sessionStorage.setItem(ANGLERS_KEY, JSON.stringify(anglersView)); } catch {}
+    renderAnglers(main);
+  };
+  const list = sortRoster(anglerRoster({ members: active(), catches: [...store.catches.values()], period, year, extra: rankExtras(period, year) }), sort);
+  const sel = el("select", { "aria-label": "Sort anglers", onchange: () => setV({ sort: sel.value }) },
+    ...ANGLER_SORTS.map(([k, t]) => el("option", { value: k, text: t })));
+  sel.value = sort;
+  // Every number as a small chip (bold number, then what it is); the one sorted on is highlighted.
+  const stat = (key, n, text) => el("span", { class: "angler-stat" + (key === sort ? " on" : "") }, el("b", { text: n }), " " + text);
+  const stats = r => el("div", { class: "angler-stats" },
+    stat("fish", String(r.fish), "fish"), stat("species", String(r.species), "species"),
+    stat("pbs", String(r.pbs), r.pbs === 1 ? "PB" : "PBs"), stat("records", String(r.records), r.records === 1 ? "record" : "records"),
+    r.biggest ? stat("biggest", fmtWeight(r.biggest), "heaviest") : null, r.longest ? stat("longest", fmtLength(r.longest), "longest") : null,
+    stat("daysOut", String(r.daysOut), r.daysOut === 1 ? "day out" : "days out"),
+    r.place ? stat("points", `#${r.place}`, `${r.points} pts`) : null,
+    r.crowns ? stat("crowns", `👑 ${r.crowns}`, r.crowns === 1 ? "crown" : "crowns") : null,
+    r.badges ? stat("badges", `🏅 ${r.badges}`, r.badges === 1 ? "badge" : "badges") : null);
   fill(main,
     el("h2", { class: "page-title", text: "👥 Anglers" }),
-    el("div", { class: "card-list" }, ...list.map(r => el("a", { class: "list-row" + (r.member.id === me ? " me" : ""), href: `#/u/${r.member.id}` },
-      avatar(r.member.id === me ? { ...r.member, ...store.me } : r.member),
-      el("div", { class: "grow stack-tight" },
-        el("b", { text: r.member.id === me ? `${r.member.displayName} (you)` : r.member.displayName }),
-        el("span", { class: "muted small", text: r.lastAt ? `Last fish ${fmtDay(r.lastAt)}` : "No fish yet" })),
-      el("span", { class: "list-row-n" }, el("b", { text: String(r.ytdFish) }), el("small", { text: "fish this season" }))))));
+    el("div", { class: "stack-tight" },
+      el("div", { class: "seg" }, ...[["season", seasonName(year)], ["career", "Career"]].map(([k, t]) =>
+        el("button", { type: "button", "aria-pressed": String(period === k), text: t, onclick: () => setV({ period: k }) }))),
+      field("Sort", sel),
+      el("p", { class: "hint", text: period === "career"
+        ? "Every league catch. Records are league records (the best league fish ever); PBs include logbook catches."
+        : "League catches this season (from the league start). Records are this season's; PBs are the ones caught this season." })),
+    el("div", { class: "card-list" }, ...list.map(r => {
+      const [n, label] = sortValue(r, sort);
+      return el("a", { class: "list-row" + (r.member.id === me ? " me" : ""), href: `#/u/${r.member.id}` },
+        avatar(r.member.id === me ? { ...r.member, ...store.me } : r.member),
+        el("div", { class: "grow stack-tight" },
+          el("b", { text: r.member.id === me ? `${r.member.displayName} (you)` : r.member.displayName }),
+          stats(r),
+          el("span", { class: "muted small", text: r.lastAt ? `Last fish ${fmtDay(r.lastAt)}` : "No fish yet" })),
+        el("span", { class: "list-row-n" + (n.length > 4 ? " long" : "") }, el("b", { text: n }), el("small", { text: label })));
+    })));
 }
 
 export function renderTackleBoxes(main) {

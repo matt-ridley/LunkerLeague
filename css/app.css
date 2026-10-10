@@ -795,6 +795,12 @@ button.board-row { width: 100%; text-align: left; font: inherit; color: inherit;
 .list-row b { overflow-wrap: anywhere; }
 .list-row-n { flex: none; display: grid; justify-items: end; text-align: right; line-height: 1.1; max-width: 76px; }
 .list-row-n b { font: 800 22px/1.1 var(--f-display); }
+.list-row-n.long b { font-size: 16px; white-space: nowrap; }
+.angler-stats { display: flex; flex-wrap: wrap; gap: 4px; }
+.angler-stat { padding: 1px 7px; border-radius: 999px; background: var(--surface-2); font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.angler-stat b { color: var(--ink); }
+.angler-stat.on { background: var(--primary); color: var(--primary-ink); }
+.angler-stat.on b { color: inherit; }
 .list-row-n small { font-size: 12px; font-weight: 700; color: var(--muted); }
 .boat-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .boat-specs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
