@@ -6,6 +6,7 @@ import { FIREBASE_CONFIG, FIREBASE_SDK } from "./config.js";
 import { outboxPut, outboxRemove, outboxAll } from "./outbox.js";
 import { leagueStartOf } from "./stats.js";
 import { attended } from "./noshows.js";
+import { acceptedCaptains } from "./fleet.js";
 
 /* Add ?emulator to a localhost address to use the local Firebase emulator (npm run emulators) instead of the real project. */
 export const USE_EMULATOR = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).has("emulator");
@@ -558,12 +559,30 @@ export const newFleetId = () => cloud.api.doc(cloud.api.collection(cloud.db, "fl
 /* photo: { full, thumb } for a new photo, null to remove it, undefined to leave it alone. */
 export function saveFleetBoat(id, data, photo) {
   const { writeBatch, doc } = cloud.api;
-  const b = writeBatch(cloud.db), me = uid(), old = store.fleet.get(id);
-  b.set(doc(cloud.db, "fleet", id), { ...data, uid: me, createdAt: old ? old.createdAt : Date.now(),
+  const b = writeBatch(cloud.db), me = uid(), old = store.fleet.get(id), createdAt = old ? old.createdAt : Date.now();
+  // The captain history and any hand-over waiting to be accepted are kept as they are. A boat starts with no history
+  // (its first captain is its owner from createdAt), so new boats save the same as before.
+  const keep = old ? Object.fromEntries(["captains", "offerTo", "offerAt"].filter(k => k in old).map(k => [k, old[k]])) : {};
+  b.set(doc(cloud.db, "fleet", id), { ...data, ...keep, uid: me, createdAt,
     thumb: photo ? photo.thumb : photo === null ? null : old ? old.thumb ?? null : null });
   if (photo) { b.set(doc(cloud.db, "fleetPhotos", id), { uid: me, src: photo.full, bytes: photo.full.length }); fleetPhotos.set(id, photo.full); }
   else if (photo === null && old && old.thumb) { b.delete(doc(cloud.db, "fleetPhotos", id)); fleetPhotos.delete(id); }
   b.commit().catch(syncError);
+}
+/* Handing a boat over: the captain offers it (to = a member's uid) or takes the offer back (to = null). */
+export function offerFleetBoat(boat, to) {
+  const { doc, updateDoc } = cloud.api;
+  updateDoc(doc(cloud.db, "fleet", boat.id), { offerTo: to, offerAt: to ? Date.now() : null }).catch(syncError);
+}
+/* The angler it was offered to takes the helm with their crew, or turns it down. The boat keeps its catches. */
+export function acceptFleetBoat(boat, crew) {
+  const { doc, updateDoc } = cloud.api, me = uid();
+  updateDoc(doc(cloud.db, "fleet", boat.id), { uid: me, crew: crew.filter(u => u !== me).slice(0, 20),
+    captains: acceptedCaptains(boat, me, Date.now()), offerTo: null, offerAt: null }).catch(syncError);
+}
+export function declineFleetBoat(boat) {
+  const { doc, updateDoc } = cloud.api;
+  updateDoc(doc(cloud.db, "fleet", boat.id), { offerTo: null, offerAt: null }).catch(syncError);
 }
 export function deleteFleetBoat(boat) {
   const { writeBatch, doc } = cloud.api;

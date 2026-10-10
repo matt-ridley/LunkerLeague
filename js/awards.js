@@ -8,6 +8,7 @@ import { fishIn, measured, better } from "./stats.js";
 import { daysOut } from "./skunks.js";
 import { recordHistory, allReigns } from "./halloffame.js";
 import { lureKey, cleanLure } from "./tackle.js";
+import { captainAt } from "./fleet.js";
 
 export { seasonRange, seasonYears } from "./season.js";
 
@@ -64,7 +65,7 @@ export function seasonAwards(year, input, now = Date.now()) {
   // Top boat (saved boats) and top lure (shared tackle only, grouped however it was typed).
   const fleet = input.fleet || new Map();
   const boat = most(catches.filter(c => c.boatId && fleet.has(c.boatId)).reduce((m, c) => m.set(c.boatId, (m.get(c.boatId) || 0) + fishIn(c)), new Map()));
-  if (boat) awards.push({ id: "boat", icon: "🚤", title: "Top boat", boatId: boat.uid, uid: fleet.get(boat.uid).uid, n: boat.n, text: `${fleet.get(boat.uid).name}: ${boat.n} fish` });
+  if (boat) awards.push({ id: "boat", icon: "🚤", title: "Top boat", boatId: boat.uid, uid: captainAt(fleet.get(boat.uid), to), n: boat.n, text: `${fleet.get(boat.uid).name}: ${boat.n} fish` });
   const lures = new Map(), names = new Map();
   for (const c of catches) {
     const t = input.tackle && input.tackle.get(c.id), k = t && t.shared && lureKey(t.lure);

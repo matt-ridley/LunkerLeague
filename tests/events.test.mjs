@@ -157,3 +157,17 @@ test("the final whistle and a new season are news", () => {
   assert.equal(ev.find(e => e.id === "seasonopen:2027").text, "Season 1 (2027) is open: points, titles, crowns, season records and season badges all start again. Tight lines!");
   assert.equal(leagueEvents({ catches, derbies: [], entrants: new Map(), badges: [], crowns: [], name: u => u, now: t26 + 1 }).find(e => e.id.startsWith("seasonopen")), undefined);
 });
+
+test("boats changing hands: an offer in the new captain's bell, news for everyone, and a note for the old captain", () => {
+  const offered = new Map([["b1", { id: "b1", uid: "amy", name: "Lund", createdAt: T0, offerTo: "bo", offerAt: T0 + H }]]);
+  const offer = alertsFor("bo", base({ fleet: offered })).find(a => a.id.startsWith("boatoffer"));
+  assert.match(offer.text, /wants to hand Lund over to you/);
+  assert.equal(offer.href, "#/boat/b1");
+  assert.equal(alertsFor("cy", base({ fleet: offered })).find(a => a.id.startsWith("boatoffer")), undefined);
+  const moved = new Map([["b1", { id: "b1", uid: "bo", name: "Lund", createdAt: T0, captains: [{ uid: "amy", at: T0 }, { uid: "bo", at: T0 + 2 * H }] }]]);
+  const news = leagueEvents(base({ fleet: moved })).find(e => e.id.startsWith("captain:"));
+  assert.equal(news.at, T0 + 2 * H);
+  assert.match(news.text, /is the new captain of Lund/);
+  assert.ok(alertsFor("amy", base({ fleet: moved })).some(a => a.id.startsWith("captain:") && /took over Lund/.test(a.text)));
+  assert.ok(!alertsFor("bo", base({ fleet: moved })).some(a => a.id.startsWith("captain:")));
+});

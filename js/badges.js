@@ -10,6 +10,7 @@ import { derbyMoney, hasMoney } from "./payout.js";
 import { h2hResults, involves, otherSide } from "./h2h.js";
 import { showRecord, boatTrips } from "./noshows.js";
 import { FIRST_SEASON } from "./config.js";
+import { captainAt, captaincies } from "./fleet.js";
 
 const DAY = 24 * 3600 * 1000;
 const lb = n => n * 16;
@@ -99,16 +100,16 @@ export const BADGES = [
   { id: "noShow3", icon: "⛅", name: "Fair-Weather Fisherman", desc: "Marked a no-show 3 times. Worth no points", noPoints: true, at: x => x.noShows[2] ?? null },
   { id: "noShow5", icon: "🏴‍☠️", name: "Walked the Plank", desc: "Marked a no-show 5 times. Worth no points", noPoints: true, at: x => x.noShows[4] ?? null },
   // Boats
-  { id: "skipper", icon: "🧑‍✈️", name: "Skipper", desc: "Save your first boat", career: true, at: x => x.myFleet[0] ? x.myFleet[0].createdAt : null },
-  { id: "admiral", icon: "🎖️", name: "Admiral", desc: "Own 3 saved boats", career: true, at: x => x.myFleet[2] ? x.myFleet[2].createdAt : null },
+  { id: "skipper", icon: "🧑‍✈️", name: "Skipper", desc: "Captain your first boat: save one, or take one over", career: true, at: x => x.myFleet[0] ? x.myFleet[0].from : null },
+  { id: "admiral", icon: "🎖️", name: "Admiral", desc: "Captain 3 saved boats", career: true, at: x => x.myFleet[2] ? x.myFleet[2].from : null },
   { id: "christening", icon: "🍾", name: "Christening", desc: "Catch the first fish ever logged from a boat", career: true, at: x => x.christenings[0] ?? null },
   { id: "waterTaxi", icon: "🚕", name: "Water Taxi", desc: "Give 10 seats on your boats to anglers who showed up for outings", at: x => nth(x.ridesGiven, 10) },
   { id: "hitchhiker", icon: "🎒", name: "Hitchhiker", desc: "Ride in 5 different anglers' boats on outings", at: x => x.hitchhikerAt },
   { id: "fullHouse", icon: "🎟️", name: "Full House", desc: "Bring a boat on an outing with every seat taken and everyone there", at: x => x.fullHouses[0] ?? null },
-  { id: "luckyHull", icon: "🛥️", name: "Lucky Hull", desc: "50 fish caught from one of your boats, by everyone aboard", at: x => x.luckyHullAt },
-  { id: "recordDeck", icon: "🛳️", name: "Record Deck", desc: "A season record caught from your boat", at: x => x.recordDecks[0] ?? null },
+  { id: "luckyHull", icon: "🛥️", name: "Lucky Hull", desc: "50 fish caught from one of your boats while you're its captain, by everyone aboard", at: x => x.luckyHullAt },
+  { id: "recordDeck", icon: "🛳️", name: "Record Deck", desc: "A season record caught from your boat while you're its captain", at: x => x.recordDecks[0] ?? null },
   { id: "littleBoat", icon: "🛶", name: "Little Boat, Big Fish", desc: "Catch a season record from a boat 14 ft or shorter", at: x => x.littleBoats[0] ?? null },
-  { id: "bigIron", icon: "🐎", name: "Big Iron", desc: "Own a boat with 200 hp or more", career: true, at: x => x.bigIronAt },
+  { id: "bigIron", icon: "🐎", name: "Big Iron", desc: "Captain a boat with 200 hp or more", career: true, at: x => x.bigIronAt },
   { id: "shorePounder", icon: "🏖️", name: "Shore Pounder", desc: "25 catches logged with no boat", at: x => nth(x.mine.filter(c => !c.boatId), 25) },
   // Career: the long haul (official seasons; the 2026 Preseason doesn't count toward these), and the founders
   { id: "bonnet", icon: "👒", name: "Bless Your Bonnet", desc: "Founding member: joined the league in the 2026 Preseason. Nobody can earn this one again", career: true,
@@ -269,16 +270,18 @@ function crownPeriodsFrom(crowns, counted) {
   return { periods: periods.filter(p => !p.gone && p.from !== Infinity), steals };
 }
 
-/* Boats: the first fish from each saved boat, and each boat's running fish count. */
+/* Boats: the first fish from each saved boat, and each boat's running fish count under each captain
+   (keyed "boatId|captain uid": a boat that changes hands starts counting again for its new captain). */
 function boatCounts(counted, fleetMap) {
   const firstFrom = new Map(), boatFish = new Map();
   for (const c of counted) {
     if (!c.boatId || !fleetMap.has(c.boatId)) continue;
     if (!firstFrom.has(c.boatId)) firstFrom.set(c.boatId, c);
-    const n = (boatFish.get(c.boatId) || { n: 0, at50: null });
+    const key = `${c.boatId}|${captainAt(fleetMap.get(c.boatId), c.caughtAt)}`;
+    const n = (boatFish.get(key) || { n: 0, at50: null });
     n.n += fishIn(c);
     if (n.n >= 50 && n.at50 == null) n.at50 = c.caughtAt;
-    boatFish.set(c.boatId, n);
+    boatFish.set(key, n);
   }
   return { firstFrom, boatFish };
 }
@@ -387,20 +390,20 @@ function anglerContext(u, L) {
   }
   // Turning up, and boats.
   const { shows, noShows } = showRecord(u, { trips: L.trips, rsvps: L.allRsvps, noShows: L.noShows, now: L.now });
-  const myFleet = [...L.fleet.values()].filter(b => b.uid === u).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  const owned = new Set(myFleet.map(b => b.id));
+  // Boats you've captained (saved or taken over), each once, by when you first took the helm.
+  const myFleet = [...new Map(captaincies(u, L.fleet).reverse().map(s => [s.b.id, s])).values()].sort((a, b) => a.from - b.from);
   const christenings = [...L.firstFrom.values()].filter(c => c.uid === u).map(c => c.caughtAt).sort((a, b) => a - b);
   const ridesGiven = L.boatTrips.filter(b => b.owner === u).flatMap(b => b.riders.map(() => ({ at: b.at })));
   const fullHouses = L.boatTrips.filter(b => b.owner === u && b.full).map(b => b.at);
   const rodeWith = distinctAt(L.boatTrips.filter(b => b.riders.includes(u)), b => b.owner);
-  const hulls = myFleet.map(b => (L.boatFish.get(b.id) || {}).at50).filter(t => t != null).sort((a, b) => a - b);
-  const recordDecks = L.records.filter(p => p.boatId && owned.has(p.boatId)).map(p => p.from);
+  const hulls = myFleet.map(s => (L.boatFish.get(`${s.b.id}|${u}`) || {}).at50).filter(t => t != null).sort((a, b) => a - b);
+  const recordDecks = L.records.filter(p => p.boatId && L.fleet.has(p.boatId) && captainAt(L.fleet.get(p.boatId), p.from) === u).map(p => p.from);
   const littleBoats = L.records.filter(p => p.uid === u && p.boatId && L.fleet.has(p.boatId) && L.fleet.get(p.boatId).lengthFt > 0
     && L.fleet.get(p.boatId).lengthFt <= 14).map(p => p.from);
-  const big = myFleet.filter(b => b.hp >= 200);
+  const big = myFleet.filter(s => s.b.hp >= 200);
   return {
     shows, noShows, myFleet, christenings, ridesGiven, fullHouses, hitchhikerAt: rodeWith[4] ?? null, luckyHullAt: hulls[0] ?? null,
-    recordDecks, littleBoats, bigIronAt: big.length ? big[0].createdAt : null,
+    recordDecks, littleBoats, bigIronAt: big.length ? big[0].from : null,
     mine, now: L.now, wins, h2h, h2hWins, h2hShutouts, h2hHighRoll, h2hStreak3, h2hRivalAt, podiums, fished, skunks, luckyNets, captainWins, organised, moneyAt, pbBeats,
     speciesAt: distinctAt(mine, c => c.species),
     seasonsAt: distinctAt(mine.filter(c => yearOf(c.caughtAt) >= FIRST_SEASON), c => yearOf(c.caughtAt)),
@@ -425,7 +428,7 @@ export function badgeTimeline(input) {
   const L = leagueContext(input);
   const people = new Set([...L.counted.map(c => c.uid), ...L.finished.flatMap(f => [...f.ent.keys(), f.d.organiserUid]),
     ...L.commentList.map(c => c.uid), ...L.reactionList.map(r => r.uid), ...[...L.trips.values()].map(t => t.uid),
-    ...[...L.allRsvps.values()].flatMap(m => [...m.keys()]), ...[...L.fleet.values()].map(b => b.uid), ...L.crownPeriods.map(p => p.uid), ...L.crownSteals.map(s => s.uid), ...L.h2h.flatMap(r => [r.ch.from, r.ch.to]),
+    ...[...L.allRsvps.values()].flatMap(m => [...m.keys()]), ...[...L.fleet.values()].flatMap(b => (b.captains || [b]).map(c => c.uid)), ...L.crownPeriods.map(p => p.uid), ...L.crownSteals.map(s => s.uid), ...L.h2h.flatMap(r => [r.ch.from, r.ch.to]),
     ...L.joins.keys(), ...[...L.seasonDocs.values()].map(d => d.champion)]);
   for (const bad of [undefined, null, ""]) people.delete(bad);
   const out = [];

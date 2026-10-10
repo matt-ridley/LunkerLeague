@@ -1,8 +1,9 @@
 /* Boat profiles: all the league's boats (#/boats), one boat (#/boat/{id}), and the add/edit sheet. */
 import { el, fill, field, icon, avatar, fmtDay, fmtWeight, fmtLength, toast, confirmButton, openSheet, closeSheet } from "./ui.js";
-import { store, uid, memberName, isAdmin, newFleetId, saveFleetBoat, deleteFleetBoat, loadFleetPhoto, cachedFleetPhoto } from "./cloud.js";
+import { store, uid, memberName, isAdmin, newFleetId, saveFleetBoat, deleteFleetBoat, offerFleetBoat, acceptFleetBoat, declineFleetBoat, loadFleetPhoto, cachedFleetPhoto } from "./cloud.js";
 import { pickImage, tacklePhoto } from "./photos.js";
-import { boatStats, boatCatches, boatOutings, MOTOR_BRANDS, MAX_HP, MAX_LENGTH_FT, MAX_SEATS, MAX_CAPACITY_LB, motorText, specText, BOAT_SORTS, NO_BOAT_FILTERS, listBoats } from "./fleet.js";
+import { boatStats, boatCatches, boatOutings, MOTOR_BRANDS, MAX_HP, MAX_LENGTH_FT, MAX_SEATS, MAX_CAPACITY_LB, motorText, specText, BOAT_SORTS, NO_BOAT_FILTERS, listBoats,
+  captainSpells, handOverChoices, crewAfterHandOver } from "./fleet.js";
 import { isStringer } from "./stats.js";
 import { catchCard } from "./catches.js";
 
@@ -67,12 +68,28 @@ export function renderBoat(main, id) {
   const img = b.thumb ? el("img", { class: "box-photo", src: cachedFleetPhoto(id) || b.thumb, alt: b.name }) : null;
   if (img) loadFleetPhoto(id).then(src => { if (src) img.src = src; }).catch(() => {});
   const chip = u => el("a", { class: "person", href: `#/u/${u}` }, avatar(who(u), "xs"), el("span", { text: who(u).displayName }));
+  const spells = captainSpells(b);
+  // A hand-over waiting to be answered: the angler it's offered to accepts or declines; the captain can take it back.
+  const offer = b.offerTo === uid() && !mine ? el("div", { class: "card stack" },
+      el("p", {}, el("b", { text: `${who(b.uid).displayName} wants to hand ${b.name} over to you.` }),
+        " You'd be its captain and pick its crew. Its catches stay with the boat."),
+      el("div", { class: "row" },
+        el("button", { class: "btn primary", type: "button", text: "Take the helm", onclick: () => acceptSheet(b) }),
+        el("button", { class: "btn", type: "button", text: "No thanks", onclick: () => { declineFleetBoat(b); toast("Offer turned down."); } })))
+    : mine && b.offerTo ? el("div", { class: "card stack" },
+      el("p", { text: `Waiting for ${who(b.offerTo).displayName} to accept ${b.name}. It stays yours until they do.` }),
+      el("button", { class: "btn", type: "button", text: "Take back the offer", onclick: () => { offerFleetBoat(b, null); toast("Offer taken back."); } }))
+    : null;
   fill(main,
     el("a", { class: "eyebrow back-link", href: "#/boats", text: "← Boats" }),
     img,
     el("h2", { class: "page-title", text: `🚤 ${b.name}` }),
+    offer,
     el("dl", { class: "facts card" },
       el("div", { class: "fact" }, el("dt", { text: "Captain" }), el("dd", {}, chip(b.uid))),
+      spells.length > 1 ? el("div", { class: "fact" }, el("dt", { text: "Captains" }), el("dd", {}, el("div", { class: "stack-tight" },
+        ...spells.slice().reverse().map(sp => el("div", { class: "row" }, chip(sp.uid),
+          el("span", { class: "muted small", text: sp.to == null ? `since ${fmtDay(sp.from)}` : `${fmtDay(sp.from)} to ${fmtDay(sp.to)}` })))))) : null,
       motorText(b) ? el("div", { class: "fact" }, el("dt", { text: "Motor" }), el("dd", { text: motorText(b) })) : null,
       specText(b) ? el("div", { class: "fact" }, el("dt", { text: "Specs" }), el("dd", { text: specText(b) })) : null,
       (b.crew || []).length ? el("div", { class: "fact" }, el("dt", { text: "Crew" }), el("dd", {}, el("div", { class: "people" }, ...b.crew.map(chip)))) : null,
@@ -86,6 +103,7 @@ export function renderBoat(main, id) {
       b.retired ? el("div", { class: "fact" }, el("dt", { text: "Retired" }), el("dd", { text: "Not offered when logging a catch." })) : null),
     mine ? el("div", { class: "row" },
       el("button", { class: "btn", type: "button", text: "Edit", onclick: () => boatSheet(b) }),
+      b.offerTo ? null : el("button", { class: "btn", type: "button", text: "Hand over", onclick: () => handOverSheet(b) }),
       el("button", { class: "btn", type: "button", text: b.retired ? "Bring back" : "Retire", onclick: () => {
         saveFleetBoat(id, { ...strip(b), retired: !b.retired }); toast(b.retired ? "Back in the fleet." : "Retired: its catches stay.");
       } }),
@@ -93,6 +111,56 @@ export function renderBoat(main, id) {
       : isAdmin() ? confirmButton("Delete (admin)", "Tap again to delete", () => { deleteFleetBoat(b); location.hash = "#/boats"; }) : null,
     list.length ? el("h3", { text: "Catches from this boat" }) : null,
     list.length ? el("div", { class: "card-list" }, ...list.slice(0, 30).map(c => catchCard(c))) : null);
+}
+
+/* The captain picks who to hand the boat to. It stays theirs until that angler accepts. */
+function handOverSheet(b) {
+  openSheet(box => {
+    const choices = handOverChoices(b, store.members);
+    let pick = "";
+    const msg = el("p", { class: "msg", role: "status" });
+    const form = el("form", { class: "stack" },
+      el("h2", { text: `Hand over ${b.name}` }),
+      el("p", { class: "muted small", text: "Pick the new captain. They're asked to accept it and set the crew; until they do, it stays yours. The boat keeps all its catches and its history." }),
+      choices.length ? el("div", { class: "stack-tight" }, ...choices.map(m => el("label", { class: "check" },
+        el("input", { type: "radio", name: "handover", value: m.id, onchange: () => { pick = m.id; } }), avatar(m, "xs"), el("span", { text: m.displayName }))))
+        : el("p", { class: "muted small", text: "Nobody else in the league yet." }),
+      msg,
+      el("div", { class: "row" },
+        el("button", { class: "btn", type: "button", text: "Cancel", onclick: closeSheet }),
+        el("button", { class: "btn primary", type: "submit", text: "Offer the boat" })));
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      if (!pick) { msg.className = "msg err"; msg.textContent = "Pick who gets the boat."; return; }
+      offerFleetBoat(b, pick);
+      closeSheet(); toast(`Offered to ${who(pick).displayName}. They'll see it in their bell.`);
+    });
+    box.append(form);
+  });
+}
+
+/* The new captain accepts the boat and sets its crew (the old crew and old captain start ticked). */
+function acceptSheet(b) {
+  openSheet(box => {
+    const crew = new Set(crewAfterHandOver(b, uid()));
+    const others = [...store.members.values()].filter(m => m.id !== uid() && !m.suspended).sort((x, y) => x.displayName.localeCompare(y.displayName));
+    const form = el("form", { class: "stack" },
+      el("h2", { text: `Take the helm of ${b.name}` }),
+      el("div", { class: "field" }, el("span", { class: "field-label", text: "Your crew" }),
+        el("div", { class: "stack-tight" }, ...others.map(m => el("label", { class: "check" },
+          el("input", { type: "checkbox", checked: crew.has(m.id), onchange: e => { e.target.checked ? crew.add(m.id) : crew.delete(m.id); } }),
+          avatar(m, "xs"), el("span", { text: m.displayName })))),
+        el("span", { class: "hint", text: "Tick the friends who often fish from this boat. You can change this any time with Edit." })),
+      el("div", { class: "row" },
+        el("button", { class: "btn", type: "button", text: "Cancel", onclick: closeSheet }),
+        el("button", { class: "btn primary", type: "submit", text: "Take the helm" })));
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      acceptFleetBoat(b, [...crew]);
+      closeSheet(); toast(`${b.name} is yours. Tight lines, captain!`);
+    });
+    box.append(form);
+  });
 }
 
 // The motor and specs are only sent when they're set, so boats without them save the same as before.

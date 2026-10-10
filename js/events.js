@@ -15,6 +15,7 @@ import { fmtWeight, fmtLength } from "./ui.js";
 import { betStatus, betResult, finalAt as betFinalAt, canJoin, isSides } from "./bets.js";
 import { fmtMoney } from "./payout.js";
 import { goalsReached, goalTitle, periodText } from "./goals.js";
+import { captainsOf } from "./fleet.js";
 import { challengeStatus, challengeBoard, closesAt as h2hClosesAt, termsShort, scoreText as h2hScore, otherSide } from "./h2h.js";
 
 const PLACES = ["1st", "2nd", "3rd"];
@@ -129,6 +130,10 @@ export function leagueEvents(data) {
       cid: r.catchId || undefined, short: r.catchId ? `Reached a goal: ${goalTitle(r.g)} ${periodText(r.g)}` : undefined,
       text: `${name(r.g.uid)} reached a goal: ${goalTitle(r.g)} ${periodText(r.g)}` });
   }
+  for (const h of handOvers(data.fleet)) {
+    out.push({ id: `captain:${h.b.id}:${h.at}`, at: h.at, icon: "🚤", href: `#/boat/${h.b.id}`, uids: [h.to, h.from],
+      text: `${name(h.to)} is the new captain of ${h.b.name}, handed over by ${name(h.from)}` });
+  }
   const again = badgesAgain(data.badges || badgeTimeline({ ...data, derbies: derbyMap }));
   for (const { b, more } of again) {
     out.push({ id: badgeNewsId(b, b.uid), at: posted.at(b.at, [b.uid]), icon: b.badge.icon, href: `#/u/${b.uid}`, uids: [b.uid],
@@ -176,6 +181,9 @@ export function leagueEvents(data) {
   }
   return out.sort((a, b) => b.at - a.at);
 }
+
+/* Boats that changed hands: [{ b, from, to, at }] (from = the old captain). */
+const handOvers = fleet => [...asMap(fleet).values()].flatMap(b => captainsOf(b).slice(1).map((c, i) => ({ b, from: captainsOf(b)[i].uid, to: c.uid, at: c.at })));
 
 /* A finished bet's result line: { at, icon, text, uids }, or null until it's decided. */
 function betEnd(b, catches, players, name, now) {
@@ -292,6 +300,14 @@ export function alertsFor(me, data, { seen = 0, limit = 60 } = {}) {
     else for (const [u, r] of rsvps.get(t.id) || new Map()) if (u !== me) {
       add({ id: `rsvp:${t.id}:${u}:${r.answer}`, at: r.at || 0, icon: RSVP_ICON[r.answer] || "🚤", href: `#/t/${t.id}`, text: `${name(u)} ${RSVP_TEXT[r.answer] || "answered"} for ${t.title}` });
     }
+  }
+
+  // Boats: one offered to you, and yours taken over by the angler you offered it to.
+  for (const b of asMap(data.fleet).values()) if (b.offerTo === me && b.uid !== me) {
+    add({ id: `boatoffer:${b.id}:${b.offerAt || 0}`, at: b.offerAt || 0, icon: "🚤", href: `#/boat/${b.id}`, text: `${name(b.uid)} wants to hand ${b.name} over to you. Take the helm?` });
+  }
+  for (const h of handOvers(data.fleet)) if (h.from === me) {
+    add({ id: `captain:${h.b.id}:${h.at}`, at: h.at, icon: "🚤", href: `#/boat/${h.b.id}`, text: `${name(h.to)} took over ${h.b.name}. Its catches stay with the boat.` });
   }
 
   // Marked a no-show for an outing you said you were In for.
