@@ -8,6 +8,7 @@ import { outingEnd, isBoatOuting, seating, outingRecap } from "./outings.js";
 import { isPersonalBest, recordOf } from "./stats.js";
 import { myBoats, spareSeats } from "./fleet.js";
 import { focusStyle } from "./thumbfocus.js";
+import { thumbImg } from "./thumbs.js";
 import { canMark } from "./noshows.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
@@ -224,7 +225,7 @@ function recapSection(t) {
       el("div", { class: "people" }, ...r.anglers.map(a => el("a", { class: "person", href: `#/u/${a.uid}` }, avatar(who(a.uid), "xs"),
         el("span", { text: `${who(a.uid).displayName} · ${a.fish}` })))),
       el("div", { class: "recap-thumbs" }, ...r.catches.slice(0, 12).map(c => el("a", { class: "recap-thumb", href: `#/c/${c.id}`, title: `${c.species} ${sizeOf(c) || ""}` },
-        el("img", { class: "thumb sm", src: c.thumb, alt: `${c.species} by ${who(c.uid).displayName}`, loading: "lazy", style: focusStyle(c) }),
+        thumbImg(c, { class: "thumb sm", alt: `${c.species} by ${who(c.uid).displayName}`, style: focusStyle(c) }),
         flags(c) ? el("span", { class: "recap-flag", text: flags(c) }) : null))),
     ]);
 }

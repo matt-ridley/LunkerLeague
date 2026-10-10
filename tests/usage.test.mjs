@@ -11,7 +11,7 @@ test("measure: documents and their size with a little overhead each", () => {
 test("open cost: totals, with the biggest parts first and their labels", () => {
   const c = openCost(new Map([["comments", { docs: 50, bytes: 10000 }], ["catches", { docs: 100, bytes: 3000000 }], ["mystery", { docs: 1, bytes: 10 }]]));
   assert.deepEqual([c.docs, c.bytes], [151, 3010010]);
-  assert.deepEqual(c.parts.map(p => [p.key, p.label]), [["catches", "Catches (with their small photos)"], ["comments", "Comments"], ["mystery", "mystery"]]);
+  assert.deepEqual(c.parts.map(p => [p.key, p.label]), [["catches", "Catches"], ["comments", "Comments"], ["mystery", "mystery"]]);
 });
 
 test("free plan: whichever of reads and downloads runs out first, and a busy day's share", () => {

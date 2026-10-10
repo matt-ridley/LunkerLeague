@@ -11,6 +11,7 @@ import { seriesSection } from "./seriespage.js";
 import { challengesSection } from "./h2hpage.js";
 import { betsSection } from "./betspage.js";
 import { focusStyle } from "./thumbfocus.js";
+import { thumbImg } from "./thumbs.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -236,7 +237,7 @@ function boardView(d, rows, st, money, won = null) {
   return el("section", { class: "stack" },
     final && rows.length ? podium(d, rows) : null,
     el("ol", { class: "board" }, ...rows.map((r, i) => el("li", {},
-      el("a", { class: "board-row" + (i < 3 ? ` top${i + 1}` : ""), href: `#/c/${(r.fish.find(f => f.thumb) || r.fish[0]).id}` },
+      el("a", { class: "board-row" + (i < 3 ? ` top${i + 1}` : ""), href: `#/c/${r.fish[0].id}` },
         el("span", { class: "rank", text: MEDALS[i] || String(i + 1) }),
         avatar(who(r.uid)),
         el("div", { class: "grow" }, el("div", { class: "name", text: who(r.uid).displayName }),
@@ -328,7 +329,7 @@ function entriesView(d, entries) {
   // Waiting for approval first (oldest first, so they're checked in order), then the rest, newest first.
   const waiting = entries.filter(e => awaitingApproval(e, d)), rest = entries.filter(e => !awaitingApproval(e, d)).reverse();
   return el("ul", { class: "entry-list" }, ...[...waiting, ...rest].map(e => el("li", { class: "entry" + (awaitingApproval(e, d) ? " waiting" : e.problem ? " out" : "") },
-    el("a", { href: `#/c/${e.id}` }, el("img", { class: "thumb sm", src: e.thumb, alt: "", loading: "lazy", style: focusStyle(e) })),
+    el("a", { href: `#/c/${e.id}` }, thumbImg(e, { class: "thumb sm", alt: "", style: focusStyle(e) })),
     el("div", { class: "grow" },
       el("div", {}, el("b", { text: who(e.uid).displayName }), el("span", { class: "muted small", text: ` · ${fmtDate(e.caughtAt)}` })),
       el("div", { text: `${e.species} · ${[fmtWeight(e.weightOz), fmtLength(e.lengthIn)].filter(Boolean).join(" · ")}` }),

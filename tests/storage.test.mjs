@@ -22,6 +22,15 @@ test("room left uses the real average photo once there are enough", () => {
   assert.ok(e.catchesLeft > 3000 && e.catchesLeft < 3200);
 });
 
+test("small photos moved out of the catches (thumbs/) count as used and as part of each catch", () => {
+  const base = { total: 100, sized: 100, sizedBytes: 100 * 250 * 1024 };
+  const before = estimateStorage({ photos: base, docs: 100 * 50 * 1024, catches: 100 });
+  // The same 30 KB small photos, now in thumbs/ instead of inside the catches.
+  const after = estimateStorage({ photos: { ...base, thumbN: 100, thumbBytes: 100 * 30 * 1024 }, docs: 100 * 20 * 1024, catches: 100 });
+  assert.equal(after.used, before.used);
+  assert.equal(after.perCatch, before.perCatch);
+});
+
 test("a full league shows 100% and no room", () => {
   const e = estimateStorage({ photos: { total: 3000, sized: 0, sizedBytes: 0 }, docs: 0, catches: 3000 });
   assert.equal(e.pct, 100);

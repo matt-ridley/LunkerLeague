@@ -131,7 +131,7 @@ function freePlanCard() {
       line("Reads allow", `${n(f.byReads)} opens a day`),
       line("Downloads allow", `${n(f.byDownloads)} opens a day (${FREE_DOWNLOAD_MONTH / 1024 ** 3} GB a month)`),
       ...cost.parts.filter(p => p.docs).slice(0, 6).map(p => line(p.label, `${plural(p.docs, "doc")} · ${size(p.bytes)}`))),
-    el("p", { class: "hint", text: "An estimate from what this phone downloaded. Opening the app after about 30 minutes away reads everything again (most opens); sooner, only what changed. Full photos on a catch's page come on top. The real numbers are in the Firebase console: Firestore Database → Usage." }));
+    el("p", { class: "hint", text: "An estimate from what this phone downloaded. Opening the app after about 30 minutes away reads everything again (most opens); sooner, only what changed. Small photos load as they come on screen (once per phone) and full photos when a catch is opened, on top of this. The real numbers are in the Firebase console: Firestore Database → Usage." }));
 }
 
 export function renderSystem(main) {

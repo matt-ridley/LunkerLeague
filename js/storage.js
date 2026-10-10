@@ -17,16 +17,18 @@ export function docsBytes(docs) {
   return n;
 }
 
-/* photos: { total, sized, sizedBytes, tackleBytes, coverBytes } from the server (tackle box photos and profile covers
-   count as used but not as part of a catch); docs: bytes of everything else; catches: how many catches.
+/* photos: { total, sized, sizedBytes, tackleBytes, coverBytes, thumbN, thumbBytes } from the server (tackle box photos
+   and profile covers count as used but not as part of a catch; small catch photos moved out of the catches, thumbs/,
+   count as used and as part of each catch); docs: bytes of everything else; catches: how many catches.
    Returns { used, pct, perCatch, catchesLeft }. */
 export function estimateStorage({ photos, docs, catches }) {
   const unsized = Math.max(0, photos.total - photos.sized);
   const photoBytes = photos.sizedBytes + unsized * OLD_PHOTO_BYTES;
-  const used = Math.round((photoBytes + (photos.tackleBytes || 0) + (photos.coverBytes || 0) + docs) * INDEX_FACTOR);
+  const used = Math.round((photoBytes + (photos.tackleBytes || 0) + (photos.coverBytes || 0) + (photos.thumbBytes || 0) + docs) * INDEX_FACTOR);
   const newPhoto = photos.sized >= 5 ? photos.sizedBytes / photos.sized : NEW_PHOTO_BYTES;
   const docPerCatch = catches ? docs / catches : 45 * 1024; // the catch with its small photo, plus its share of the rest
-  const perCatch = Math.round((newPhoto + docPerCatch) * INDEX_FACTOR);
+  const thumb = photos.thumbN ? photos.thumbBytes / photos.thumbN : 0; // older catches hold theirs in docPerCatch
+  const perCatch = Math.round((newPhoto + docPerCatch + thumb) * INDEX_FACTOR);
   return { used, pct: Math.min(100, Math.round((used / FREE_BYTES) * 1000) / 10), perCatch, catchesLeft: Math.max(0, Math.floor((FREE_BYTES - used) / perCatch)) };
 }
 

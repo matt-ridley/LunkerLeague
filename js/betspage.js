@@ -10,6 +10,7 @@ import { photoTakenAt } from "./exif.js";
 import { fmtMoney } from "./payout.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
 import { focusStyle } from "./thumbfocus.js";
+import { thumbImg } from "./thumbs.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const allCatches = () => [...store.catches.values()];
@@ -120,7 +121,7 @@ export function renderBet(main, id) {
         el("span", { class: "rank", text: row.score ? String(i + 1) : "·" }), avatar(who(row.uid), "sm"),
         el("div", { class: "grow" }, el("div", { class: "name", text: who(row.uid).displayName }),
           isCalled(b) ? null : el("div", { class: "muted small", text: row.count ? `${row.count} fish that count` : "Nothing that counts yet" })),
-        row.fish[0] ? el("a", { href: `#/c/${row.fish[0].id}` }, el("img", { class: "thumb sm", src: row.fish[0].thumb, alt: row.fish[0].species, loading: "lazy", style: focusStyle(row.fish[0]) })) : null,
+        row.fish[0] ? el("a", { href: `#/c/${row.fish[0].id}` }, thumbImg(row.fish[0], { class: "thumb sm", alt: row.fish[0].species, style: focusStyle(row.fish[0]) })) : null,
         el("div", { class: "board-right" }, el("b", { text: isCalled(b) ? (row.score ? "🏆" : "") : betScoreText(b.rule, row.score) }),
           r && r.shares.get(row.uid) ? el("span", { class: "money-chip", text: `💵 ${fmtMoney(r.shares.get(row.uid))}` }) : null)))),
       st === "closing" ? el("p", { class: "hint", text: "Fishing's over (or someone got there first), but catches from no-signal spots can still sync, so this can change." }) : null,

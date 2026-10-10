@@ -1,6 +1,6 @@
 /* Catches: logging and editing, the feed, a catch's own page, and the personal-best wall. */
 import { el, field, avatar, fmtDate, fmtDay, fmtAgo, fmtWeight, fmtLength, toast, confirmButton, icon, openSheet, closeSheet, sheetOpen, fill } from "./ui.js";
-import { store, uid, memberName, isAdmin, clearWeather, toggleReaction, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, setCatchFocus, loadPhoto, cachedPhoto, retryRejected, discardRejected } from "./cloud.js";
+import { store, uid, memberName, isAdmin, clearWeather, toggleReaction, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, setCatchFocus, loadPhoto, cachedPhoto, thumbSrc, loadThumb, retryRejected, discardRejected } from "./cloud.js";
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
 import { pickOnMap } from "./mappick.js";
@@ -20,6 +20,7 @@ import { pickerItems, lastTackle } from "./tacklebox.js";
 import { myBoats, defaultBoat } from "./fleet.js";
 import { itemSheet, itemThumb } from "./tackleboxpage.js";
 import { focusStyle } from "./thumbfocus.js";
+import { thumbImg } from "./thumbs.js";
 import { seasonName } from "./season.js";
 import { pickFocus } from "./focuspick.js";
 import { browseFrom, returningTo, scrollBackTo, browseSpot, markViewed } from "./browse.js";
@@ -60,7 +61,7 @@ export function catchCard(c, all = allCatches(), news = []) {
   const pb = isPersonalBest(c, all), rec = recordOf(c, all), flair = recordFlair(rec), sb = !pb && measured(c) && isSeasonBest(c, all);
   const m = store.members.get(c.uid) || { id: c.uid, displayName: memberName(c.uid) };
   return el("a", { class: "catch-card", href: `#/c/${c.id}` },
-    el("img", { class: "thumb", src: c.thumb, alt: `${c.species} photo`, loading: "lazy", style: focusStyle(c) }),
+    thumbImg(c, { class: "thumb", alt: `${c.species} photo`, style: focusStyle(c) }),
     el("div", { class: "catch-info" },
       // Record and PB flair sits top right, beside the species.
       el("div", { class: "catch-top" },
@@ -323,7 +324,9 @@ export function renderCatch(main, id) {
   const spot = browseSpot(c.id, x => store.catches.has(x));
   if (spot) { markViewed(c.id); browseKeys(); }
 
-  const img = el("img", { class: "catch-photo", src: cachedPhoto(c.id) || c.thumb, alt: `${c.species} caught by ${m.displayName}` });
+  // The small photo shows while the full one loads (and stays when there's no signal).
+  const img = el("img", { class: "catch-photo", src: cachedPhoto(c.id) || thumbSrc(c) || undefined, alt: `${c.species} caught by ${m.displayName}` });
+  if (!img.getAttribute("src")) loadThumb(c).then(src => { if (src && !img.getAttribute("src")) img.src = src; });
   const note = el("p", { class: "photo-note hint" });
   const photoBox = el("button", { class: "photo-box", type: "button", "aria-label": "View photo full screen. Double-tap for 🔥" }, img);
   photoGestures(photoBox, c, spot, () => viewer(img.src));
@@ -385,7 +388,7 @@ export function renderCatch(main, id) {
       (mine || c.enteredBy === uid()) && !lockedEntry(c) ? el("a", { class: "btn", href: `#/log/${c.id}`, text: "Edit" }) : null,
       // Allowed any time, even on a closed derby entry: it only moves the thumbnail.
       mine || c.enteredBy === uid() ? el("button", { class: "btn", type: "button", text: "🎯 Thumbnail",
-        onclick: () => pickFocus(c.thumb, c.focus, f => { setCatchFocus(c.id, f); toast("Thumbnail updated."); }) }) : null,
+        onclick: async () => { const src = await loadThumb(c); if (!src) return toast("Needs signal to load the photo."); pickFocus(src, c.focus, f => { setCatchFocus(c.id, f); toast("Thumbnail updated."); }); } }) : null,
       confirmButton("Delete", "Tap again to delete", () => {
         deleteCatch(c);
         // Browsing: carry on to the next fish (or the one before) instead of leaving.
@@ -478,7 +481,7 @@ function detailsBox(facts) {
 }
 
 /* What the organiser approved: changing any of it on an approved entry takes the approval away (the rules check the same). */
-const PROOF_FIELDS = ["species", "weightOz", "lengthIn", "caughtAt", "thumb", "photoTakenAt", "derbyId", "fishCount"];
+const PROOF_FIELDS = ["species", "weightOz", "lengthIn", "caughtAt", "thumb", "thumbAt", "photoTakenAt", "derbyId", "fishCount"];
 const proofChanged = (old, data) => PROOF_FIELDS.some(f => f in data && (data[f] ?? null) !== (old[f] ?? null));
 
 /* A derby entry can't be changed once that derby's final entries have closed. */
@@ -592,7 +595,7 @@ function wallParts(memberId, choose) {
     parts.push(el("section", { class: "stack" },
       el("h3", { text: "Personal bests" }),
       pbs.length ? el("div", { class: "pb-wall" }, ...pbs.map(c => el("a", { class: "pb-tile", href: `#/c/${c.id}` },
-        el("img", { src: c.thumb, alt: "", loading: "lazy", style: focusStyle(c) }),
+        thumbImg(c, { alt: "", style: focusStyle(c) }),
         el("div", { class: "pb-text" }, el("b", { text: c.species }), el("span", { text: shownSize(c) }),
           sbs.get(c.species) && sbs.get(c.species) !== c ? el("small", { class: "muted", text: `SB ${shownSize(sbs.get(c.species))}` }) : null))))
         : el("p", { class: "muted", text: "No catches yet." })),
@@ -617,7 +620,7 @@ export function renderLog(main, editId, derbyArg) {
   const oldTackle = editing && store.tackle.get(editing.id);
   const tackleHidden = !!(editing && editing.hasTackle && !oldTackle);
   const st = {
-    full: null, thumb: editing ? editing.thumb : null, takenAt: editing ? editing.photoTakenAt || null : null,
+    full: null, thumb: editing ? thumbSrc(editing) || null : null, takenAt: editing ? editing.photoTakenAt || null : null,
     focus: editing ? editing.focus || null : null, // where the square thumbnail sits on the photo
     spot: oldSpot ? { lat: oldSpot.lat, lng: oldSpot.lng, acc: oldSpot.acc } : null,
     share: editing ? !!editing.locShared : false,
@@ -659,6 +662,8 @@ export function renderLog(main, editId, derbyArg) {
       photoMsg.className = "msg err"; photoMsg.textContent = "That file couldn't be opened as a photo. Try another.";
     }
   };
+  // Editing a catch whose small photo isn't on this phone yet: show it once it loads (a new photo replaces it anyway).
+  if (editing && !st.thumb) loadThumb(editing).then(src => { if (src && !st.full) { st.thumb = src; drawPreview(); } });
   drawPreview();
 
   // Fields
@@ -955,7 +960,7 @@ export function renderLog(main, editId, derbyArg) {
     if (editing && Math.floor(editing.caughtAt / 60000) * 60000 === caughtAt) caughtAt = editing.caughtAt;
     const stringer = st.mode === "stringer" && !derbyOnly;
     const count = Number(fishCount.value.trim());
-    if (!st.thumb) return fail(stringer ? "Add a photo of your stringer." : "Add a photo of your catch.");
+    if (!st.thumb && !editing) return fail(stringer ? "Add a photo of your stringer." : "Add a photo of your catch.");
     if (!sp) return fail("Enter the species.");
     if (stringer && !(Number.isInteger(count) && count >= 2 && count <= 500)) return fail("Enter how many fish are on the stringer (2 to 500).");
     if (stringer && st.limit === null) return fail("Tell us if this is your limit.");
@@ -968,10 +973,12 @@ export function renderLog(main, editId, derbyArg) {
     const id = editing ? editing.id : newCatchId();
     const data = {
       uid: uid(), species: sp, weightOz: !stringer && weightOz > 0 ? weightOz : null, lengthIn: !stringer && lengthIn > 0 ? lengthIn : null,
-      caughtAt, createdAt: editing ? editing.createdAt : Date.now(), thumb: st.thumb, photoTakenAt: st.takenAt || null,
+      caughtAt, createdAt: editing ? editing.createdAt : Date.now(), photoTakenAt: st.takenAt || null,
       notes: notes.value.trim().slice(0, 500), released: !stringer && released.checked,
       hasSpot: !!st.spot, locShared: !!st.spot && st.share, spotName: st.spot && st.share ? spotName.value.trim().slice(0, 60) : "",
     };
+    // A new photo: its small copy is saved in thumbs/{id}, and this says which version the catch shows.
+    if (st.full) data.thumbAt = Date.now();
     // Only sent when there is one (or one to clear), so catches still save if the rules allowing it aren't published yet.
     if (st.focus || (editing && editing.focus)) data.focus = st.focus || null;
     data.boatId = boatSel.value || null;
@@ -1010,7 +1017,7 @@ export function renderLog(main, editId, derbyArg) {
     const tackle = tackleHidden ? undefined : data.hasTackle ? { ...t, shared: data.tackleShared } : (oldTackle ? null : undefined);
     const mineNow = data.uid === uid();
     const check = mineNow ? checkNewPB({ id, ...data }, allCatches()) : { pb: false };
-    saveCatch({ id, data, photo: st.full, spot, tackle, isNew: !editing });
+    saveCatch({ id, data, photo: st.full, thumb: st.full ? st.thumb : undefined, spot, tackle, isNew: !editing });
     // Celebrate beating your PB, or your first ever of a species (not when an unmeasured one was logged before).
     if (check.pb && (check.previous || (check.first && !editing))) celebrate = { id, previous: check.previous, at: Date.now() };
     toast(navigator.onLine ? "Catch saved." : "Saved on this phone. It will be shared when you have signal.");
