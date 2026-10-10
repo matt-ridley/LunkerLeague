@@ -45,6 +45,10 @@ test("the anglers list: species, PBs, records, heaviest, longest and days out", 
   assert.deepEqual(["fish", "pbs", "records", "biggest"].map(k => row(career, "bo")[k]), [11, 1, 2, 60]);
   assert.deepEqual(["fish", "pbs", "records", "biggest"].map(k => row(career, "amy")[k]), [3, 2, 1, 50]);
   assert.deepEqual(["fish", "pbs", "records", "biggest"].map(k => row(career, "cy")[k]), [0, 1, 0, null]);
+  // All time: Cy's logbook bass counts as a fish, an all-time record (weight) and the heaviest, and as their last fish.
+  const all = anglerRoster({ members, catches, year: 2026, period: "alltime" });
+  assert.deepEqual(["fish", "species", "pbs", "records", "biggest", "daysOut", "lastAt"].map(k => row(all, "cy")[k]), [1, 1, 1, 1, 99, 1, at(2010, 6, 1)]);
+  assert.deepEqual(["fish", "records"].map(k => row(all, "bo")[k]), [11, 2]);
 });
 
 test("the anglers list sorts by any stat, highest first, ties and names A to Z; points go by place", () => {
