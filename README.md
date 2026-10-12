@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.76.2 (beta)
+**Current version:** 0.76.3 (beta)
 
 ## Features
 
@@ -345,6 +345,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.76.3 | 2026-Oct-12 07:55:22 PM | **No more silent white screen**: if the app hasn't drawn anything 8 seconds after opening, it shows **Lunker League didn't start** with a Reload button and what went wrong (connection, whether the offline helper is running, files that didn't load, errors, and how many files are saved on the phone), instead of a blank screen. Added to track down a white screen opening the installed app in airplane mode on Android. No new security rules. |
 | 0.76.2 | 2026-Oct-12 07:32:44 PM | **Fix: blank screen opening with no signal**: in a dead zone (no bars, but the phone still thinks it's connected) the installed app could stay blank. The fonts weren't saved on the phone until a later open, and a font request that hangs held up the whole page and the app's code. Fonts now load without holding anything up (the phone's own font shows until they arrive) and are saved, Latin letters only (about 53 KB), when the app is installed or updated. Also, once the app has opened from its saved copy, the rest of its files come from saved copies straight away instead of each waiting a few seconds for the network (that added up to about 15 seconds of blank screen with weak signal). No new security rules. |
 | 0.76.1 | 2026-Oct-10 09:27:29 AM | **Fix: invite code missing on League admin**: since 0.75.0 the admin page never loaded the invite code, so it showed "…", Copy invite had no code, and Email an invite said to set one first (changing the code did save; the page just couldn't see it). The invite code loads again. No new security rules. |
 | 0.76.0 | 2026-Oct-09 11:57:58 PM | **Side panel on computers**: on screens 1280px and wider a panel sits to the right of the page with three tabs. **Up next** shows your standing on top and the rest of the Fish Finder cards stacked (no carousel), **Chat** is the league chat open beside whatever page you're on, and **Alerts** is the bell's list; the tabs show how many new messages and alerts are waiting. While it's showing, the feed drops its Fish Finder carousel and League chat row and the header drops the bell, since the panel has them. 1024–1279px it opens as a drawer from a new panel button in the header (Esc or changing page closes it). **×** hides it; the header button brings it back (with a dot when there's something new). The tab and hidden choice are remembered per browser. Pop-up dialogs centre between the rail and the panel. The Chat page and the panel chat each keep their own message box. Phone and tablet layouts are unchanged. No new security rules. |
