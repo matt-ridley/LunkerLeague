@@ -2,9 +2,11 @@
    - App files (this site): network first, so a new version shows up as soon as there is signal,
      falling back to the saved copy after a few seconds or when offline. Once a page has opened from the saved copy,
      the rest of its files come from saved copies straight away (they load in rounds, so the waits would add up).
+     Requests with a query string (the update check's js/config.js?check=…) go to the network only and are never saved:
+     saved under their own address, an old one could be handed out as the app's config.js with no signal (0.76.4).
    - Firebase SDK, fonts and the map library (Leaflet): saved copy first. Their URLs include a version, so they never change.
    League data itself is not handled here; Firestore keeps its own offline copy. */
-const SHELL = "lunker-shell-v1";
+const SHELL = "lunker-shell-v2"; // v1 held stale config.js?check=… copies; activating v2 deletes it
 const STATIC = "lunker-static-v1";
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0/";
 const APP_FILES = [
@@ -22,8 +24,9 @@ const NETWORK_WAIT_MS = 3500;
 
 self.addEventListener("install", e => {
   e.waitUntil((async () => {
+    // All app files or none (then the install is tried again later): a set mixing old and new files can't start.
     const shell = await caches.open(SHELL);
-    await Promise.allSettled(APP_FILES.map(u => shell.add(new Request(u, { cache: "reload" }))));
+    await shell.addAll(APP_FILES.map(u => new Request(u, { cache: "reload" })));
     const stat = await caches.open(STATIC);
     await Promise.allSettled([...SDK_FILES.map(u => stat.add(u)), saveFonts(stat)]);
     await self.skipWaiting();
@@ -54,7 +57,10 @@ self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.origin === self.location.origin) e.respondWith(networkFirst(e));
+  if (url.origin === self.location.origin) {
+    if (url.search && req.mode !== "navigate") return; // network only, never saved (see the top)
+    e.respondWith(networkFirst(e));
+  }
   else if (isStatic(url)) e.respondWith(cacheFirst(req));
 });
 
@@ -72,7 +78,7 @@ async function networkFirst(e) {
     return res;
   });
   fromNet.catch(() => {}); // offline: handled below, so don't report it as unhandled
-  const saved = () => cache.match(key, { ignoreSearch: true });
+  const saved = () => cache.match(key);
   if (!nav && savedPages.has(e.clientId)) {
     const hit = await saved();
     if (hit) return hit; // the download above still finishes and is saved for next time
