@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.76.3 (beta)
+**Current version:** 0.76.4 (beta)
 
 ## Features
 
@@ -345,6 +345,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.76.4 | 2026-Oct-12 08:07:53 PM | **Fix: white screen opening with no signal**: every **Check for an update** on System info saved another copy of the app's settings file on the phone. With no signal, the app could be handed one of those old copies alongside newer files and fail to start (the new start-up safety net showed the error). Update checks are no longer saved, saved files are only matched by their exact address, and the phone's saved app files are replaced by a fresh, complete set (the old set, with the stale copies, is deleted once the new set has fully saved). No new security rules. |
 | 0.76.3 | 2026-Oct-12 07:55:22 PM | **No more silent white screen**: if the app hasn't drawn anything 8 seconds after opening, it shows **Lunker League didn't start** with a Reload button and what went wrong (connection, whether the offline helper is running, files that didn't load, errors, and how many files are saved on the phone), instead of a blank screen. Added to track down a white screen opening the installed app in airplane mode on Android. No new security rules. |
 | 0.76.2 | 2026-Oct-12 07:32:44 PM | **Fix: blank screen opening with no signal**: in a dead zone (no bars, but the phone still thinks it's connected) the installed app could stay blank. The fonts weren't saved on the phone until a later open, and a font request that hangs held up the whole page and the app's code. Fonts now load without holding anything up (the phone's own font shows until they arrive) and are saved, Latin letters only (about 53 KB), when the app is installed or updated. Also, once the app has opened from its saved copy, the rest of its files come from saved copies straight away instead of each waiting a few seconds for the network (that added up to about 15 seconds of blank screen with weak signal). No new security rules. |
 | 0.76.1 | 2026-Oct-10 09:27:29 AM | **Fix: invite code missing on League admin**: since 0.75.0 the admin page never loaded the invite code, so it showed "…", Copy invite had no code, and Email an invite said to set one first (changing the code did save; the page just couldn't see it). The invite code loads again. No new security rules. |
