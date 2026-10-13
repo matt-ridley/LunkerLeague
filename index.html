@@ -11,6 +11,37 @@
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Track your bests. Settle the bet.">
 <title>Lunker League</title>
+<script>
+/* Start-up safety net: if the app hasn't drawn anything after a few seconds, say so (with what went wrong) instead of
+   leaving a blank screen. Plain script before the stylesheets so it runs even if the rest of the page is stuck. */
+(function () {
+  var errs = [];
+  addEventListener("error", function (e) {
+    var t = e.target;
+    errs.push(t && t !== window ? "Couldn't load " + (t.src || t.href || t.tagName) : (e.message || "Error") + (e.filename ? " (" + e.filename.split("/").pop() + ":" + e.lineno + ")" : ""));
+  }, true);
+  addEventListener("unhandledrejection", function (e) { errs.push("Unhandled: " + ((e.reason && (e.reason.message || e.reason)) || "?")); });
+  setTimeout(function () {
+    var main = document.getElementById("main");
+    if (!main || main.childElementCount) return; // it started
+    var box = document.createElement("div");
+    box.setAttribute("style", "position:fixed;inset:0;z-index:99;overflow:auto;padding:32px 20px;background:#0B4F5C;color:#fff;font:16px/1.45 system-ui,sans-serif");
+    box.innerHTML = "<h1 style='margin:0 0 8px;font-size:24px'>Lunker League didn't start</h1>" +
+      "<p style='margin:0 0 16px'>Try Reload. If this keeps happening, send a screenshot of this screen.</p>" +
+      "<button type='button' style='font:inherit;font-weight:700;padding:12px 20px;border:0;border-radius:12px;background:#C5F23A;color:#0C1A14'>Reload</button>" +
+      "<pre style='white-space:pre-wrap;word-break:break-word;font-size:12px;opacity:.85;margin-top:20px'></pre>";
+    box.querySelector("button").onclick = function () { location.reload(); };
+    var info = box.querySelector("pre");
+    var lines = ["Online: " + navigator.onLine, "Worker: " + !!(navigator.serviceWorker && navigator.serviceWorker.controller), "Page: " + location.href].concat(errs.length ? errs : ["No errors caught"]);
+    info.textContent = lines.join("\n");
+    document.body.appendChild(box);
+    // Which saved files the phone has (the app opens with no signal from these).
+    if (window.caches) caches.keys().then(function (ks) {
+      return Promise.all(ks.map(function (k) { return caches.open(k).then(function (c) { return c.keys(); }).then(function (r) { return k + ": " + r.length + " files"; }); }));
+    }).then(function (ls) { info.textContent += "\nSaved: " + (ls.join(", ") || "none"); }, function () {});
+  }, 8000);
+})();
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
