@@ -6,7 +6,7 @@ A private fishing league for a group of friends. Log personal bests with a photo
 
 **Live app:** https://matt-ridley.github.io/LunkerLeague/
 
-**Current version:** 0.77.0 (beta)
+**Current version:** 0.77.1 (beta)
 
 ## Features
 
@@ -346,6 +346,7 @@ Update this README's **Current version** and the changelog in the same commit. W
 
 | Version | Date | Changes |
 | --- | --- | --- |
+| 0.77.1 | 2026-Oct-14 10:53:35 PM | **Fix: 30 seconds of "Loading…" in a dead zone**: when the app opens, Firebase checks your account with Google before saying who's signed in, and in a dead zone (no bars, but the phone thinks it's connected) it waited its full 30 seconds for an answer. The app now gives that check 4 seconds; with no answer it opens signed in from what's saved on the phone, and catches up when signal returns. Tested against a server that never answers: 30.2 seconds before, 4.1 after. No new security rules. |
 | 0.77.0 | 2026-Oct-14 10:33:10 PM | **Rod holder**: save your rods (type, length like 6'6", power, action) and reels (type, size, line), each with an optional photo. A combo is whichever reel is on a rod now: put a reel on, swap it, or move it to another rod, and each rod keeps the history of its reels. **💔 It broke** puts the rod's reel back on the shelf and gives the rod an **In memoriam** card and a line in the feed; **🪫 Worn out** frees the reel's rod for a new one; **Respooled** dates a reel's line. The log form's tackle section picks your rod (the last catch's rod, or your only one) and saves the reel that was on it when the fish was caught; secret tackle hides them. The catch page links its rod and reel, and each rod and reel page lists its catches, fish and best fish. **🎣 Rod holders** on The Dock (everyone's), a link from each tackle box, and a **🍀 lucky combo** on profiles. Five career badges worth no points: Full Rack, Workhorse, Reel Deal, Snapped and Ground It Down (91 badges). **Security rules changed** (publish them): the new `rodHolder` and `rodHolderPhotos` collections, and optional `rodId` and `reelId` on a catch's tackle. |
 | 0.76.4 | 2026-Oct-12 08:07:53 PM | **Fix: white screen opening with no signal**: every **Check for an update** on System info saved another copy of the app's settings file on the phone. With no signal, the app could be handed one of those old copies alongside newer files and fail to start (the new start-up safety net showed the error). Update checks are no longer saved, saved files are only matched by their exact address, and the phone's saved app files are replaced by a fresh, complete set (the old set, with the stale copies, is deleted once the new set has fully saved). No new security rules. |
 | 0.76.3 | 2026-Oct-12 07:55:22 PM | **No more silent white screen**: if the app hasn't drawn anything 8 seconds after opening, it shows **Lunker League didn't start** with a Reload button and what went wrong (connection, whether the offline helper is running, files that didn't load, errors, and how many files are saved on the phone), instead of a blank screen. Added to track down a white screen opening the installed app in airplane mode on Android. No new security rules. |
