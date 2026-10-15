@@ -1,7 +1,7 @@
 // Unit tests for The Dock's lists. Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { anglerRoster, sortRoster, rosterPlaces, tackleBoxes } from "../js/dock.js";
+import { anglerRoster, sortRoster, rosterPlaces, tackleBoxes, rodHolders } from "../js/dock.js";
 
 const members = [
   { id: "cy", displayName: "Cy" },
@@ -78,4 +78,10 @@ test("everyone's tackle boxes: yours first, then the fullest, then A to Z; retir
   ]);
   assert.deepEqual(tackleBoxes({ members, items, me: "bo" }).map(b => [b.member.id, b.items]), [["bo", 0], ["cy", 2], ["amy", 1]]);
   assert.deepEqual(tackleBoxes({ members, items, me: "amy" }).map(b => b.member.id), ["amy", "cy", "bo"]);
+});
+
+test("rod holders: yours first, then most rods; only gear in use is counted", () => {
+  const gear = new Map([["r1", { uid: "cy", kind: "rod" }], ["r2", { uid: "cy", kind: "rod", status: "active" }], ["r3", { uid: "amy", kind: "rod" }],
+    ["r4", { uid: "amy", kind: "rod", status: "broken" }], ["a", { uid: "amy", kind: "reel" }], ["b", { uid: "bo", kind: "reel", status: "worn" }]]);
+  assert.deepEqual(rodHolders({ members, gear, me: "bo" }).map(h => [h.member.id, h.rods, h.reels]), [["bo", 0, 0], ["cy", 2, 0], ["amy", 1, 1]]);
 });

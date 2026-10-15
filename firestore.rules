@@ -373,11 +373,16 @@ service cloud.firestore {
     match /tackle/{id} {
       allow read: if isMember() && (resource.data.shared == true || resource.data.uid == me());
       allow create, update: if isMember()
-        && request.resource.data.keys().hasOnly(["uid", "lure", "depthFt", "technique", "shared", "itemId", "at"])
+        && request.resource.data.keys().hasOnly(["uid", "lure", "depthFt", "technique", "shared", "itemId", "rodId", "reelId", "at"])
         && request.resource.data.get("at", 0) is number
         // The tackle box item it came from (the name is copied into `lure`, so the item can change or go).
         && (request.resource.data.get("itemId", null) == null
             || (request.resource.data.itemId is string && request.resource.data.itemId.size() <= 40))
+        // The rod it was caught on, and the reel on that rod then (from the rod holder).
+        && (request.resource.data.get("rodId", null) == null
+            || (request.resource.data.rodId is string && request.resource.data.rodId.size() <= 40))
+        && (request.resource.data.get("reelId", null) == null
+            || (request.resource.data.reelId is string && request.resource.data.reelId.size() <= 40))
         && request.resource.data.uid == me()
         && request.resource.data.lure is string && request.resource.data.lure.size() <= 60
         && (request.resource.data.depthFt == null
@@ -507,6 +512,52 @@ service cloud.firestore {
     match /tackleBoxPhotos/{id} {
       allow read: if isMember();
       allow create, update: if isMember() && getAfter(boxItemPath(id)).data.uid == me()
+        && request.resource.data.keys().hasOnly(["uid", "src", "bytes"]) && request.resource.data.uid == me()
+        && request.resource.data.src is string && request.resource.data.src.size() > 100 && request.resource.data.src.size() < 100000
+        && request.resource.data.bytes is int;
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+    }
+
+    // The rod holder: each angler's rods and reels. Everyone in the league can see them; only their angler changes them.
+    // A rod keeps every reel it has had (reels: [{ reelId, at }], reelId null when the reel came off).
+    function gearCommon(d) {
+      return d.uid == me() && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.notes is string && d.notes.size() <= 200
+        && (d.thumb == null || (d.thumb is string && d.thumb.size() < 20000))
+        && (d.get("endedAt", null) == null || d.endedAt is number) && d.createdAt is number;
+    }
+    function validRod(d) {
+      return d.keys().hasOnly(["uid", "kind", "name", "type", "lengthIn", "power", "action", "notes", "thumb", "status", "endedAt", "reels", "createdAt"])
+        && d.kind == "rod" && gearCommon(d)
+        && d.type in ["", "spinning", "casting", "spincast", "fly", "ice", "trolling", "surf", "other"]
+        && (d.get("lengthIn", null) == null || (d.lengthIn is number && d.lengthIn >= 24 && d.lengthIn <= 240))
+        && d.power in ["", "UL", "L", "ML", "M", "MH", "H", "XH"]
+        && d.action in ["", "slow", "moderate", "modfast", "fast", "xfast"]
+        && d.status in ["active", "broken", "retired"]
+        && d.reels is list && d.reels.size() <= 100;
+    }
+    function validReel(d) {
+      return d.keys().hasOnly(["uid", "kind", "name", "type", "size", "line", "lineAt", "notes", "thumb", "status", "endedAt", "createdAt"])
+        && d.kind == "reel" && gearCommon(d)
+        && d.type in ["", "spinning", "baitcaster", "spincast", "fly", "conventional", "trolling", "ice", "other"]
+        && d.size is string && d.size.size() <= 12
+        && d.line is string && d.line.size() <= 40
+        && (d.get("lineAt", null) == null || d.lineAt is number)
+        && d.status in ["active", "worn", "retired"];
+    }
+    function validGear(d) { return validRod(d) || validReel(d); }
+    function gearPath(id) { return /databases/$(database)/documents/rodHolder/$(id); }
+    match /rodHolder/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && validGear(request.resource.data);
+      allow update: if isMember() && resource.data.uid == me() && validGear(request.resource.data)
+        && request.resource.data.kind == resource.data.kind && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isMember() && (resource.data.uid == me() || isAdmin());
+    }
+    // A rod's or reel's photo (small: about 60 KB), loaded only when it's opened.
+    match /rodHolderPhotos/{id} {
+      allow read: if isMember();
+      allow create, update: if isMember() && getAfter(gearPath(id)).data.uid == me()
         && request.resource.data.keys().hasOnly(["uid", "src", "bytes"]) && request.resource.data.uid == me()
         && request.resource.data.src is string && request.resource.data.src.size() > 100 && request.resource.data.src.size() < 100000
         && request.resource.data.bytes is int;

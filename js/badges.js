@@ -11,6 +11,7 @@ import { h2hResults, involves, otherSide } from "./h2h.js";
 import { showRecord, boatTrips } from "./noshows.js";
 import { FIRST_SEASON } from "./config.js";
 import { captainAt, captaincies } from "./fleet.js";
+import { rodFishAt, reelRodsAt, rodsSaved, ended } from "./rodholder.js";
 
 const DAY = 24 * 3600 * 1000;
 const lb = n => n * 16;
@@ -111,6 +112,12 @@ export const BADGES = [
   { id: "littleBoat", icon: "🛶", name: "Little Boat, Big Fish", desc: "Catch a season record from a boat 14 ft or shorter", at: x => x.littleBoats[0] ?? null },
   { id: "bigIron", icon: "🐎", name: "Big Iron", desc: "Captain a boat with 200 hp or more", career: true, at: x => x.bigIronAt },
   { id: "shorePounder", icon: "🏖️", name: "Shore Pounder", desc: "25 catches logged with no boat", at: x => nth(x.mine.filter(c => !c.boatId), 25) },
+  // Rods and reels (from the rod holder and shared tackle, so every phone agrees). Gear never earns points.
+  { id: "fullRack", icon: "🎣", name: "Full Rack", desc: "5 rods in your rod holder. Worth no points", career: true, noPoints: true, at: x => x.rodsSaved[4] ?? null },
+  { id: "workhorse", icon: "🐴", name: "Workhorse", desc: "100 fish on one rod (shared tackle). Worth no points", career: true, noPoints: true, at: x => x.workhorseAt },
+  { id: "reelDeal", icon: "🔁", name: "Reel Deal", desc: "Put one reel on 3 different rods. Worth no points", career: true, noPoints: true, at: x => x.reelDealAt },
+  { id: "snapped", icon: "💔", name: "Snapped", desc: "Break a rod. It happens. Worth no points", career: true, noPoints: true, at: x => x.rodsBroken[0] ?? null },
+  { id: "groundDown", icon: "🪫", name: "Ground It Down", desc: "Fish a reel until it wears out. Worth no points", career: true, noPoints: true, at: x => x.reelsWorn[0] ?? null },
   // Career: the long haul (official seasons; the 2026 Preseason doesn't count toward these), and the founders
   { id: "bonnet", icon: "👒", name: "Bless Your Bonnet", desc: "Founding member: joined the league in the 2026 Preseason. Nobody can earn this one again", career: true,
     at: x => (x.joinedAt && yearOf(x.joinedAt) < FIRST_SEASON ? x.joinedAt : null) },
@@ -211,7 +218,7 @@ function recordPeriods(counted) {
 function leagueContext(input) {
   const { catches, derbies, entrants = new Map(), comments = new Map(), reactions = new Map(), spots = new Map(),
     trips = new Map(), rsvps = new Map(), crowns = [], challenges = new Map(), leagueStart = 0, now = Date.now(),
-    fleet = new Map(), noShows = new Map(), tripBoats = new Map() } = input;
+    fleet = new Map(), noShows = new Map(), tripBoats = new Map(), gear = new Map(), tackle = new Map() } = input;
   // `rsvps` leave out the no-shows (who was there); `allRsvps` are everyone's answers, for seats and the no-show record.
   const allRsvps = input.allRsvps || rsvps;
   const derbyMap = asMap(derbies);
@@ -243,7 +250,7 @@ function leagueContext(input) {
   const fleetMap = asMap(fleet);
   return { counted, valid, finished, reactionList, commentList, records: recordPeriods(counted), crownPeriods: crownsAll.periods, crownSteals: crownsAll.steals,
     spots, spotsList: newSpots(counted, spots), trips, rsvps, allRsvps, noShows, now, catches, h2h: h2hResults([...asMap(challenges).values()], catches, now),
-    fleet: fleetMap, ...boatCounts(counted, fleetMap), boatTrips: boatTrips({ trips, rsvps: allRsvps, tripBoats, noShows, now }),
+    fleet: fleetMap, gear: asMap(gear), tackle: asMap(tackle), ...boatCounts(counted, fleetMap), boatTrips: boatTrips({ trips, rsvps: allRsvps, tripBoats, noShows, now }),
     joins: input.joins || new Map(), seasonDocs: input.seasonDocs || new Map() };
 }
 
@@ -402,6 +409,8 @@ function anglerContext(u, L) {
     && L.fleet.get(p.boatId).lengthFt <= 14).map(p => p.from);
   const big = myFleet.filter(s => s.b.hp >= 200);
   return {
+    rodsSaved: rodsSaved(u, L.gear), workhorseAt: rodFishAt(u, 100, L.gear, L.counted, L.tackle), reelDealAt: reelRodsAt(u, 3, L.gear),
+    rodsBroken: ended(u, L.gear, "rod", "broken"), reelsWorn: ended(u, L.gear, "reel", "worn"),
     shows, noShows, myFleet, christenings, ridesGiven, fullHouses, hitchhikerAt: rodeWith[4] ?? null, luckyHullAt: hulls[0] ?? null,
     recordDecks, littleBoats, bigIronAt: big.length ? big[0].from : null,
     mine, now: L.now, wins, h2h, h2hWins, h2hShutouts, h2hHighRoll, h2hStreak3, h2hRivalAt, podiums, fished, skunks, luckyNets, captainWins, organised, moneyAt, pbBeats,
@@ -429,7 +438,7 @@ export function badgeTimeline(input) {
   const people = new Set([...L.counted.map(c => c.uid), ...L.finished.flatMap(f => [...f.ent.keys(), f.d.organiserUid]),
     ...L.commentList.map(c => c.uid), ...L.reactionList.map(r => r.uid), ...[...L.trips.values()].map(t => t.uid),
     ...[...L.allRsvps.values()].flatMap(m => [...m.keys()]), ...[...L.fleet.values()].flatMap(b => (b.captains || [b]).map(c => c.uid)), ...L.crownPeriods.map(p => p.uid), ...L.crownSteals.map(s => s.uid), ...L.h2h.flatMap(r => [r.ch.from, r.ch.to]),
-    ...L.joins.keys(), ...[...L.seasonDocs.values()].map(d => d.champion)]);
+    ...L.joins.keys(), ...[...L.seasonDocs.values()].map(d => d.champion), ...[...L.gear.values()].map(g => g.uid)]);
   for (const bad of [undefined, null, ""]) people.delete(bad);
   const out = [];
   for (const u of people) {

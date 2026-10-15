@@ -73,6 +73,18 @@ export function rosterPlaces(sorted, sort = "fish") {
   });
 }
 
+/* Everyone's rod holder: yours first, then the most rods, then A to Z. Rods and reels in use are counted. */
+export function rodHolders({ members, gear = new Map(), me }) {
+  const rods = new Map(), reels = new Map();
+  for (const g of gear.values()) {
+    if ((g.status || "active") !== "active") continue;
+    const m = g.kind === "rod" ? rods : reels;
+    m.set(g.uid, (m.get(g.uid) || 0) + 1);
+  }
+  return members.filter(m => !m.suspended).map(m => ({ member: m, rods: rods.get(m.id) || 0, reels: reels.get(m.id) || 0 }))
+    .sort((a, b) => (b.member.id === me) - (a.member.id === me) || b.rods - a.rods || b.reels - a.reels || byName(a.member, b.member));
+}
+
 /* Everyone's tackle box: yours first, then the fullest boxes, then A to Z. Retired tackle isn't counted. */
 export function tackleBoxes({ members, items = new Map(), me }) {
   const count = new Map();

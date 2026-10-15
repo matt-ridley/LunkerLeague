@@ -3,6 +3,8 @@ import { el, field, avatar, fmtDay, openSheet, closeSheet, toast, icon, fill } f
 import { store, uid, isAdmin, updateMe, signOut, syncStatus, saveCover, removeCover, loadCover, cachedCover } from "./cloud.js";
 import { squareAvatar, pickImage, coverPhoto } from "./photos.js";
 import { luckyLure } from "./tacklebox.js";
+import { luckyCombo } from "./rodholder.js";
+import { gearThumb, comboName } from "./rodholderpage.js";
 import { goalsSection } from "./goalspage.js";
 import { itemThumb } from "./tackleboxpage.js";
 import { SPECIES, normalizeSpecies } from "./species.js";
@@ -62,10 +64,13 @@ export function renderProfile(main, id) {
     if (!cachedCover(m.id)) loadCover(m.id).then(show).catch(() => {});
   }
   const lucky = luckyLure(m.id, m.luckyLure, store.box, store.catches, store.tackle);
-  const flair = m.favSpecies || lucky ? el("div", { class: "flair-row" },
+  const combo = luckyCombo(m.id, store.gear, store.catches, store.tackle);
+  const flair = m.favSpecies || lucky || combo ? el("div", { class: "flair-row" },
     m.favSpecies ? el("span", { class: "chip" }, `⭐ Favourite: ${m.favSpecies}`) : null,
     lucky ? el("a", { class: "chip lucky", href: `#/ti/${lucky.item.id}` }, "🍀 Lucky lure: ", itemThumb(lucky.item, "box-thumb tiny"),
-      lucky.item.name, lucky.fish ? ` (${lucky.fish} fish)` : "") : null) : null;
+      lucky.item.name, lucky.fish ? ` (${lucky.fish} fish)` : "") : null,
+    combo ? el("a", { class: "chip lucky", href: `#/rod/${combo.rod.id}` }, "🎣 Lucky combo: ", gearThumb(combo.rod, "box-thumb tiny"),
+      comboName(combo.rod, combo.reel), ` (${combo.fish} fish)`) : null) : null;
   const head = el("section", { class: "profile-head" },
     avatar(m, "xl"),
     el("div", {},

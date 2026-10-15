@@ -27,6 +27,7 @@ export function renderBox(main, id = uid()) {
   const linkN = fill_.add.reduce((n, a) => n + a.catchIds.length, 0) + fill_.link.reduce((n, l) => n + l.catchIds.length, 0);
   fill(main,
     el("h2", { class: "page-title", text: mine ? "🧰 Your tackle box" : `🧰 ${m.displayName}'s tackle box` }),
+    el("a", { class: "small", href: `#/rods/${id}`, text: mine ? "🎣 Your rod holder →" : `🎣 ${m.displayName}'s rod holder →` }),
     mine ? el("div", { class: "row" },
       el("button", { class: "btn primary", type: "button", text: "+ Add tackle", onclick: () => itemSheet() })) : null,
     mine && linkN ? el("section", { class: "card stack" },

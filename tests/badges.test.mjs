@@ -15,9 +15,9 @@ const ids = (uid, input) => badgesFor(uid, { derbies: [], entrants: new Map(), n
 const has = (uid, input, id) => ids(uid, input).includes(id);
 const whenEarned = (uid, input, id) => (badgeTimeline({ derbies: [], entrants: new Map(), now: NOW, ...input }).find(b => b.uid === uid && b.badge.id === id) || {}).at;
 
-test("86 badges with unique ids, the six originals kept", () => {
-  assert.equal(BADGES.length, 86);
-  assert.equal(new Set(BADGES.map(b => b.id)).size, 86);
+test("91 badges with unique ids, the six originals kept", () => {
+  assert.equal(BADGES.length, 91);
+  assert.equal(new Set(BADGES.map(b => b.id)).size, 91);
   for (const id of ["first", "ten", "champ", "release", "owl", "net"]) assert.ok(BADGES.some(b => b.id === id));
 });
 
@@ -254,7 +254,7 @@ test("Bless Your Bonnet: everyone who joined in the 2026 Preseason, fish or not;
   assert.deepEqual(bonnet, ["amy", "bo"]);
   assert.equal(tl.find(b => b.badge.id === "bonnet" && b.uid === "amy").at, y(2026, 9, 3));
   assert.equal(tl.find(b => b.badge.id === "veteran" && b.uid === "cy").at, y(2029, 5, 1));
-  assert.ok(CAREER_BADGES.some(b => b.id === "bonnet") && CAREER_BADGES.length === 15);
+  assert.ok(CAREER_BADGES.some(b => b.id === "bonnet") && CAREER_BADGES.length === 20);
 });
 
 test("Champion, Repeat Champion and Dynasty come from locked official seasons", () => {
@@ -283,4 +283,22 @@ test("boat badges follow the captain: taking a boat over makes you a Skipper, an
   assert.equal(whenEarned("bo", input, "bigIron"), at(3, 1));
   assert.equal(whenEarned("bo", input, "luckyHull"), at(5, 1));
   assert.ok(!has("amy", input, "luckyHull"));
+});
+
+test("rod holder badges: from the rod holder and shared tackle only, and worth no points", () => {
+  const rod = (id, uid, extra = {}) => ({ id, uid, kind: "rod", name: id, status: "active", reels: [], createdAt: at(1, 1), ...extra });
+  const gear = [rod("r1", "amy", { status: "broken", endedAt: at(6, 1), reels: [{ reelId: "a", at: at(1, 1) }, { reelId: null, at: at(2, 1) }] }),
+    rod("r2", "amy", { reels: [{ reelId: "a", at: at(2, 1) }, { reelId: null, at: at(3, 1) }] }), rod("r3", "amy", { reels: [{ reelId: "a", at: at(3, 1) }] }),
+    rod("r4", "amy"), rod("r5", "amy", { createdAt: at(4, 1) }),
+    { id: "a", uid: "amy", kind: "reel", name: "a", status: "worn", endedAt: at(7, 1), createdAt: at(1, 1) }];
+  const catches = [fish("amy", "Perch", at(5, 1), { fishCount: 60 }), fish("amy", "Perch", at(5, 2), { fishCount: 40 }), fish("amy", "Perch", at(5, 3), { fishCount: 50 })];
+  const tackle = new Map([[catches[0].id, { uid: "amy", shared: true, rodId: "r3" }], [catches[1].id, { uid: "amy", shared: true, rodId: "r3" }],
+    [catches[2].id, { uid: "amy", shared: false, rodId: "r3" }]]);
+  const input = { catches, gear, tackle };
+  assert.equal(whenEarned("amy", input, "fullRack"), at(4, 1));
+  assert.equal(whenEarned("amy", input, "reelDeal"), at(3, 1));
+  assert.equal(whenEarned("amy", input, "snapped"), at(6, 1));
+  assert.equal(whenEarned("amy", input, "groundDown"), at(7, 1));
+  assert.equal(whenEarned("amy", input, "workhorse"), at(5, 2));       // the secret stringer isn't counted
+  for (const id of ["fullRack", "workhorse", "reelDeal", "snapped", "groundDown"]) assert.ok(BADGES.find(b => b.id === id).noPoints);
 });
