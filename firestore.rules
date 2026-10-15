@@ -826,6 +826,29 @@ service cloud.firestore {
       allow delete: if isOwner();
     }
 
+    // ---------- Angler of the Month ----------
+    // Each month (from November 2026) locks once it's over and the late-logging days have passed; an admin's phone then
+    // saves its winner and board for good (months/{YYYY-MM}). Anyone in the league can read them; only the league
+    // owner can save one again or remove it.
+    function monthLockTime(key) {
+      return (int(key[5:7]) == 12 ? timestamp.date(int(key[0:4]) + 1, 1, 1) : timestamp.date(int(key[0:4]), int(key[5:7]) + 1, 1))
+        + duration.value(league().get("graceDays", 7), "d");
+    }
+    function validMonth(key, d) {
+      return d.keys().hasOnly(["key", "winner", "points", "fish", "anglers", "board", "lockedAt", "lockedBy"])
+        && d.key == key && d.lockedAt is number && d.lockedBy == me()
+        && (d.winner == null || d.winner is string)
+        && d.points is number && d.fish is int && d.anglers is int
+        && d.board is list && d.board.size() <= 10;
+    }
+    match /months/{key} {
+      allow read: if isMember();
+      allow create: if isAdmin() && key.matches("^20[0-9]{2}-(0[1-9]|1[0-2])$")
+        && request.time >= monthLockTime(key) && validMonth(key, request.resource.data);
+      allow update: if isOwner() && request.time >= monthLockTime(key) && validMonth(key, request.resource.data);
+      allow delete: if isOwner();
+    }
+
     match /series/{sid} {
       allow read: if isMember();
       allow create: if isAdmin() && validSeries(request.resource.data) && request.resource.data.createdBy == me();
@@ -966,8 +989,8 @@ service cloud.firestore {
     function pts(n) { return n is number && n >= 0 && n <= 1000; }
     function validScoring(v) {
       return v.keys().hasOnly(["catchPts", "dailyCap", "limitPts", "speciesPts", "recordPts", "crownPts", "badgePts", "derbyPts", "participationPts", "beatPts", "titles",
-                              "h2hPts", "h2hWinPts", "h2hMaxStake", "noShowPts"])
-        && (!("noShowPts" in v) || pts(v.noShowPts))
+                              "h2hPts", "h2hWinPts", "h2hMaxStake", "noShowPts", "monthPts"])
+        && (!("noShowPts" in v) || pts(v.noShowPts)) && (!("monthPts" in v) || pts(v.monthPts))
         && (!("h2hPts" in v) || pts(v.h2hPts)) && (!("h2hWinPts" in v) || pts(v.h2hWinPts)) && (!("h2hMaxStake" in v) || pts(v.h2hMaxStake))
         && (!("limitPts" in v) || pts(v.limitPts)) && (!("crownPts" in v) || pts(v.crownPts)) && (!("badgePts" in v) || pts(v.badgePts))
         && pts(v.catchPts) && pts(v.dailyCap) && pts(v.speciesPts) && pts(v.participationPts) && pts(v.beatPts)

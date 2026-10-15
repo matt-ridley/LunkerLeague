@@ -1060,3 +1060,7 @@ body.phone-host { min-height: 100dvh; display: grid; justify-items: center; alig
 .phone-frame { box-sizing: content-box; max-height: calc(100dvh - 116px); border: 10px solid #111; border-radius: 36px; background: var(--bg); box-shadow: var(--shadow); }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* Angler of the Month */
+.month-card { color: inherit; text-decoration: none; }
+.month-winner { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; }

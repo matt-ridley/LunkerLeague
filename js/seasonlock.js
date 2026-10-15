@@ -1,15 +1,25 @@
 /* The final whistle: when a season locks (it's over and the late-logging days have passed), the first admin's phone
    to open the app with fresh data saves it for good (seasons/{year}). Nobody has to remember to do it. */
-import { store, cloud, isAdmin, uid, freshData, lockSeason, archiveInfo, archiveLate, saveArchive } from "./cloud.js";
+import { store, cloud, isAdmin, uid, freshData, lockSeason, lockMonth, archiveInfo, archiveLate, saveArchive } from "./cloud.js";
 import { archiveYear } from "./archive.js";
 import { rankInput } from "./leaders.js";
 import { seasonYears, seasonState } from "./season.js";
 import { seasonSnapshot } from "./awards.js";
+import { monthsToLock } from "./months.js";
+import { monthSnapshot } from "./monthrace.js";
 
 const tried = new Set();
 export function checkSeasonLocks(now = Date.now()) {
   if (!store.catchesLoaded || !isAdmin() || !navigator.onLine || !freshData()) return;
   const grace = (store.league && store.league.graceDays) ?? 7;
+  // Months first (Angler of the Month): a season's saved points include its months' bonuses, so when a month is saved
+  // here, the season waits for the next check, once the saved month has come back.
+  const months = monthsToLock(store.months, now, grace).filter(k => !tried.has(k));
+  if (months.length) {
+    const input = rankInput();
+    for (const k of months) { tried.add(k); lockMonth(k, monthSnapshot(input, k, { now, by: uid() })); }
+    return;
+  }
   for (const year of seasonYears([...store.catches.values()], now)) {
     if (store.seasons.has(year) || tried.has(year) || seasonState(year, now, grace) !== "locked") continue;
     tried.add(year);

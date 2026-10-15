@@ -15,9 +15,9 @@ const ids = (uid, input) => badgesFor(uid, { derbies: [], entrants: new Map(), n
 const has = (uid, input, id) => ids(uid, input).includes(id);
 const whenEarned = (uid, input, id) => (badgeTimeline({ derbies: [], entrants: new Map(), now: NOW, ...input }).find(b => b.uid === uid && b.badge.id === id) || {}).at;
 
-test("91 badges with unique ids, the six originals kept", () => {
-  assert.equal(BADGES.length, 91);
-  assert.equal(new Set(BADGES.map(b => b.id)).size, 91);
+test("92 badges with unique ids, the six originals kept", () => {
+  assert.equal(BADGES.length, 92);
+  assert.equal(new Set(BADGES.map(b => b.id)).size, 92);
   for (const id of ["first", "ten", "champ", "release", "owl", "net"]) assert.ok(BADGES.some(b => b.id === id));
 });
 

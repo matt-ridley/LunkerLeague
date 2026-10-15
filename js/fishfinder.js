@@ -10,6 +10,8 @@ import { thisSeason, isPreseason, seasonOf } from "./season.js";
 import { BADGES } from "./badges.js";
 import { fmtWeight, fmtLength } from "./ui.js";
 import { goalWatch as goalNear, goalTitle, periodText } from "./goals.js";
+import { monthKey, monthShort, daysLeft, MIN_ANGLERS, FIRST_MONTH } from "./months.js";
+import { monthBoard } from "./monthrace.js";
 
 const MIN = 60 * 1000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 /* 1 -> "1st", 2 -> "2nd", 11 -> "11th", 23 -> "23rd" */
@@ -72,6 +74,19 @@ function standing(x) {
   const k = steps.findIndex(s => s > r.points);
   if (k > 0 && k < TITLES.length) parts.push(`${Math.ceil(steps[k] - r.points)} pts to ${TITLES[k]}.`);
   return { title: `#${i + 1} of ${rows.length} ${when} · ${plural(r.points, "pt", "pts")}`, detail: parts.join(" "), href: "#/leaders" };
+}
+
+/* ---------- Month race: your place in this month's Angler of the Month race ---------- */
+function monthRace(x) {
+  const { me, input, name, now } = x, key = monthKey(now);
+  if (key < FIRST_MONTH) return null;
+  const b = monthBoard(input, key), i = b.rows.findIndex(r => r.uid === me), d = daysLeft(key, now);
+  const left = `${d} day${d === 1 ? "" : "s"} left.`;
+  const quiet = b.anglers < MIN_ANGLERS ? ` It needs ${MIN_ANGLERS} anglers fishing to have a winner (${b.anglers} so far).` : "";
+  if (i < 0) return { title: `${monthShort(key)}: not on the board yet`, detail: `Log a catch to get in the Angler of the Month race. ${left}${quiet}`, href: "#/months" };
+  const r = b.rows[i];
+  const gap = i > 0 ? `${pts(b.rows[i - 1].points - r.points)} pts behind ${name(b.rows[i - 1].uid)}.` : b.rows[1] ? `${pts(r.points - b.rows[1].points)} pts ahead of ${name(b.rows[1].uid)}.` : "Nobody else on the board yet.";
+  return { title: `#${i + 1} of ${b.rows.length} in the ${monthShort(key)} race · ${plural(r.points, "pt", "pts")}`, detail: `${gap} ${left}${quiet}`, href: "#/months" };
 }
 
 /* ---------- Within reach: the season record you're closest to ---------- */
@@ -198,6 +213,7 @@ export function fishFinderCards(input, me, { now = Date.now() } = {}) {
     card("now", "Happening now", happening(x)),
     out.overdue ? card("out", "Get out there", out) : null,
     card("standing", "Your standing", standing(x)),
+    card("month", "Month race", monthRace(x)),
     card("reach", "Within reach", withinReach(x)),
     card("crowns", "Crown watch", crownWatch(x)),
     card("goal", "Goal watch", goalWatch(x)),

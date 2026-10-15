@@ -17,6 +17,7 @@ import { fmtMoney } from "./payout.js";
 import { goalsReached, goalTitle, periodText } from "./goals.js";
 import { captainsOf } from "./fleet.js";
 import { brokenRods } from "./rodholder.js";
+import { monthName, FIRST_MONTH, MIN_ANGLERS } from "./months.js";
 import { challengeStatus, challengeBoard, closesAt as h2hClosesAt, termsShort, scoreText as h2hScore, otherSide } from "./h2h.js";
 
 const PLACES = ["1st", "2nd", "3rd"];
@@ -130,6 +131,15 @@ export function leagueEvents(data) {
     out.push({ id: `goal:${r.g.id}`, at: posted.at(r.at, [r.g.uid]), icon: "🎯", href: `#/u/${r.g.uid}`, uids: [r.g.uid],
       cid: r.catchId || undefined, short: r.catchId ? `Reached a goal: ${goalTitle(r.g)} ${periodText(r.g)}` : undefined,
       text: `${name(r.g.uid)} reached a goal: ${goalTitle(r.g)} ${periodText(r.g)}` });
+  }
+  // Angler of the Month: each saved month, when it was decided.
+  for (const d of asMap(data.monthDocs || new Map()).values()) {
+    if (!d.key || d.key < FIRST_MONTH) continue;
+    out.push(d.winner
+      ? { id: `month:${d.key}`, at: d.lockedAt || 0, icon: "🗓️", href: "#/months", uids: [d.winner],
+          text: `${name(d.winner)} is the Angler of the Month for ${monthName(d.key)} with ${d.points} pts${d.fish ? ` and ${d.fish} fish` : ""}!` }
+      : { id: `month:${d.key}`, at: d.lockedAt || 0, icon: "🗓️", href: "#/months", uids: [],
+          text: `${monthName(d.key)} was too quiet for an Angler of the Month (it needs ${MIN_ANGLERS} anglers fishing)` });
   }
   // A rod that broke: a little memorial.
   for (const b of brokenRods(asMap(data.gear || new Map()), catches, asMap(data.tackle || new Map()))) {
