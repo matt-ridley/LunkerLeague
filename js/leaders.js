@@ -11,6 +11,7 @@ import { closesAt as derbyClosesAt } from "./derby.js";
 import { closesAt as h2hClosesAt } from "./h2h.js";
 import { focusStyle } from "./thumbfocus.js";
 import { thumbImg } from "./thumbs.js";
+import { monthRaceCard } from "./monthspage.js";
 
 const who = id => store.members.get(id) || { id, displayName: memberName(id) };
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -29,6 +30,7 @@ export function rankInput() {
     goals: [...store.goals.values()], skunks: [...store.skunks.values()],
     joins: new Map([...store.members.values()].map(m => [m.id, m.joinedAt || 0])), // for Bless Your Bonnet
     seasonDocs: store.seasons, // locked seasons, saved for good
+    monthDocs: store.months,   // locked months (Angler of the Month), saved for good
   };
   input.crowns = crownsNow(input);
   input.crownHistory = allSeasonCrowns(crownSeasonsNow(input));
@@ -49,7 +51,7 @@ function finishedSoFar(now = Date.now()) {
 let badgeCache = { key: null, value: null };
 function badgesNow(input) {
   const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps, store.challenges, leagueStartOf(store.league), finishedSoFar(),
-    store.noShows, store.boats, store.fleet, store.gear, store.tackle, store.members, store.seasons, seasonOf(Date.now())];
+    store.noShows, store.boats, store.fleet, store.gear, store.tackle, store.members, store.seasons, store.months, seasonOf(Date.now())];
   if (!badgeCache.key || key.some((k, i) => k !== badgeCache.key[i])) badgeCache = { key, value: badgeTimeline(input) };
   return badgeCache.value;
 }
@@ -59,7 +61,7 @@ function badgesNow(input) {
 let crownCache = { key: null, value: null };
 export function crownSeasonsNow(input) {
   const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.challenges, leagueStartOf(store.league), finishedSoFar(),
-    seasonOf(Date.now())];
+    store.months, seasonOf(Date.now())];
   if (!crownCache.key || key.some((k, i) => k !== crownCache.key[i])) {
     if (!input) { rankInput(); return crownCache.value; } // builds the input, which works the crowns out and caches them
     crownCache = { key, value: crownSeasons(input) };
@@ -157,6 +159,7 @@ function rankView(main) {
     seasonPicker(main, pick, "Career"),
     el("p", { class: "muted small", text: note }),
     el("a", { class: "btn block", href: career ? "#/awards" : `#/awards/${pick}`, text: `🏆 ${career ? "Season" : seasonName(pick)} awards` }),
+    pick === thisYear && store.catchesLoaded ? monthRaceCard(now) : null,
     !store.catchesLoaded ? el("p", { class: "loading", text: "Loading…" }) : el("ol", { class: "board" }, ...rows.map((r, i) => {
       const m = who(r.uid), b = best && best.get(r.uid);
       const sub = career ? (b ? `Best: ${b.name} (${b.year})` : "") : r.title;
@@ -172,7 +175,7 @@ function rankView(main) {
       isAdmin() ? el("a", { class: "btn", href: "#/scoring", text: "Change points" }) : null));
 }
 
-const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "🐟 Records held", crown: "👑 Crowns held", badge: "🏅 Badges", derby: "🏁 Derbies", h2h: "⚔️ Head-to-head", noshow: "🫥 No-shows" };
+const KIND = { catch: "🎣 Catches", limit: "🪝 Limits", species: "🌈 New species", record: "🐟 Records held", crown: "👑 Crowns held", badge: "🏅 Badges", derby: "🏁 Derbies", h2h: "⚔️ Head-to-head", month: "🗓️ Angler of the Month", noshow: "🫥 No-shows" };
 function breakdownSheet(r, place, period, sub) {
   const m = who(r.uid);
   const badges = badgesFor(r.uid, rankInput());
@@ -181,7 +184,7 @@ function breakdownSheet(r, place, period, sub) {
     el("div", { class: "row" }, avatar(m, "lg"), el("div", {}, el("h2", { text: m.displayName }),
       el("div", { class: "rank-title", text: [period, sub, `#${place}`, `${r.points} pts`].filter(Boolean).join(" · ") }))),
     badges.length ? el("div", { class: "badge-row" }, ...badges.map(b => el("span", { class: "trophy", title: b.name }, el("span", { text: b.icon }), el("small", { text: b.name })))) : null,
-    el("dl", { class: "facts card" }, ...Object.entries(KIND).filter(([k]) => k !== "noshow" || r.byKind.noshow).map(([k, label]) =>
+    el("dl", { class: "facts card" }, ...Object.entries(KIND).filter(([k]) => (k !== "noshow" && k !== "month") || r.byKind[k]).map(([k, label]) =>
       el("div", { class: "fact" }, el("dt", { text: label }), el("dd", { text: `${Math.round(r.byKind[k] * 10) / 10} pts` })))),
     recent.length ? el("section", { class: "stack" }, el("h3", { text: "Latest points" }),
       el("ul", { class: "points-list" }, ...recent.map(e => el("li", {},
@@ -205,6 +208,7 @@ export function howPointsSheet() {
       el("li", { text: `🏅 ${v.badgePts} for each badge you earn: ${SEASON_BADGES.length} season badges (earned again every season, worth points each time) and ${CAREER_BADGES.length} career badges (earned once). The no-show badges are worth nothing` }),
       el("li", { text: `🏁 ${v.derbyPts.join(" / ")} for finishing 1st / 2nd / 3rd in a derby, ${v.participationPts} for fishing one${v.beatPts ? `, and ${v.beatPts} per angler you beat` : ""}` }),
       el("li", { text: `⚔️ ${v.h2hPts} for fishing a head-to-head challenge (at least one fish), ${v.h2hWinPts} more for winning it, and the winner takes the points staked (up to ${v.h2hMaxStake} each). A tie or a vetoed challenge moves nothing` }),
+      el("li", { text: `🗓️ Angler of the Month: ${v.monthPts ? `${v.monthPts} for` : "nothing extra for"} winning a month (the most points earned in it, at least 3 anglers fishing), plus its badge and a shot at the Monthly Master crown. A month is decided ${(store.league && store.league.graceDays) ?? 7} days after it ends, so late catches still count` }),
       v.noShowPts ? el("li", { text: `🫥 ${v.noShowPts} taken off each time you're marked a no-show for an outing you said you were In for` }) : null,
       el("li", { text: "Disqualified catches and test derbies don't count." }),
       el("li", { text: `📜 Past catches (caught before the league start, ${fmtDay(leagueStartOf(store.league))}, or logged more than ${(store.league && store.league.graceDays) ?? 7} days late) count for personal bests and the all-time record boards only: no points, badges or crowns. Record points go to the best league catches of the season.` })),

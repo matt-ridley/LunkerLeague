@@ -12,6 +12,7 @@ import { showRecord, boatTrips } from "./noshows.js";
 import { FIRST_SEASON } from "./config.js";
 import { captainAt, captaincies } from "./fleet.js";
 import { rodFishAt, reelRodsAt, rodsSaved, ended } from "./rodholder.js";
+import { monthWins } from "./months.js";
 
 const DAY = 24 * 3600 * 1000;
 const lb = n => n * 16;
@@ -112,6 +113,8 @@ export const BADGES = [
   { id: "littleBoat", icon: "🛶", name: "Little Boat, Big Fish", desc: "Catch a season record from a boat 14 ft or shorter", at: x => x.littleBoats[0] ?? null },
   { id: "bigIron", icon: "🐎", name: "Big Iron", desc: "Captain a boat with 200 hp or more", career: true, at: x => x.bigIronAt },
   { id: "shorePounder", icon: "🏖️", name: "Shore Pounder", desc: "25 catches logged with no boat", at: x => nth(x.mine.filter(c => !c.boatId), 25) },
+  // Angler of the Month (from the saved months: once a month is locked)
+  { id: "aotm", icon: "🗓️", name: "Angler of the Month", desc: "Win a month: the most season points in a calendar month", at: x => x.monthWins[0] ?? null },
   // Rods and reels (from the rod holder and shared tackle, so every phone agrees). Gear never earns points.
   { id: "fullRack", icon: "🎣", name: "Full Rack", desc: "5 rods in your rod holder. Worth no points", career: true, noPoints: true, at: x => x.rodsSaved[4] ?? null },
   { id: "workhorse", icon: "🐴", name: "Workhorse", desc: "100 fish on one rod (shared tackle). Worth no points", career: true, noPoints: true, at: x => x.workhorseAt },
@@ -250,7 +253,7 @@ function leagueContext(input) {
   const fleetMap = asMap(fleet);
   return { counted, valid, finished, reactionList, commentList, records: recordPeriods(counted), crownPeriods: crownsAll.periods, crownSteals: crownsAll.steals,
     spots, spotsList: newSpots(counted, spots), trips, rsvps, allRsvps, noShows, now, catches, h2h: h2hResults([...asMap(challenges).values()], catches, now),
-    fleet: fleetMap, gear: asMap(gear), tackle: asMap(tackle), ...boatCounts(counted, fleetMap), boatTrips: boatTrips({ trips, rsvps: allRsvps, tripBoats, noShows, now }),
+    monthWins: monthWins(input.monthDocs || new Map()), fleet: fleetMap, gear: asMap(gear), tackle: asMap(tackle), ...boatCounts(counted, fleetMap), boatTrips: boatTrips({ trips, rsvps: allRsvps, tripBoats, noShows, now }),
     joins: input.joins || new Map(), seasonDocs: input.seasonDocs || new Map() };
 }
 
@@ -409,6 +412,7 @@ function anglerContext(u, L) {
     && L.fleet.get(p.boatId).lengthFt <= 14).map(p => p.from);
   const big = myFleet.filter(s => s.b.hp >= 200);
   return {
+    monthWins: L.monthWins.filter(w => w.uid === u && w.at >= (L.from ?? -Infinity) && w.at <= (L.to ?? Infinity)).map(w => w.at),
     rodsSaved: rodsSaved(u, L.gear), workhorseAt: rodFishAt(u, 100, L.gear, L.counted, L.tackle), reelDealAt: reelRodsAt(u, 3, L.gear),
     rodsBroken: ended(u, L.gear, "rod", "broken"), reelsWorn: ended(u, L.gear, "reel", "worn"),
     shows, noShows, myFleet, christenings, ridesGiven, fullHouses, hitchhikerAt: rodeWith[4] ?? null, luckyHullAt: hulls[0] ?? null,
@@ -438,7 +442,7 @@ export function badgeTimeline(input) {
   const people = new Set([...L.counted.map(c => c.uid), ...L.finished.flatMap(f => [...f.ent.keys(), f.d.organiserUid]),
     ...L.commentList.map(c => c.uid), ...L.reactionList.map(r => r.uid), ...[...L.trips.values()].map(t => t.uid),
     ...[...L.allRsvps.values()].flatMap(m => [...m.keys()]), ...[...L.fleet.values()].flatMap(b => (b.captains || [b]).map(c => c.uid)), ...L.crownPeriods.map(p => p.uid), ...L.crownSteals.map(s => s.uid), ...L.h2h.flatMap(r => [r.ch.from, r.ch.to]),
-    ...L.joins.keys(), ...[...L.seasonDocs.values()].map(d => d.champion), ...[...L.gear.values()].map(g => g.uid)]);
+    ...L.joins.keys(), ...[...L.seasonDocs.values()].map(d => d.champion), ...[...L.gear.values()].map(g => g.uid), ...L.monthWins.map(w => w.uid)]);
   for (const bad of [undefined, null, ""]) people.delete(bad);
   const out = [];
   for (const u of people) {

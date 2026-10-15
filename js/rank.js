@@ -7,6 +7,7 @@ import { derbyStatus, standings, closesAt } from "./derby.js";
 import { crownStandings } from "./crowns.js";
 import { badgeTimeline } from "./badges.js";
 import { h2hPointEvents } from "./h2h.js";
+import { monthWins, monthName } from "./months.js";
 
 export const DEFAULT_SCORING = {
   catchPts: 1,          // per catch logged…
@@ -23,6 +24,7 @@ export const DEFAULT_SCORING = {
   h2hWinPts: 3,         // bonus for winning one
   h2hMaxStake: 10,      // most points an angler can stake on one challenge
   noShowPts: 1,         // points lost for each outing an angler said "In" to and didn't show up for
+  monthPts: 5,          // bonus for winning Angler of the Month (once the month is locked and saved)
   titles: [0, 10, 25, 50, 100, 175, 275],
 };
 export const TITLES = ["Bait Bucket", "Minnow Wrangler", "Dock Dangler", "Weekend Warrior", "Lunker Hunter", "Hawg Boss", "Legend of the Lake"];
@@ -113,7 +115,13 @@ export function rankEvents(input) {
   // Badges: each one counts from when it was earned, with the values in effect then.
   for (const b of input.badges || badgeTimeline({ ...input, derbies: derbyMap })) {
     const v = scoringAt(line, b.at);
-    if (v.badgePts && !b.badge.noPoints) events.push({ uid: b.uid, at: b.at, pts: v.badgePts, kind: "badge", label: `${b.badge.icon} ${b.badge.name} badge` });
+    if (v.badgePts && !b.badge.noPoints) events.push({ uid: b.uid, at: b.at, pts: v.badgePts, kind: "badge", label: `${b.badge.icon} ${b.badge.name} badge`, badge: b.badge.id });
+  }
+
+  // Angler of the Month: a bonus for each saved win, dated the month's last moment (so December counts in its season).
+  for (const w of monthWins(input.monthDocs || new Map())) {
+    const v = scoringAt(line, w.at);
+    if (v.monthPts) events.push({ uid: w.uid, at: w.at, pts: v.monthPts, kind: "month", label: `🗓️ Angler of the Month: ${monthName(w.key)}` });
   }
 
   // No-shows: points lost for each outing an angler said "In" to and didn't turn up for (from when it was marked).
@@ -156,7 +164,7 @@ export function rankings(input, { since = -Infinity } = {}) {
 export function rankTable(events, input) {
   const cur = currentScoring(scoringTimeline(input.versions));
   const by = new Map();
-  const blank = u => ({ uid: u, points: 0, byKind: { catch: 0, limit: 0, species: 0, record: 0, crown: 0, badge: 0, derby: 0, h2h: 0, noshow: 0 }, events: [] });
+  const blank = u => ({ uid: u, points: 0, byKind: { catch: 0, limit: 0, species: 0, record: 0, crown: 0, badge: 0, derby: 0, h2h: 0, noshow: 0, month: 0 }, events: [] });
   for (const u of input.members || []) by.set(u, blank(u));
   for (const e of events) {
     if (!by.has(e.uid)) by.set(e.uid, blank(e.uid));

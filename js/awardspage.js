@@ -6,12 +6,23 @@ import { rankInput, finishedNote } from "./leaders.js";
 import { seasonYears, seasonAwards, seasonSnapshot } from "./awards.js";
 import { crownById } from "./crowns.js";
 import { seasonName } from "./season.js";
+import { yearOfMonth, monthShort } from "./months.js";
 import { isStringer } from "./stats.js";
 
 const who = u => store.members.get(u) || { id: u, displayName: memberName(u) };
 const sizeOf = c => (isStringer(c) ? `stringer of ${c.fishCount}` : [fmtWeight(c.weightOz), fmtLength(c.lengthIn)].filter(Boolean).join(" · "));
 const MEDALS = ["🥇", "🥈", "🥉"];
 const awardText = a => (a.c ? `${a.c.species}, ${sizeOf(a.c)}` : a.text);
+
+/* The season's Angler of the Month winners, month by month (saved months only). */
+function monthRow(year) {
+  const docs = [...store.months.values()].filter(d => d.key && yearOfMonth(d.key) === year).sort((a, b) => (a.key < b.key ? -1 : 1));
+  if (!docs.length) return null;
+  return el("section", { class: "card stack" },
+    el("div", { class: "row spread" }, el("h3", { text: "🗓️ Angler of the Month" }), el("a", { class: "small", href: "#/months", text: "All months" })),
+    el("ul", { class: "hof-reigns" }, ...docs.map(d => el("li", {}, el("b", { text: monthShort(d.key) }), " · ",
+      d.winner ? el("a", { href: `#/u/${d.winner}`, text: who(d.winner).displayName }) : "too quiet", d.winner ? ` (${d.points} pts)` : ""))));
+}
 
 export function renderAwards(main, yearArg) {
   const now = Date.now();
@@ -39,6 +50,7 @@ export function renderAwards(main, yearArg) {
       el("span", { class: "award-icon", text: a.icon }), el("span", { class: "eyebrow", text: a.title }),
       a.uid && !a.boatId ? el("b", { text: who(a.uid).displayName }) : null,
       el("span", { class: a.uid && !a.boatId ? "muted small" : "", text: awardText(a) })))) : null,
+    monthRow(year),
     s.records.length ? el("section", { class: "card stack" },
       el("div", { class: "row spread" }, el("h3", { text: `👑 ${s.records.length} record${s.records.length === 1 ? "" : "s"} set` }), el("a", { class: "small", href: "#/hof", text: "Hall of Fame" })),
       el("ul", { class: "hof-reigns" }, ...[...s.records].reverse().slice(0, 10).map(r => el("li", {},

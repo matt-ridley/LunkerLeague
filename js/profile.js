@@ -4,6 +4,7 @@ import { store, uid, isAdmin, updateMe, signOut, syncStatus, saveCover, removeCo
 import { squareAvatar, pickImage, coverPhoto } from "./photos.js";
 import { luckyLure } from "./tacklebox.js";
 import { luckyCombo } from "./rodholder.js";
+import { monthWins, monthName } from "./months.js";
 import { gearThumb, comboName } from "./rodholderpage.js";
 import { goalsSection } from "./goalspage.js";
 import { itemThumb } from "./tackleboxpage.js";
@@ -65,7 +66,9 @@ export function renderProfile(main, id) {
   }
   const lucky = luckyLure(m.id, m.luckyLure, store.box, store.catches, store.tackle);
   const combo = luckyCombo(m.id, store.gear, store.catches, store.tackle);
-  const flair = m.favSpecies || lucky || combo ? el("div", { class: "flair-row" },
+  const aotm = monthWins(store.months).filter(w => w.uid === m.id).length;
+  const flair = m.favSpecies || lucky || combo || aotm ? el("div", { class: "flair-row" },
+    aotm ? el("a", { class: "chip", href: "#/months" }, `🗓️ Angler of the Month${aotm > 1 ? ` ×${aotm}` : ""}`) : null,
     m.favSpecies ? el("span", { class: "chip" }, `⭐ Favourite: ${m.favSpecies}`) : null,
     lucky ? el("a", { class: "chip lucky", href: `#/ti/${lucky.item.id}` }, "🍀 Lucky lure: ", itemThumb(lucky.item, "box-thumb tiny"),
       lucky.item.name, lucky.fish ? ` (${lucky.fish} fish)` : "") : null,
@@ -108,9 +111,11 @@ export function renderProfile(main, id) {
   const challenge = !mine && !m.suspended ? el("a", { class: "btn block", href: `#/hnew/${m.id}`, text: `⚔️ Challenge ${m.displayName}` }) : null;
   const statsLink = el("a", { class: "btn block", href: `#/stats/${m.id}`, text: mine ? "📊 Your stats and what's working" : `📊 ${m.displayName}'s stats` });
   // Trophies from locked seasons: podium finishes, crowns held at the end, season awards. Theirs for good.
-  const trophies = trophiesFor(m.id, store.seasons, id => (crownById(id) || { name: id }).name);
+  const trophies = [...monthWins(store.months).filter(w => w.uid === m.id).reverse()
+      .map(w => ({ year: new Date(w.at).getFullYear(), icon: "🗓️", text: `Angler of the Month · ${monthName(w.key)}`, href: "#/months" })),
+    ...trophiesFor(m.id, store.seasons, id => (crownById(id) || { name: id }).name)];
   const shelf = trophies.length ? el("section", { class: "stack-tight" }, el("span", { class: "eyebrow", text: `🏆 Trophy shelf · ${trophies.length}` }),
-    el("div", { class: "flair-row" }, ...trophies.map(t => el("a", { class: "chip", href: `#/awards/${t.year}` }, `${t.icon} ${t.text}`)))) : null;
+    el("div", { class: "flair-row" }, ...trophies.map(t => el("a", { class: "chip", href: t.href || `#/awards/${t.year}` }, `${t.icon} ${t.text}`)))) : null;
   const parts = [cover, head, flair, challenge, rankCard, shelf, goalsSection(m.id, mine), profileRecord(m.id), outingRecord(m.id), crownRow, badgeRow, ...pbWall(m.id), statsLink,
     el("a", { class: "btn block", href: `#/box/${m.id}`, text: mine ? "🧰 Your tackle box" : `🧰 ${m.displayName}'s tackle box` }),
     // Opens the map on your own spots (private ones too); the Dock's map tile opens the league's.

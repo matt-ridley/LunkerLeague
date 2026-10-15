@@ -9,6 +9,7 @@ import { renderStats } from "./statspage.js";
 import { renderMap } from "./mappage.js";
 import { renderBox, renderItem } from "./tackleboxpage.js";
 import { renderRods, renderRod, renderReel, renderRodHolders } from "./rodholderpage.js";
+import { renderMonths } from "./monthspage.js";
 import { renderHof } from "./hofpage.js";
 import { renderFleet, renderBoat } from "./fleetpage.js";
 import { renderAwards } from "./awardspage.js";
@@ -68,6 +69,7 @@ const ROUTES = {
   boats: { tab: "dock", live: true, render: main => renderFleet(main) },
   boat: { tab: "dock", live: true, render: renderBoat },
   awards: { tab: "leaders", live: true, render: renderAwards },
+  months: { tab: "leaders", live: true, render: main => renderMonths(main) },
   admin: { tab: null, live: true, render: renderAdmin },
   system: { tab: null, live: true, render: main => renderSystem(main) },
   scoring: { tab: "leaders", live: false, render: renderScoring },

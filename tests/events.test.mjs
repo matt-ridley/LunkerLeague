@@ -184,3 +184,13 @@ test("a rod that broke gets a memorial in the feed, counting shared tackle only"
   assert.match(ev[0].text, /Gone too soon/);
   assert.equal(ev[1].href, "#/rod/r1");
 });
+
+test("Angler of the Month: news when a month is decided, or was too quiet", () => {
+  const monthDocs = new Map([["2026-11", { key: "2026-11", winner: "amy", points: 31, fish: 12, lockedAt: T0 + DAY }],
+    ["2026-12", { key: "2026-12", winner: null, points: 0, fish: 0, anglers: 2, lockedAt: T0 + 2 * DAY }]]);
+  const ev = leagueEvents(base({ monthDocs, badges: [] })).filter(e => e.id.startsWith("month:"));
+  assert.deepEqual(ev.map(e => e.id), ["month:2026-12", "month:2026-11"]);
+  assert.equal(ev[1].text, "AMY is the Angler of the Month for November 2026 with 31 pts and 12 fish!");
+  assert.deepEqual(ev[1].uids, ["amy"]);
+  assert.match(ev[0].text, /December 2026 was too quiet/);
+});

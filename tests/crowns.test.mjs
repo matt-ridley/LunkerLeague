@@ -99,9 +99,9 @@ test("derby crowns: king, captain, golden net and skunk; test derbies don't coun
   assert.equal(holderOf(st, "skunkMaster"), "cy");
 });
 
-test("there are 16 crowns with unique ids", () => {
-  assert.equal(CROWNS.length, 16);
-  assert.equal(new Set(CROWNS.map(c => c.id)).size, 16);
+test("there are 17 crowns with unique ids", () => {
+  assert.equal(CROWNS.length, 17);
+  assert.equal(new Set(CROWNS.map(c => c.id)).size, 17);
 });
 
 test("crowns start again every season; last season's holder keeps it in that season's history", () => {
