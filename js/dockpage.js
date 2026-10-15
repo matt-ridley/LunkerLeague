@@ -16,6 +16,7 @@ const mapView = view => () => { try { sessionStorage.setItem("lunker-map-view", 
 export function renderDock(main) {
   const boats = [...store.fleet.values()].filter(b => !b.retired).length;
   const items = [...store.box.values()].filter(i => !i.retired).length;
+  const rods = [...store.gear.values()].filter(g => g.kind === "rod" && (g.status || "active") === "active").length;
   const catches = store.catchesLoaded ? store.catches.size : 0;
   const tile = (href, emoji, title, sub, onclick = null) => el("a", { class: "dock-tile", href, onclick },
     el("span", { class: "dock-icon", "aria-hidden": "true", text: emoji }),
@@ -26,7 +27,8 @@ export function renderDock(main) {
     el("div", { class: "dock-grid" },
       tile("#/anglers", "👥", "Anglers", plural(active().length, "angler")),
       tile("#/boats", "🚤", "Boats", boats ? plural(boats, "boat") : "Add yours"),
-      tile("#/tackle", "🧰", "Tackle boxes", items ? `${plural(items, "item")} of tackle` : "Fill yours")),
+      tile("#/tackle", "🧰", "Tackle boxes", items ? `${plural(items, "item")} of tackle` : "Fill yours"),
+      tile("#/rodholders", "🎣", "Rod holders", rods ? plural(rods, "rod") : "Add your rods and reels")),
     el("h3", { class: "dock-head", text: "On the water" }),
     el("div", { class: "dock-grid" },
       tile("#/tank", "🐠", "Fish Tank", catches ? plural(catches, "catch", "catches") : "Every catch, your way"),

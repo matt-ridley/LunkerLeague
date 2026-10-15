@@ -16,6 +16,7 @@ import { betStatus, betResult, finalAt as betFinalAt, canJoin, isSides } from ".
 import { fmtMoney } from "./payout.js";
 import { goalsReached, goalTitle, periodText } from "./goals.js";
 import { captainsOf } from "./fleet.js";
+import { brokenRods } from "./rodholder.js";
 import { challengeStatus, challengeBoard, closesAt as h2hClosesAt, termsShort, scoreText as h2hScore, otherSide } from "./h2h.js";
 
 const PLACES = ["1st", "2nd", "3rd"];
@@ -129,6 +130,11 @@ export function leagueEvents(data) {
     out.push({ id: `goal:${r.g.id}`, at: posted.at(r.at, [r.g.uid]), icon: "🎯", href: `#/u/${r.g.uid}`, uids: [r.g.uid],
       cid: r.catchId || undefined, short: r.catchId ? `Reached a goal: ${goalTitle(r.g)} ${periodText(r.g)}` : undefined,
       text: `${name(r.g.uid)} reached a goal: ${goalTitle(r.g)} ${periodText(r.g)}` });
+  }
+  // A rod that broke: a little memorial.
+  for (const b of brokenRods(asMap(data.gear || new Map()), catches, asMap(data.tackle || new Map()))) {
+    out.push({ id: `rodbroke:${b.rod.id}`, at: b.at, icon: "💔", href: `#/rod/${b.rod.id}`, uids: [b.rod.uid],
+      text: `RIP ${b.rod.name}: ${name(b.rod.uid)}'s rod broke${b.fish ? ` after ${b.fish} fish. Tight lines, old friend` : ". Gone too soon"}` });
   }
   for (const h of handOvers(data.fleet)) {
     out.push({ id: `captain:${h.b.id}:${h.at}`, at: h.at, icon: "🚤", href: `#/boat/${h.b.id}`, uids: [h.to, h.from],

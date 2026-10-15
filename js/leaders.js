@@ -24,7 +24,7 @@ export function rankInput() {
   const input = {
     catches: [...store.catches.values()], derbies: store.derbies, entrants: store.entrants, versions: store.scoring,
     members: [...store.members.values()].filter(m => !m.suspended).map(m => m.id),
-    comments: store.comments, reactions, spots, trips: store.trips, rsvps: presentRsvps(), allRsvps: store.rsvps, noShows: store.noShows, tripBoats: store.boats, fleet: store.fleet, leagueStart: leagueStartOf(store.league), series: store.series,
+    comments: store.comments, reactions, spots, trips: store.trips, rsvps: presentRsvps(), allRsvps: store.rsvps, noShows: store.noShows, tripBoats: store.boats, fleet: store.fleet, gear: store.gear, tackle: store.tackle, leagueStart: leagueStartOf(store.league), series: store.series,
     challenges: store.challenges, bets: store.bets, betPlayers: store.betPlayers, name: memberName,
     goals: [...store.goals.values()], skunks: [...store.skunks.values()],
     joins: new Map([...store.members.values()].map(m => [m.id, m.joinedAt || 0])), // for Bless Your Bonnet
@@ -49,7 +49,7 @@ function finishedSoFar(now = Date.now()) {
 let badgeCache = { key: null, value: null };
 function badgesNow(input) {
   const key = [store.catches, store.derbies, store.entrants, store.comments, store.reactions, store.spots, store.trips, store.rsvps, store.challenges, leagueStartOf(store.league), finishedSoFar(),
-    store.noShows, store.boats, store.fleet, store.members, store.seasons, seasonOf(Date.now())];
+    store.noShows, store.boats, store.fleet, store.gear, store.tackle, store.members, store.seasons, seasonOf(Date.now())];
   if (!badgeCache.key || key.some((k, i) => k !== badgeCache.key[i])) badgeCache = { key, value: badgeTimeline(input) };
   return badgeCache.value;
 }

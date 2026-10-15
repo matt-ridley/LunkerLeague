@@ -14,7 +14,7 @@ export const PART_NAMES = {
   catches: "Catches", comments: "Comments", reactions: "Reactions", weather: "Weather",
   spotsShared: "Shared spots", spotsMine: "Your private spots", tackleShared: "Shared tackle", tackleMine: "Your secret tackle",
   members: "Members", chat: "League chat (last 100)", derbies: "Derbies", entrants: "Derby entrants", trips: "Outings",
-  rsvps: "Outing answers", boats: "Outing boats", noShows: "No-shows", skunks: "Skunks", tackleBox: "Tackle boxes",
+  rsvps: "Outing answers", boats: "Outing boats", noShows: "No-shows", skunks: "Skunks", tackleBox: "Tackle boxes", rodHolder: "Rod holders",
   fleet: "Boats", goals: "Goals", challenges: "Head-to-heads", bets: "Bets", betPlayers: "Bet players",
   series: "Derby series", seasons: "Saved seasons", scoring: "Scoring settings", league: "League settings", me: "Your profile",
   invite: "Invite code", archive: "Archive (older catches)", catchesEdited: "Older catches changed since the archive",

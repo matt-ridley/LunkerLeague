@@ -171,3 +171,16 @@ test("boats changing hands: an offer in the new captain's bell, news for everyon
   assert.ok(alertsFor("amy", base({ fleet: moved })).some(a => a.id.startsWith("captain:") && /took over Lund/.test(a.text)));
   assert.ok(!alertsFor("bo", base({ fleet: moved })).some(a => a.id.startsWith("captain:")));
 });
+
+test("a rod that broke gets a memorial in the feed, counting shared tackle only", () => {
+  const gear = new Map([["r1", { id: "r1", uid: "amy", kind: "rod", name: "Ugly Stik", status: "broken", endedAt: T0 + 3 * DAY, reels: [], createdAt: T0 }],
+    ["r2", { id: "r2", uid: "amy", kind: "rod", name: "Okuma", status: "broken", endedAt: T0 + 4 * DAY, reels: [], createdAt: T0 }],
+    ["r3", { id: "r3", uid: "amy", kind: "rod", name: "Fine", status: "active", reels: [], createdAt: T0 }]]);
+  const catches = [{ id: "c1", uid: "amy", species: "Perch", caughtAt: T0 + DAY, fishCount: 12 }, { id: "c2", uid: "amy", species: "Perch", caughtAt: T0 + DAY }];
+  const tackle = new Map([["c1", { uid: "amy", shared: true, rodId: "r1" }], ["c2", { uid: "amy", shared: false, rodId: "r1" }]]);
+  const ev = leagueEvents(base({ catches, gear, tackle, badges: [] })).filter(e => e.id.startsWith("rodbroke:"));
+  assert.deepEqual(ev.map(e => e.id), ["rodbroke:r2", "rodbroke:r1"]);
+  assert.match(ev[1].text, /RIP Ugly Stik: .*'s rod broke after 12 fish/);
+  assert.match(ev[0].text, /Gone too soon/);
+  assert.equal(ev[1].href, "#/rod/r1");
+});

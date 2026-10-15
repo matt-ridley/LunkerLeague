@@ -1,6 +1,6 @@
 /* Catches: logging and editing, the feed, a catch's own page, and the personal-best wall. */
 import { el, field, avatar, fmtDate, fmtDay, fmtAgo, fmtWeight, fmtLength, toast, confirmButton, icon, openSheet, closeSheet, sheetOpen, fill } from "./ui.js";
-import { store, uid, memberName, isAdmin, clearWeather, toggleReaction, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, setCatchFocus, loadPhoto, cachedPhoto, thumbSrc, loadThumb, retryRejected, discardRejected } from "./cloud.js";
+import { store, subscribe, uid, memberName, isAdmin, clearWeather, toggleReaction, setDisqualified, setApproved, newCatchId, saveCatch, deleteCatch, setCatchFocus, loadPhoto, cachedPhoto, thumbSrc, loadThumb, retryRejected, discardRejected } from "./cloud.js";
 import { pickImage, catchPhoto } from "./photos.js";
 import { photoTakenAt } from "./exif.js";
 import { pickOnMap } from "./mappick.js";
@@ -19,6 +19,8 @@ import { weatherText, moonText } from "./weather.js";
 import { pickerItems, lastTackle } from "./tacklebox.js";
 import { myBoats, defaultBoat } from "./fleet.js";
 import { itemSheet, itemThumb } from "./tackleboxpage.js";
+import { pickerCombos, startRod, reelAt, isRod } from "./rodholder.js";
+import { gearSheet, gearThumb, gearView } from "./rodholderpage.js";
 import { focusStyle } from "./thumbfocus.js";
 import { thumbImg } from "./thumbs.js";
 import { seasonName } from "./season.js";
@@ -529,7 +531,9 @@ function tackleView(c, mine) {
   const t = store.tackle.get(c.id);
   if (!t) return "🔒 Secret tackle";
   const item = t.itemId && store.box.get(t.itemId);
-  const text = item ? el("a", { href: `#/ti/${item.id}`, class: "tackle-link" }, itemThumb(item, "box-thumb tiny"), tackleText(t)) : tackleText(t);
+  const lure = !tackleText(t) ? null : item ? el("a", { href: `#/ti/${item.id}`, class: "tackle-link" }, itemThumb(item, "box-thumb tiny"), tackleText(t)) : tackleText(t);
+  const gear = gearView(t);
+  const text = lure && gear ? el("span", { class: "stack-tight" }, lure, gear) : lure || gear || "";
   return t.shared ? text : el("span", {}, "🔒 ", text, " (secret: only you can see it)");
 }
 
@@ -786,6 +790,36 @@ export function renderLog(main, editId, derbyArg) {
     if (item && cleanLure(lure.value) !== item.name) { st.itemId = null; drawBox(); }
   });
   drawBox();
+  // The rod (and the reel on it): your own rods in use; a new catch starts with the rod from your last catch.
+  st.rodId = editing ? (oldTackle && oldTackle.rodId) || null : startRod(uid(), store.gear, store.catches, store.tackle);
+  const rodPick = el("div", { class: "box-pick" });
+  const addedGear = new Map(); // rods added from this form, until they arrive from the server
+  const gearOf = id => store.gear.get(id) || addedGear.get(id);
+  const drawRods = () => {
+    const combos = pickerCombos(new Map([...store.gear, ...addedGear]), uid(), store.catches, store.tackle);
+    // An edited catch's rod stays offered even if it has broken since.
+    const old = st.rodId && !combos.some(x => x.rod.id === st.rodId) && gearOf(st.rodId);
+    if (old && isRod(old)) combos.unshift({ rod: old, reel: null });
+    fill(rodPick,
+      ...combos.map(({ rod, reel }) => el("button", { type: "button", class: "box-chip", "aria-pressed": String(st.rodId === rod.id),
+        title: reel ? `${rod.name} + ${reel.name}` : rod.name, onclick: () => { st.rodTouched = true; st.rodId = st.rodId === rod.id ? null : rod.id; drawRods(); } },
+        gearThumb(rod, "box-thumb small"), el("span", { text: rod.name }), el("span", { class: "muted", text: reel ? reel.name : "no reel" }))),
+      el("button", { type: "button", class: "box-chip add", onclick: async () => {
+        const rod = await gearSheet("rod");
+        if (rod) { addedGear.set(rod.id, rod); st.rodTouched = true; st.rodId = rod.id; drawRods(); }
+      } }, el("span", { class: "box-thumb small empty", text: "+" }), el("span", { text: "New rod" })));
+  };
+  drawRods();
+  // The form isn't redrawn when data arrives (so typing isn't lost), but the rods may load after it opens: redraw the
+  // picker when they change, and pick the starting rod again until the angler picks one themselves.
+  let seenGear = store.gear;
+  const stopRods = subscribe(() => {
+    if (!rodPick.isConnected) return stopRods(); // the form has gone
+    if (store.gear === seenGear) return;
+    seenGear = store.gear;
+    if (!editing && !st.rodTouched) st.rodId = startRod(uid(), store.gear, store.catches, store.tackle);
+    drawRods();
+  });
   // A new catch: offer the last catch's tackle (lure only, or the depth and technique too).
   const last = !editing && lastTackle(uid(), store.catches, store.tackle);
   const sameBox = el("div", { class: "same-tackle" });
@@ -806,6 +840,7 @@ export function renderLog(main, editId, derbyArg) {
   const tackleSection = el("section", { class: "card stack" },
     el("div", { class: "row spread" }, el("h3", { text: "🎣 Tackle (optional)" }), el("a", { class: "small", href: `#/box/${uid()}`, text: "🧰 Tackle box" })),
     sameBox.childNodes.length ? sameBox : null,
+    el("div", { class: "field" }, el("span", { class: "field-label" }, "Rod and reel ", el("a", { class: "small", href: `#/rods/${uid()}`, text: "🎣 Rod holder" })), rodPick),
     boxPick,
     field("Bait or lure", lure), lureList,
     el("div", { class: "field" }, el("span", { class: "field-label", text: "Depth" }),
@@ -984,6 +1019,14 @@ export function renderLog(main, editId, derbyArg) {
     data.boatId = boatSel.value || null;
     const t = { lure: cleanLure(lure.value), depthFt, technique: technique.value };
     if (st.itemId && boxItem(st.itemId) && t.lure) t.itemId = st.itemId;
+    // The rod, and the reel that was on it when the fish was caught (kept as it was when the rod didn't change).
+    // Only your own rods: a catch entered for someone else keeps whatever it had.
+    const forMe = (!anglerField.hidden && anglerSel.value ? anglerSel.value : (editing ? editing.uid : uid())) === uid();
+    const rod = forMe && st.rodId && gearOf(st.rodId);
+    if (rod) {
+      t.rodId = rod.id;
+      t.reelId = oldTackle && oldTackle.rodId === rod.id ? oldTackle.reelId || null : reelAt(rod, caughtAt);
+    } else if (!forMe && oldTackle && oldTackle.rodId) Object.assign(t, { rodId: oldTackle.rodId, reelId: oldTackle.reelId || null });
     if (!tackleHidden) Object.assign(data, { hasTackle: hasTackle(t), tackleShared: hasTackle(t) && !tackleSecret.checked });
     if (stringer) Object.assign(data, { fishCount: count, limit: st.limit });
     if (savePast()) data.past = true;

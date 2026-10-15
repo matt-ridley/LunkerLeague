@@ -36,6 +36,7 @@ export const store = {
   fleet: new Map(),       // saved boat id -> { uid (owner), name, crew, notes, thumb, retired, createdAt }
   goals: new Map(),       // goal id -> { uid, kind, target, species, field, value, from, to, createdAt }
   box: new Map(),         // tackle box item id -> { uid, name, type, technique, depthFt, notes, thumb, retired, createdAt }
+  gear: new Map(),        // rod holder id -> a rod or a reel (rodholder.js)
   weather: new Map(),     // catch id -> { tempC, windKph, windDir, gustKph, pressureHpa, cloud, code, forAt, src }
   rejected: [],           // outbox entries the server refused
   comments: new Map(),    // catch id -> [comment], oldest first
@@ -289,6 +290,11 @@ function refreshMemberListeners() {
     store.box = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
     emit();
   }, syncError));
+  cloud.memberUnsubs.push(onSnapshot(collection(cloud.db, "rodHolder"), OPTS, snap => {
+    seen("rodHolder", snap);
+    store.gear = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    emit();
+  }, syncError));
   const weatherListener = (key, q) => onSnapshot(q, OPTS, snap => {
     seen(key, snap);
     L.weatherSets[key] = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
@@ -489,7 +495,7 @@ function resetSocial() {
   pendingOf = { comments: new Set(), chat: new Set() };
   store.comments = new Map(); store.reactions = new Map(); store.reactionTimes = new Map(); store.chat = []; store.chatLoaded = false; store.pendingIds = new Set();
   store.derbies = new Map(); store.derbiesFromServer = false; store.entrants = new Map(); store.derbyChat = new Map(); store.settlements = new Map(); store.mystery = new Map(); store.scoring = [];
-  store.skunks = new Map(); store.weather = new Map(); store.box = new Map(); store.goals = new Map(); store.fleet = new Map();
+  store.skunks = new Map(); store.weather = new Map(); store.box = new Map(); store.gear = new Map(); store.goals = new Map(); store.fleet = new Map();
   store.trips = new Map(); store.rsvps = new Map(); store.boats = new Map(); store.noShows = new Map(); store.series = new Map(); store.seasons = new Map(); store.challenges = new Map(); store.bets = new Map(); store.betPlayers = new Map(); store.proofs = new Map();
 }
 
@@ -804,6 +810,49 @@ export async function fillBox({ add, link }) {
   }
 }
 
+/* ---------- Rod holder ---------- */
+export const newGearId = () => cloud.api.doc(cloud.api.collection(cloud.db, "rodHolder")).id;
+/* Saves a rod or reel. photo: { full, thumb } for a new photo, null to remove it, undefined to leave it alone.
+   rods: Map(rod id -> new reels list) of rods whose reels change at the same time (rodholder.js mountChanges). */
+export function saveGear(id, data, photo, rods = new Map()) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db), me = uid();
+  const old = store.gear.get(id);
+  b.set(doc(cloud.db, "rodHolder", id), { ...data, uid: me, createdAt: old ? old.createdAt : Date.now(),
+    thumb: photo ? photo.thumb : photo === null ? null : old ? old.thumb ?? null : null });
+  for (const [rid, reels] of rods) if (rid !== id) b.update(doc(cloud.db, "rodHolder", rid), { reels });
+  if (photo) { b.set(doc(cloud.db, "rodHolderPhotos", id), { uid: me, src: photo.full, bytes: photo.full.length }); gearPhotos.set(id, photo.full); }
+  else if (photo === null && old && old.thumb) { b.delete(doc(cloud.db, "rodHolderPhotos", id)); gearPhotos.delete(id); }
+  b.commit().catch(syncError);
+}
+/* Changes rods' reels (and maybe other fields of one of them) in one go: Map(id -> fields). */
+export function updateGear(changes) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db);
+  for (const [id, fields] of changes) b.update(doc(cloud.db, "rodHolder", id), fields);
+  b.commit().catch(syncError);
+}
+/* Deletes a rod or reel (catches keep pointing at it, and just stop showing its name). A reel comes off its rod
+   first (rods: as for saveGear). */
+export function deleteGear(g, rods = new Map()) {
+  const { writeBatch, doc } = cloud.api;
+  const b = writeBatch(cloud.db);
+  for (const [rid, reels] of rods) if (rid !== g.id) b.update(doc(cloud.db, "rodHolder", rid), { reels });
+  b.delete(doc(cloud.db, "rodHolder", g.id));
+  if (g.thumb) b.delete(doc(cloud.db, "rodHolderPhotos", g.id));
+  gearPhotos.delete(g.id);
+  b.commit().catch(syncError);
+}
+const gearPhotos = new Map();
+export const cachedGearPhoto = id => gearPhotos.get(id) || "";
+export async function loadGearPhoto(id) {
+  if (gearPhotos.has(id)) return gearPhotos.get(id);
+  const snap = await cloud.api.getDoc(cloud.api.doc(cloud.db, "rodHolderPhotos", id));
+  const src = snap.exists() ? String(snap.data().src || "") : "";
+  if (src) gearPhotos.set(id, src);
+  return src;
+}
+
 /* Full-size photos load only when a catch is opened. Ones opened before are kept for offline use. */
 const photoCache = new Map();
 export const cachedPhoto = id => photoCache.get(id) || "";
@@ -970,14 +1019,15 @@ export async function photoStorage() {
     getAggregateFromServer(query(photos, where("bytes", ">", 0)), { n: count(), bytes: sum("bytes") }),
   ]);
   // Tackle box photos (each saves its size too) are counted on top.
-  const [box, covers, boats, thumbs] = await Promise.all([
+  const [box, covers, boats, thumbs, rods] = await Promise.all([
     getAggregateFromServer(collection(cloud.db, "tackleBoxPhotos"), { n: count(), bytes: sum("bytes") }),
     getAggregateFromServer(collection(cloud.db, "covers"), { n: count(), bytes: sum("bytes") }),
     getAggregateFromServer(collection(cloud.db, "fleetPhotos"), { n: count(), bytes: sum("bytes") }),
     getAggregateFromServer(collection(cloud.db, "thumbs"), { n: count(), bytes: sum("bytes") }),
+    getAggregateFromServer(collection(cloud.db, "rodHolderPhotos"), { n: count(), bytes: sum("bytes") }),
   ]);
   return { total: all.data().n, sized: sized.data().n, sizedBytes: sized.data().bytes || 0,
-    tackleN: box.data().n, tackleBytes: (box.data().bytes || 0) + (boats.data().bytes || 0), coverN: covers.data().n, coverBytes: covers.data().bytes || 0,
+    tackleN: box.data().n, tackleBytes: (box.data().bytes || 0) + (boats.data().bytes || 0) + (rods.data().bytes || 0), coverN: covers.data().n, coverBytes: covers.data().bytes || 0,
     thumbN: thumbs.data().n, thumbBytes: thumbs.data().bytes || 0 };
 }
 

@@ -31,7 +31,7 @@ export function parseDepth(s) {
   return isFinite(n) && n > 0 && n <= MAX_DEPTH_FT ? Math.round(n * 10) / 10 : NaN;
 }
 
-export const hasTackle = t => !!t && !!(t.lure || t.depthFt || t.technique);
+export const hasTackle = t => !!t && !!(t.lure || t.depthFt || t.technique || t.rodId);
 
 /* "Chartreuse jig · 12 ft · Jigging" */
 export const tackleText = t => !t ? "" : [t.lure, t.depthFt ? `${t.depthFt} ft` : "", techniqueName(t.technique)].filter(Boolean).join(" · ");

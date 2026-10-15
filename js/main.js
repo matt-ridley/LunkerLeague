@@ -8,6 +8,7 @@ import { renderProfile } from "./profile.js";
 import { renderStats } from "./statspage.js";
 import { renderMap } from "./mappage.js";
 import { renderBox, renderItem } from "./tackleboxpage.js";
+import { renderRods, renderRod, renderReel, renderRodHolders } from "./rodholderpage.js";
 import { renderHof } from "./hofpage.js";
 import { renderFleet, renderBoat } from "./fleetpage.js";
 import { renderAwards } from "./awardspage.js";
@@ -59,6 +60,10 @@ const ROUTES = {
   league: { tab: "dock", live: true, render: main => renderLeagueStats(main) },
   box: { tab: null, live: true, render: (main, id) => renderBox(main, id) },
   ti: { tab: null, live: true, render: renderItem },
+  rodholders: { tab: "dock", live: true, render: main => renderRodHolders(main) },
+  rods: { tab: null, live: true, render: (main, id) => renderRods(main, id) },
+  rod: { tab: null, live: true, render: renderRod },
+  reel: { tab: null, live: true, render: renderReel },
   hof: { tab: "leaders", live: true, render: main => renderHof(main) },
   boats: { tab: "dock", live: true, render: main => renderFleet(main) },
   boat: { tab: "dock", live: true, render: renderBoat },
