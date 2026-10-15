@@ -4,6 +4,7 @@
    queued writes are sent when the phone is back online. Times are stored as epoch milliseconds from the phone clock. */
 import { FIREBASE_CONFIG, FIREBASE_SDK } from "./config.js";
 import { outboxPut, outboxRemove, outboxAll } from "./outbox.js";
+import { timeBoxAccountCheck } from "./deadzone.js";
 import { leagueStartOf } from "./stats.js";
 import { attended } from "./noshows.js";
 import { acceptedCaptains } from "./fleet.js";
@@ -509,6 +510,7 @@ function syncError(e) {
 }
 
 /* ---------- Start up ---------- */
+let authKnown = () => {};
 export async function initCloud() {
   if (!cloud.on) return emit();
   try {
@@ -517,6 +519,8 @@ export async function initCloud() {
     // ?emulator uses the "demo-lunker" project; ?emulator=name uses "demo-name", so two test setups can share one emulator.
     const emuProject = "demo-" + (new URLSearchParams(location.search).get("emulator") || "lunker").replace(/[^a-z0-9-]/gi, "").slice(0, 20);
     const fbApp = app.initializeApp(USE_EMULATOR ? { ...FIREBASE_CONFIG, projectId: emuProject } : FIREBASE_CONFIG);
+    // In a dead zone the start-up account check would hang for 30 seconds: give it a few (see deadzone.js).
+    timeBoxAccountCheck(new Promise(resolve => { authKnown = resolve; }));
     cloud.auth = auth.getAuth(fbApp);
     if (USE_EMULATOR) {
       // Local testing only: pretend accounts and data in the Firebase emulator, never the real league.
@@ -534,7 +538,7 @@ export async function initCloud() {
     return emit();
   }
   cloud.api.onAuthStateChanged(cloud.auth, user => {
-    cloud.user = user; cloud.authKnown = true;
+    cloud.user = user; cloud.authKnown = true; authKnown();
     if (user) startListeners(); else stopListeners();
     emit();
   });
